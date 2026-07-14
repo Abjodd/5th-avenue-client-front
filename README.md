@@ -29,5 +29,4 @@ src/
 └── pages/            # Overview, Campaigns, RegionalMap
 ```
 
-See [CLAUDE.md](CLAUDE.md) for architecture details and conventions.
 # 5th-avenue-client-front
