@@ -44,10 +44,16 @@ function isOutlier(value, avg, stdDev) {
 
 function KPICard({ label, value, sublabel, color }) {
   return (
-    <div className="rounded-[11px] border border-line bg-surface px-4 py-3.5">
-      <div className="microlabel mb-1.5">{label}</div>
-      <div className="text-[26px] font-bold leading-none" style={{ color }}>{value}</div>
-      {sublabel && <div className="mt-1.5 text-[11px] text-mute">{sublabel}</div>}
+    <div className="group relative overflow-hidden rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-5 py-[18px] shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
+      <div
+        className="pointer-events-none absolute inset-0 rounded-[20px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ boxShadow: `inset 0 0 0 1px ${color}30` }}
+      />
+      <div className="microlabel mb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-mute">{label}</div>
+      <div className="text-[30px] font-bold leading-none tracking-tight transition-transform duration-300 group-hover:scale-[1.02]" style={{ color }}>
+        {value}
+      </div>
+      {sublabel && <div className="mt-2 text-[11.5px] text-mute">{sublabel}</div>}
     </div>
   );
 }
@@ -60,25 +66,25 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P 
   const badge = erOutlier === "high" ? { c:P.green, label:"HIGH OUTLIER", sym:"▲" }
     : erOutlier === "low" ? { c:P.red, label:"LOW OUTLIER", sym:"▼" } : null;
   return (
-    <div className="rounded-[9px] border bg-page px-3.5 py-3"
-      style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : P.border }}>
+    <div className="rounded-[16px] border bg-white/60 px-4 py-3.5 shadow-[0_1px_10px_rgba(15,23,42,0.03)] backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_10px_26px_rgba(15,23,42,0.07)]"
+      style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : "rgba(15,23,42,0.07)" }}>
       <div className="mb-[3px] flex items-start justify-between">
         <div>
           <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{group}</div>
-          <div className="mt-[3px] text-[18px] font-bold text-ink">
+          <div className="mt-[3px] text-[19px] font-bold text-ink">
             {grp.count} <span className="text-[11px] font-medium text-mute">· {countPct}%</span>
           </div>
         </div>
         {badge && (
-          <span className="rounded-[3px] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]"
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] shadow-sm"
             style={{ color:badge.c, background:`${badge.c}12` }}>
             {badge.sym} {badge.label}
           </span>
         )}
       </div>
-      <div className="mt-2.5 flex flex-col gap-1.5">
+      <div className="mt-3 flex flex-col gap-2">
         <div>
-          <div className="mb-0.5 flex justify-between">
+          <div className="mb-1 flex justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-mute">Avg ER</span>
             <div className="flex items-center gap-[5px]">
               <span className="text-[12px] font-bold text-pink">{grp.er.toFixed(1)}%</span>
@@ -89,21 +95,21 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P 
               )}
             </div>
           </div>
-          <div className="relative h-1 rounded-sm bg-well">
-            <div className="h-full rounded-sm bg-pink" style={{ width:`${Math.min((grp.er/10)*100, 100)}%` }}/>
-            {erAvg > 0 && <div className="absolute -inset-y-0.5 w-px bg-ink opacity-40" style={{ left:`${Math.min((erAvg/10)*100, 100)}%` }}/>}
+          <div className="relative h-[5px] rounded-full bg-well">
+            <div className="h-full rounded-full bg-pink transition-[width] duration-700 ease-out" style={{ width:`${Math.min((grp.er/10)*100, 100)}%` }}/>
+            {erAvg > 0 && <div className="absolute -inset-y-1 w-px bg-ink opacity-40" style={{ left:`${Math.min((erAvg/10)*100, 100)}%` }}/>}
           </div>
         </div>
         <div>
-          <div className="mb-0.5 flex justify-between">
+          <div className="mb-1 flex justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-mute">Followers</span>
             <div className="flex items-center gap-[5px]">
               <span className="text-[12px] font-bold text-accent">{fmtNum(grp.followers)}</span>
               <span className="text-[10px] text-sub">{folPct}%</span>
             </div>
           </div>
-          <div className="h-1 rounded-sm bg-well">
-            <div className="h-full rounded-sm bg-accent" style={{ width:`${folPct}%` }}/>
+          <div className="h-[5px] rounded-full bg-well">
+            <div className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out" style={{ width:`${folPct}%` }}/>
           </div>
         </div>
       </div>
@@ -208,165 +214,176 @@ export default function OverviewDashboard() {
   if (!campaigns) return <PageSkeleton/>;
 
   return (
-    <div className="mx-auto w-full max-w-[1360px] px-4 pb-10 sm:px-7">
-      {/* Header */}
-      <header className="flex flex-wrap items-end justify-between gap-2.5 pb-3.5 pt-6">
-        <div>
-          <h1 className="font-serif text-[22px] italic font-semibold tracking-[-0.02em] text-ink">Overview</h1>
-          <div className="mt-[3px] text-[12px] text-sub">{clientName} · {kpis.total} campaign{kpis.total === 1 ? "" : "s"}</div>
-        </div>
-        {/* Service tabs */}
-        <div className="flex gap-1 rounded-[9px] border border-line bg-surface p-1">
-          {SERVICES.map(s => (
-            <button key={s.id} onClick={() => setService(s.id)}
-              className={`flex items-center gap-1.5 rounded-md px-3.5 py-[7px] text-[12px] font-semibold ${
-                service === s.id ? "bg-accent/[0.07] text-accent" : "text-sub"
-              }`}>
-              <span>{s.icon}</span>{s.label}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {/* Action needed — creators waiting on client review, across campaigns */}
-      {actionItems.length > 0 && (
-        <div className="au mb-3.5 flex flex-wrap items-center gap-2 rounded-[11px] border border-amber/25 bg-amber/5 px-4 py-3">
-          <span className="text-[12px] font-semibold text-amber">
-            ⚠ {actionItems.reduce((s, x) => s + x.n, 0)} creator{actionItems.reduce((s, x) => s + x.n, 0) === 1 ? "" : "s"} waiting on your review
-          </span>
-          {actionItems.map(x => (
-            <button key={x.id} onClick={() => setPage("campaigns", { campaignId: x.id })}
-              className="rounded-full border border-amber/25 bg-surface px-3 py-1 text-[11px] font-medium text-ink hover:border-amber/50">
-              {x.name} · <b className="text-amber">{x.n}</b>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* KPI row */}
-      <div className="au mb-3.5 grid gap-2.5" style={{ gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))" }}>
-        <KPICard label="Active Campaigns" value={kpis.active} sublabel={`of ${kpis.total} total`} color={P.accent}/>
-        <KPICard label="Creators" value={kpis.creators} sublabel={`${kpis.liveCreators} live`} color={P.green}/>
-        <KPICard label="Combined Followers" value={fmtNum(kpis.followers)} sublabel="across creators" color={P.pink}/>
-        <KPICard label="Avg Engagement" value={`${kpis.avgER.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber}/>
-        <KPICard label="Campaign Budget" value={fmtINR(kpis.budget)} sublabel="committed" color={P.purple}/>
+    <div className="relative">
+      {/* Ambient background — soft radial gradients, barely-there mesh */}
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-40 -top-40 size-[520px] rounded-full opacity-[0.10] blur-[110px]" style={{ background: "radial-gradient(circle, #2563EB, transparent 70%)" }}/>
+        <div className="absolute -right-32 top-40 size-[460px] rounded-full opacity-[0.08] blur-[120px]" style={{ background: "radial-gradient(circle, #7860D6, transparent 70%)" }}/>
+        <div className="absolute bottom-0 left-1/3 size-[400px] rounded-full opacity-[0.07] blur-[100px]" style={{ background: "radial-gradient(circle, #1E9E5A, transparent 70%)" }}/>
       </div>
 
-      {/* Creator filters */}
-      <div className="au card mb-3.5 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">Creator Filters</span>
-          {FILTER_GROUPS.map(g => (
-            <button key={g.id} onClick={() => setOpenFilter(openFilter === g.id ? null : g.id)}
-              className={`rounded-md border px-[11px] py-[5px] text-[11px] font-semibold ${
-                filters[g.id].length
-                  ? "border-accent/20 bg-accent/[0.07] text-accent"
-                  : "border-line bg-well text-sub"
-              }`}>
-              {g.label}{filters[g.id].length ? ` · ${filters[g.id].length}` : ""} {openFilter === g.id ? "▴" : "▾"}
-            </button>
-          ))}
-          {activeFilterCount > 0 && (
-            <button onClick={clearFilters} className="px-[11px] py-[5px] text-[11px] font-semibold text-red">
-              Clear all
-            </button>
-          )}
-          <span className="ml-auto text-[11px] text-sub">{creators.length} of {allCreators.length} creators</span>
-        </div>
-        {openFilter && (
-          <div className="fi mt-2.5 flex flex-wrap gap-1.5 border-t border-line pt-2.5">
-            {(filterOptions[openFilter] || []).map(opt => {
-              const on = filters[openFilter].includes(opt);
-              return (
-                <button key={opt} onClick={() => toggleFilter(openFilter, opt)}
-                  className={`rounded-xl border px-2.5 py-1 text-[11px] ${
-                    on ? "border-accent/25 bg-accent/[0.09] font-semibold text-accent" : "border-line bg-well text-sub"
-                  }`}>{opt}</button>
-              );
-            })}
-            {!(filterOptions[openFilter] || []).length && <span className="text-[11px] text-mute">No data for this filter yet</span>}
+      <div className="mx-auto w-full max-w-[1600px] px-5 pb-14 sm:px-9">
+        {/* Header */}
+        <header className="flex flex-wrap items-end justify-between gap-3 pb-6 pt-9">
+          <div>
+            <h1 className="font-serif text-[42px] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Overview</h1>
+            <div className="mt-1.5 text-[14px] text-sub">{clientName} <span className="mx-1.5 text-mute">·</span> {kpis.total} campaign{kpis.total === 1 ? "" : "s"}</div>
+          </div>
+          {/* Service tabs */}
+          <div className="flex gap-1 rounded-full border border-[rgba(15,23,42,0.07)] bg-white/70 p-1.5 shadow-[0_1px_10px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+            {SERVICES.map(s => (
+              <button key={s.id} onClick={() => setService(s.id)}
+                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-[12.5px] font-semibold transition-all duration-200 ease-out ${
+                  service === s.id ? "bg-accent text-white shadow-[0_4px_14px_rgba(37,99,235,0.35)]" : "text-sub hover:text-ink"
+                }`}>
+                <span>{s.icon}</span>{s.label}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        {/* Action needed — creators waiting on client review, across campaigns */}
+        {actionItems.length > 0 && (
+          <div className="au mb-6 flex flex-wrap items-center gap-2.5 rounded-[18px] border border-amber/20 bg-amber/[0.06] px-5 py-4 shadow-[0_2px_16px_rgba(180,120,10,0.05)] backdrop-blur-md">
+            <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-amber">
+              <span className="text-[13px]">⚠</span> {actionItems.reduce((s, x) => s + x.n, 0)} creator{actionItems.reduce((s, x) => s + x.n, 0) === 1 ? "" : "s"} waiting on your review
+            </span>
+            {actionItems.map(x => (
+              <button key={x.id} onClick={() => setPage("campaigns", { campaignId: x.id })}
+                className="rounded-full border border-amber/25 bg-white/70 px-3.5 py-1.5 text-[11.5px] font-medium text-ink shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-amber/50 hover:shadow-md">
+                {x.name} <span className="mx-0.5 text-mute">·</span> <b className="text-amber">{x.n}</b>
+              </button>
+            ))}
           </div>
         )}
-      </div>
 
-      <div className="grid grid-cols-1 items-start gap-3.5 lg:grid-cols-[1.4fr_1fr]">
-        {/* Pipeline snapshot */}
-        <div className="au card px-[18px] py-4">
-          <h3 className="mb-0.5 font-serif text-[17px] italic font-semibold text-ink">Campaign Pipeline</h3>
-          <p className="mb-3.5 text-[12px] text-sub">Where each campaign stands</p>
-          <div className="flex flex-col gap-2.5">
-            {PHASES.map(p => {
-              const n = phaseCounts[p.id];
-              const pct = kpis.total ? (n / kpis.total) * 100 : 0;
-              return (
-                <div key={p.id}>
-                  <div className="mb-[3px] flex justify-between">
-                    <span className="flex items-center gap-1.5 text-[12px] font-medium text-ink">
-                      <Dot color={phaseColors[p.id]}/> {p.short}
-                    </span>
-                    <span className="text-[13px] font-bold" style={{ color: n ? phaseColors[p.id] : P.doneTxt }}>{n}</span>
-                  </div>
-                  <div className="h-4 overflow-hidden rounded bg-well">
-                    <div className="h-full rounded transition-[width] duration-600 ease-out"
-                      style={{ width:`${pct}%`, background:phaseColors[p.id] }}/>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        {/* KPI row */}
+        <div className="au mb-6 grid gap-3.5" style={{ gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))" }}>
+          <KPICard label="Active Campaigns" value={kpis.active} sublabel={`of ${kpis.total} total`} color={P.accent}/>
+          <KPICard label="Creators" value={kpis.creators} sublabel={`${kpis.liveCreators} live`} color={P.green}/>
+          <KPICard label="Combined Followers" value={fmtNum(kpis.followers)} sublabel="across creators" color={P.pink}/>
+          <KPICard label="Avg Engagement" value={`${kpis.avgER.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber}/>
+          <KPICard label="Campaign Budget" value={fmtINR(kpis.budget)} sublabel="committed" color={P.purple}/>
         </div>
 
-        {/* Campaign list */}
-        <div className="au card px-[18px] py-4">
-          <h3 className="mb-0.5 font-serif text-[17px] italic font-semibold text-ink">Campaigns</h3>
-          <p className="mb-3 text-[12px] text-sub">Tap to open</p>
-          <div className="flex flex-col gap-[7px]">
-            {[...serviceCampaigns]
-              .sort((a,b) => (b.creators?.length || 0) - (a.creators?.length || 0))
-              .map(c => {
-                const phase = phaseOf(c.stage);
+        {/* Creator filters */}
+        <div className="au mb-6 rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-5 py-4 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">Creator Filters</span>
+            {FILTER_GROUPS.map(g => (
+              <button key={g.id} onClick={() => setOpenFilter(openFilter === g.id ? null : g.id)}
+                className={`rounded-full border px-3.5 py-[7px] text-[11.5px] font-semibold transition-all duration-200 ease-out ${
+                  filters[g.id].length
+                    ? "border-accent/20 bg-accent/[0.08] text-accent shadow-sm"
+                    : "border-[rgba(15,23,42,0.08)] bg-well/70 text-sub hover:text-ink"
+                }`}>
+                {g.label}{filters[g.id].length ? ` · ${filters[g.id].length}` : ""} {openFilter === g.id ? "▴" : "▾"}
+              </button>
+            ))}
+            {activeFilterCount > 0 && (
+              <button onClick={clearFilters} className="rounded-full px-3 py-[7px] text-[11.5px] font-semibold text-red transition-colors hover:bg-red/5">
+                Clear all
+              </button>
+            )}
+            <span className="ml-auto text-[11.5px] text-sub">{creators.length} of {allCreators.length} creators</span>
+          </div>
+          {openFilter && (
+            <div className="fi mt-3 flex flex-wrap gap-1.5 border-t border-[rgba(15,23,42,0.06)] pt-3">
+              {(filterOptions[openFilter] || []).map(opt => {
+                const on = filters[openFilter].includes(opt);
                 return (
-                  <button key={c.id} onClick={() => setPage("campaigns", { campaignId: c.id })}
-                    className="rounded-lg border border-line bg-page px-3 py-2.5 text-left">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[13px] font-semibold text-ink">{c.name}</span>
-                      <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color:phaseColors[phase] }}>
-                        <Dot color={phaseColors[phase]} sz={5}/> {PHASES.find(p => p.id === phase)?.short}
-                      </span>
-                    </div>
-                    <div className="mt-[3px] text-[11px] text-sub">
-                      {(c.creators || []).length} creator{(c.creators || []).length === 1 ? "" : "s"} · {fmtINR(Number(c.budget) || null)}
-                    </div>
-                  </button>
+                  <button key={opt} onClick={() => toggleFilter(openFilter, opt)}
+                    className={`rounded-full border px-3 py-1 text-[11.5px] transition-all duration-200 ${
+                      on ? "border-accent/25 bg-accent/[0.1] font-semibold text-accent shadow-sm" : "border-[rgba(15,23,42,0.08)] bg-well/70 text-sub hover:text-ink"
+                    }`}>{opt}</button>
                 );
               })}
-            {!serviceCampaigns.length && (
-              <EmptyState icon="▤" title="No campaigns yet"
-                hint="Start one by sending us a requirement from the Campaigns page."
-                actionLabel="Go to Campaigns" onAction={() => setPage("campaigns")}/>
-            )}
+              {!(filterOptions[openFilter] || []).length && <span className="text-[11.5px] text-mute">No data for this filter yet</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.4fr_1fr]">
+          {/* Pipeline snapshot */}
+          <div className="au rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-6 py-5 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]">
+            <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">Campaign Pipeline</h3>
+            <p className="mb-5 text-[12.5px] text-sub">Where each campaign stands</p>
+            <div className="flex flex-col gap-3.5">
+              {PHASES.map(p => {
+                const n = phaseCounts[p.id];
+                const pct = kpis.total ? (n / kpis.total) * 100 : 0;
+                return (
+                  <div key={p.id}>
+                    <div className="mb-[5px] flex justify-between">
+                      <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
+                        <Dot color={phaseColors[p.id]}/> {p.short}
+                      </span>
+                      <span className="text-[13.5px] font-bold" style={{ color: n ? phaseColors[p.id] : P.doneTxt }}>{n}</span>
+                    </div>
+                    <div className="h-[7px] overflow-hidden rounded-full bg-well">
+                      <div className="h-full rounded-full transition-[width] duration-700 ease-out"
+                        style={{ width:`${pct}%`, background:phaseColors[p.id], boxShadow: n ? `0 0 10px ${phaseColors[p.id]}55` : "none" }}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Campaign list */}
+          <div className="au rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-6 py-5 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]">
+            <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">Campaigns</h3>
+            <p className="mb-4 text-[12.5px] text-sub">Tap to open</p>
+            <div className="flex flex-col gap-2">
+              {[...serviceCampaigns]
+                .sort((a,b) => (b.creators?.length || 0) - (a.creators?.length || 0))
+                .map(c => {
+                  const phase = phaseOf(c.stage);
+                  return (
+                    <button key={c.id} onClick={() => setPage("campaigns", { campaignId: c.id })}
+                      className="group rounded-[14px] border border-[rgba(15,23,42,0.06)] bg-white/60 px-4 py-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-accent/20 hover:shadow-[0_8px_22px_rgba(15,23,42,0.07)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[13.5px] font-semibold text-ink">{c.name}</span>
+                        <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color:phaseColors[phase] }}>
+                          <Dot color={phaseColors[phase]} sz={5}/> {PHASES.find(p => p.id === phase)?.short}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[11.5px] text-sub">
+                        {(c.creators || []).length} creator{(c.creators || []).length === 1 ? "" : "s"} · {fmtINR(Number(c.budget) || null)}
+                      </div>
+                    </button>
+                  );
+                })}
+              {!serviceCampaigns.length && (
+                <EmptyState icon="▤" title="No campaigns yet"
+                  hint="Start one by sending us a requirement from the Campaigns page."
+                  actionLabel="Go to Campaigns" onAction={() => setPage("campaigns")}/>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Creator breakdowns */}
+        {[["Creator Niche Performance", byNiche], ["Creator Size Performance", bySize]].map(([title, data]) => (
+          <div className="au mt-4 rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-6 py-5 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]" key={title}>
+            <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">{title}</h3>
+            <p className="mb-4 text-[12.5px] text-sub">Avg ER vs overall · outliers beyond ±1.3σ flagged</p>
+            <div className="grid gap-3" style={{ gridTemplateColumns:"repeat(auto-fill, minmax(190px, 1fr))" }}>
+              {data.rows.map(r => (
+                <BreakdownCard key={r.group} group={r.group} grp={r} total={creators.length}
+                  totalFollowers={totalFollowers} erAvg={data.erStats.avg}
+                  erOutlier={isOutlier(r.er, data.erStats.avg, data.erStats.stdDev)} P={P}/>
+              ))}
+              {!data.rows.length && <div className="p-3 text-[12.5px] text-mute">No creators match the current filters</div>}
+            </div>
+          </div>
+        ))}
+
+        {/* Performance — dual-axis charts, funnel, spend split */}
+        <div className="mt-4">
+          <PerformanceSection clientName={clientName} />
         </div>
       </div>
-
-      {/* Creator breakdowns */}
-      {[["Creator Niche Performance", byNiche], ["Creator Size Performance", bySize]].map(([title, data]) => (
-        <div className="au card mt-3.5 px-[18px] py-4" key={title}>
-          <h3 className="mb-0.5 font-serif text-[17px] italic font-semibold text-ink">{title}</h3>
-          <p className="mb-3 text-[12px] text-sub">Avg ER vs overall · outliers beyond ±1.3σ flagged</p>
-          <div className="grid gap-2.5" style={{ gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))" }}>
-            {data.rows.map(r => (
-              <BreakdownCard key={r.group} group={r.group} grp={r} total={creators.length}
-                totalFollowers={totalFollowers} erAvg={data.erStats.avg}
-                erOutlier={isOutlier(r.er, data.erStats.avg, data.erStats.stdDev)} P={P}/>
-            ))}
-            {!data.rows.length && <div className="p-3 text-[12px] text-mute">No creators match the current filters</div>}
-          </div>
-        </div>
-      ))}
-
-      {/* Performance — dual-axis charts, funnel, spend split */}
-      <PerformanceSection clientName={clientName} />
     </div>
   );
 }
