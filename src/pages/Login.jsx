@@ -1,12 +1,20 @@
 /**
  * 5th Avenue — Client Portal Login
  * Mirrors 5th-internal-front/src/pages/Login: left brand panel, right form.
- * Credentials are issued per brand representative (see context/AuthContext);
- * the login scopes every page to that user's clientName.
+ * Credentials are issued per brand representative and live in the backend's
+ * BrandCredential collection (see context/AuthContext) — the login scopes
+ * every page to that user's clientName.
  */
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
+// Demo logins for quick access — fake data, seeded via 5th-internal-back's
+// founder-only Auth page (BrandCredential). Display only; the real
+// credential check happens against the backend, not this list.
+const DEMO_LOGINS = [
+  { clientName: "FreshBite Foods", email: "rahul@freshbitefoods.com", password: "freshbite123" },
+];
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -21,8 +29,7 @@ export default function LoginPage() {
     e.preventDefault();
     setErr("");
     setLoading(true);
-    await new Promise(r => setTimeout(r, 320)); // small delay so it doesn't feel instant-fake
-    const result = login(email, password);
+    const result = await login(email, password);
     setLoading(false);
     if (result.ok) {
       navigate(location.state?.from?.pathname || "/overview", { replace: true });
@@ -82,6 +89,25 @@ export default function LoginPage() {
           <p className="mt-5 text-center text-[11px] leading-relaxed text-mute">
             Lost your credentials? Contact your 5th Avenue account manager.
           </p>
+
+          {/* Demo credentials hint — fake data, so surface it for quick access
+              (same pattern as the internal staff app's login page). */}
+          <div className="mt-8 rounded-md border border-line bg-raised px-4 py-3.5">
+            <div className="mb-2 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">
+              Demo credentials
+            </div>
+            {DEMO_LOGINS.map((u, i) => (
+              <button key={u.email} type="button"
+                onClick={() => { setEmail(u.email); setPassword(u.password); setErr(""); }}
+                className={`flex w-full items-center justify-between py-1.5 text-left ${
+                  i !== DEMO_LOGINS.length - 1 ? "border-b border-line" : ""
+                }`}>
+                <span className="text-[10.5px] font-medium text-ink">{u.clientName}</span>
+                <span className="font-mono text-[10px] text-mute">{u.email}</span>
+              </button>
+            ))}
+            <div className="mt-1.5 text-[9px] text-mute">Click a row to auto-fill credentials.</div>
+          </div>
         </form>
       </div>
     </div>

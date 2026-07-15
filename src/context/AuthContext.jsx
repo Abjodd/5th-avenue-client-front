@@ -1,24 +1,17 @@
 /**
  * 5th Avenue — Client Portal AuthContext
- * Same structure as 5th-internal-front/src/context/AuthContext.jsx: the user
- * directory lives client-side and the password check happens here (replace
- * with a backend /api/portal/login issuing a JWT with clientName later).
- *
- * Each portal user is a brand representative and carries the clientName /
- * clientId their login is scoped to — every API call and page derives its
- * data from user.clientName, so Brand A only ever sees Brand A.
+ * Logs in against the shared 5th-internal-back backend's brand-credential
+ * system (BrandCredential model, POST /api/auth/portal-login) — the same
+ * store the founder-only Auth page in 5th-internal-front manages. There is
+ * no separate client-side user directory: the backend resolves the login's
+ * brandId to a real Client document and returns clientName, so every page
+ * here derives its data from user.clientName and a brand can only ever see
+ * its own data.
  */
 import { createContext, useContext, useState, useCallback } from "react";
 
-// ── BRAND USER DIRECTORY ─────────────────────────────────────────────────────
-// clientName must match Campaign.client in the backend; clientId matches
-// Client._id (see 5th-internal-back/seed_clients.js).
-export const PORTAL_USERS = [
-  { id:"pu1", name:"Rahul Sharma", email:"rahul@freshbitefoods.com", password:"freshbite123",  clientId:"fb", clientName:"FreshBite Foods",  avatar:"RS", title:"Owner" },
-  { id:"pu2", name:"Kavya Menon",  email:"kavya@nutriblend.in",      password:"nutriblend123", clientId:"nb", clientName:"NutriBlend India", avatar:"KM", title:"Marketing Head" },
-];
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
-// ── CONTEXT ──────────────────────────────────────────────────────────────────
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -29,15 +22,21 @@ export function AuthProvider({ children }) {
     } catch { return null; }
   });
 
-  const login = useCallback((email, password) => {
-    const found = PORTAL_USERS.find(
-      u => u.email.toLowerCase() === email.toLowerCase().trim() && u.password === password
-    );
-    if (!found) return { ok: false, error: "Invalid email or password." };
-    const { password: _, ...safe } = found;
-    setUser(safe);
-    sessionStorage.setItem("5av_portal_user", JSON.stringify(safe));
-    return { ok: true, user: safe };
+  const login = useCallback(async (email, password) => {
+    try {
+      const res = await fetch(`${BASE}/api/auth/portal-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: body.error || "Invalid email or password." };
+      setUser(body.user);
+      sessionStorage.setItem("5av_portal_user", JSON.stringify(body.user));
+      return { ok: true, user: body.user };
+    } catch {
+      return { ok: false, error: "Could not reach the server. Please try again." };
+    }
   }, []);
 
   const logout = useCallback(() => {

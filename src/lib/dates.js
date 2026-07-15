@@ -1,26 +1,16 @@
 // Date parsing + period bucketing for the analytics section.
-// The DB stores human dates without a year ("Apr 12", "Mar 1"), so parsing
-// assumes the current year and rolls back one year if that would land in the
-// future — post/tracking dates are always in the past.
-
-const MONTHS = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+// Campaign.start/end are stored as ISO ("YYYY-MM-DD"). Legacy rows that
+// predated this (month-first "Mar 1", day-first "3 Jul") were normalized to
+// ISO via a one-time backend migration.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function parsePortalDate(s) {
   if (!s) return null;
   if (s instanceof Date) return isNaN(s) ? null : s;
   const str = String(s).trim();
-  // ISO-ish first ("2025-04-12")
-  const iso = new Date(str);
-  if (/\d{4}/.test(str) && !isNaN(iso)) return iso;
-  // "Apr 12" / "Apr 12 09:14"
-  const m = str.match(/^([A-Za-z]{3,})\s+(\d{1,2})/);
-  if (!m) return null;
-  const mon = MONTHS[m[1].slice(0, 3).toLowerCase()];
-  if (mon == null) return null;
-  const now = new Date();
-  let d = new Date(now.getFullYear(), mon, parseInt(m[2], 10));
-  if (d > now) d = new Date(now.getFullYear() - 1, mon, parseInt(m[2], 10));
-  return d;
+  if (!ISO_DATE.test(str)) return null;
+  const d = new Date(`${str}T00:00:00`);
+  return isNaN(d) ? null : d;
 }
 
 // ── Range presets (screenshot spec: 30d / 3m / 6m / YTD + everything) ───────

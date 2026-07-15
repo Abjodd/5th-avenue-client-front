@@ -36,3 +36,13 @@ export const fmtINR = (n) => {
 
 export const initials = (name) =>
   (name || "?").split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+
+// Campaign start/end are stored as ISO ("YYYY-MM-DD") — pretty-print for
+// display, passing anything else (e.g. the "TBD" sentinel, or legacy
+// non-ISO strings not yet migrated) through unchanged.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export function prettyDate(s) {
+  return ISO_DATE.test(s || "")
+    ? new Date(`${s}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    : (s || "—");
+}
