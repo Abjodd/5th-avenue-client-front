@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { PortalAPI, phaseOf } from "../lib/api";
-import { parseFollowers, sizeOf, fmtNum, fmtINR, initials, prettyDate } from "../lib/format";
+import { parseFollowers, sizeOf, fmtNum, fmtINR, initials } from "../lib/format";
 import { STATES_META, stateCode } from "../lib/geo";
 import { PHASES } from "../lib/phases";
 import { Dot } from "../components/Dot";
@@ -101,8 +101,8 @@ function toViewCampaign(c) {
     impressions: "—",
     engRate: avgER,
     views: views ? fmtNum(views) : "—",
-    start: prettyDate(c.start),
-    end: prettyDate(c.end),
+    start: c.start || "—",
+    end: c.end || "—",
     budget: fmtINR(Number(c.budget) || null),
     brief: brief?.objective || "",
     lockedBrief: briefLocked ? briefView : null,

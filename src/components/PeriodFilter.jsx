@@ -16,20 +16,21 @@ export default function PeriodFilter({ preset, onPreset, gran, onGran }) {
   const current = RANGE_PRESETS.find(r => r.id === preset);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2.5">
       <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">Period</span>
 
       {/* Range preset dropdown */}
       <div ref={ref} className="relative">
         <button onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-[11px] py-[5px] text-[11.5px] font-semibold text-ink">
-          {current?.label} <span className="text-[9px] text-mute">{open ? "▴" : "▾"}</span>
+          className="flex items-center gap-1.5 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 px-3.5 py-[7px] text-[11.5px] font-semibold text-ink shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md">
+          {current?.label}
+          <span className={`text-[9px] text-mute transition-transform duration-200 ${open ? "-rotate-180" : ""}`}>▾</span>
         </button>
         {open && (
-          <div className="absolute left-0 top-[calc(100%+4px)] z-[60] min-w-[150px] rounded-[7px] border border-line bg-surface py-1 shadow-modal">
+          <div className="fi absolute left-0 top-[calc(100%+6px)] z-[60] min-w-[160px] overflow-hidden rounded-[14px] border border-[rgba(15,23,42,0.08)] bg-white/95 py-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
             {RANGE_PRESETS.map(r => (
               <button key={r.id} onClick={() => { onPreset(r.id); setOpen(false); }}
-                className={`flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[12px] hover:bg-wash ${
+                className={`flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12px] transition-colors duration-150 hover:bg-accent/[0.06] ${
                   r.id === preset ? "font-semibold text-accent" : "text-ink"
                 }`}>
                 <span className="w-3 text-[10px]">{r.id === preset ? "✓" : ""}</span>{r.label}
@@ -40,11 +41,11 @@ export default function PeriodFilter({ preset, onPreset, gran, onGran }) {
       </div>
 
       {/* Granularity tabs */}
-      <div className="flex gap-0.5 rounded-md border border-line bg-surface p-0.5">
+      <div className="flex gap-0.5 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 p-1 shadow-sm backdrop-blur-sm">
         {GRANULARITIES.map(g => (
           <button key={g.id} onClick={() => onGran(g.id)}
-            className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${
-              gran === g.id ? "bg-accent/[0.07] text-accent" : "text-sub"
+            className={`rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-all duration-200 ease-out ${
+              gran === g.id ? "bg-accent text-white shadow-[0_3px_10px_rgba(37,99,235,0.32)]" : "text-sub hover:text-ink"
             }`}>
             {g.label}
           </button>

@@ -380,7 +380,9 @@ export default function OverviewDashboard() {
         ))}
 
         {/* Performance — dual-axis charts, funnel, spend split */}
-        <PerformanceSection clientName={clientName} />
+        <div className="mt-4">
+          <PerformanceSection clientName={clientName} />
+        </div>
       </div>
     </div>
   );
