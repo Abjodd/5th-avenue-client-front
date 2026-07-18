@@ -1,9 +1,9 @@
 // Period filter row: range preset dropdown + daily/weekly/monthly segmented
 // control. Purely presentational — the page owns the state.
 import { useState, useEffect, useRef } from "react";
-import { RANGE_PRESETS, GRANULARITIES } from "../lib/dates";
+import { RANGE_PRESETS, INTERVALS } from "../lib/dates";
 
-export default function PeriodFilter({ preset, onPreset, gran, onGran }) {
+export default function PeriodFilter({ preset, onPreset, interval, onInterval }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -40,14 +40,14 @@ export default function PeriodFilter({ preset, onPreset, gran, onGran }) {
         )}
       </div>
 
-      {/* Granularity tabs */}
+      {/* Interval tabs — daily / weekly / monthly */}
       <div className="flex gap-0.5 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 p-1 shadow-sm backdrop-blur-sm">
-        {GRANULARITIES.map(g => (
-          <button key={g.id} onClick={() => onGran(g.id)}
+        {INTERVALS.map(iv => (
+          <button key={iv.id} onClick={() => onInterval(iv.id)}
             className={`rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-all duration-200 ease-out ${
-              gran === g.id ? "bg-accent text-white shadow-[0_3px_10px_rgba(37,99,235,0.32)]" : "text-sub hover:text-ink"
+              interval === iv.id ? "bg-accent text-white shadow-[0_3px_10px_rgba(37,99,235,0.32)]" : "text-sub hover:text-ink"
             }`}>
-            {g.label}
+            {iv.label}
           </button>
         ))}
       </div>

@@ -21,10 +21,12 @@ import {
 } from "recharts";
 import PeriodFilter from "./PeriodFilter";
 import { useApp } from "../context";
-import { rangeFor } from "../lib/dates";
+import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/dates";
 import { fmtNum, fmtINR } from "../lib/format";
 import { PortalAPI } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+
+const SERIES_FIELDS = ["spend", "reach", "engagements", "impressions", "clicks"];
 
 // Service→colour for the donut — reuses the app's palette (see context.js).
 function serviceColor(name, P) {
@@ -92,8 +94,10 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const { user } = useAuth();
   const clientName = clientNameProp || user?.clientName;
 
-  const [preset, setPreset]   = useState("6m");
-  const [gran,   setGran]     = useState("monthly");
+  const [preset, setPreset]     = useState("6m");
+  // Chart interval = time-axis bucket size (daily | weekly | monthly).
+  // Named chartInterval so the setter doesn't shadow window.setInterval.
+  const [chartInterval, setChartInterval] = useState("monthly");
   const [toggle, setToggle]   = useState("reach");  // "reach" | "engagement"
   const [analytics, setAnalytics] = useState(null);  // null = loading
   const [error, setError]     = useState(null);
@@ -113,13 +117,35 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
       .catch(e => setError(e.message));
   }, [clientName, range.from.toISOString(), range.to.toISOString()]);
 
-  const monthly = analytics?.monthly || [];
   const spendByService = analytics?.spendByService || {};
 
+  // Backend returns one dated event per campaign (already range-filtered);
+  // build the chart series here per the selected interval so the Daily /
+  // Weekly / Monthly toggle re-slices instantly without refetching.
+  const events = useMemo(() =>
+    (analytics?.events || [])
+      .map(ev => ({ ...ev, date: parsePortalDate(ev.date) }))
+      .filter(ev => ev.date)
+  , [analytics]);
+
+  const series = useMemo(() => {
+    if (!events.length) return [];
+    // "All time" starts the window at 2000 — clamp to the first real event
+    // so a daily view doesn't generate decades of empty chart points.
+    const from = preset === "all"
+      ? new Date(Math.min(...events.map(ev => +ev.date)))
+      : range.from;
+    return buildTimeSeries(events, { from, to: range.to }, chartInterval, SERIES_FIELDS);
+  }, [events, preset, range, chartInterval]);
+
   const totals = useMemo(() => {
-    const sum = k => monthly.reduce((s, m) => s + (m[k] || 0), 0);
+    const sum = k => events.reduce((s, ev) => s + (ev[k] || 0), 0);
     return { imp: sum("impressions"), reach: sum("reach"), eng: sum("engagements"), clicks: sum("clicks"), spend: sum("spend") };
-  }, [monthly]);
+  }, [events]);
+
+  const intervalLabel = INTERVALS.find(iv => iv.id === chartInterval)?.label.toLowerCase() || chartInterval;
+  // Dots clutter dense series (e.g. daily over 6 months) — hide them there.
+  const showDots = series.length <= 45;
 
   const donutSlices = useMemo(() =>
     Object.entries(spendByService)
@@ -154,9 +180,9 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(15,23,42,0.06)] px-6 py-5">
         <div>
           <h3 className="font-serif text-[19px] italic font-semibold text-ink">Performance</h3>
-          <p className="mt-0.5 text-[12.5px] text-sub">Dual-axis · monthly view · overall trend</p>
+          <p className="mt-0.5 text-[12.5px] text-sub">Dual-axis · {intervalLabel} view · overall trend</p>
         </div>
-        <PeriodFilter preset={preset} onPreset={setPreset} gran={gran} onGran={setGran} />
+        <PeriodFilter preset={preset} onPreset={setPreset} interval={chartInterval} onInterval={setChartInterval} />
       </div>
 
       <div className="px-6 py-5">
@@ -182,7 +208,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
               <div className="font-serif text-[15px] italic font-semibold text-ink">
                 {toggle === "reach" ? "Reach vs Spend" : "Engagement vs Spend"}
               </div>
-              <div className="mt-0.5 text-[10.5px] text-mute">Dual-axis · monthly view · overall trend</div>
+              <div className="mt-0.5 text-[10.5px] text-mute">Dual-axis · {intervalLabel} view · overall trend</div>
             </div>
             <div className="flex overflow-hidden rounded-lg border border-line">
               {[["reach", "Reach vs Spend"], ["engagement", "Engagement vs Spend"]].map(([id, label]) => (
@@ -209,11 +235,11 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
           {isLoading ? (
             <div className="flex h-[200px] items-center justify-center text-[12px] text-mute">Loading…</div>
-          ) : monthly.length === 0 ? (
+          ) : series.length === 0 ? (
             <div className="flex h-[200px] items-center justify-center text-[12px] text-mute">No data for the selected period</div>
           ) : (
             <ResponsiveContainer width="100%" height={210}>
-              <ComposedChart data={monthly} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
+              <ComposedChart data={series} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
                 <CartesianGrid stroke="rgba(28,24,16,0.06)" vertical={false} />
                 <XAxis dataKey="label" {...axisProps} minTickGap={20} interval="preserveStartEnd" />
                 <YAxis yAxisId="left"  {...axisProps} tickFormatter={v => fmtNum(v)} width={44} />
@@ -225,12 +251,14 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                   dataKey={toggle === "reach" ? "reach" : "engagements"}
                   name={toggle === "reach" ? "Reach" : "Engagements"}
                   stroke={toggle === "reach" ? P.pink : P.amber}
-                  strokeWidth={2.5} dot={{ r: 4, fill: toggle==="reach" ? P.pink : P.amber, strokeWidth: 2, stroke: "#fff" }}
+                  strokeWidth={2.5}
+                  dot={showDots ? { r: 4, fill: toggle==="reach" ? P.pink : P.amber, strokeWidth: 2, stroke: "#fff" } : false}
                   activeDot={{ r: 6, strokeWidth: 2, stroke: "#fff" }} />
                 <Line yAxisId="right" type="monotone"
                   dataKey="spend" name="Spend"
                   stroke={P.purple}
-                  strokeWidth={2.5} dot={{ r: 4, fill: P.purple, strokeWidth: 2, stroke: "#fff" }}
+                  strokeWidth={2.5}
+                  dot={showDots ? { r: 4, fill: P.purple, strokeWidth: 2, stroke: "#fff" } : false}
                   activeDot={{ r: 6, strokeWidth: 2, stroke: "#fff" }} />
               </ComposedChart>
             </ResponsiveContainer>

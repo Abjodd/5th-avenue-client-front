@@ -110,7 +110,6 @@ function toViewCampaign(c) {
     status: phase === "completed" ? "done" : "active",
     creators,
     topAssets: [],
-    chat: [],
   };
 }
 
@@ -494,10 +493,7 @@ function Card({campaign:c,onClick,delay=0}){const P=useP();const[hov,setHov]=use
 
 /* ═══ DETAIL PANEL ═══ */
 function DetailPanel({campaign:c,onClose,userRole}){const P=useP();
-  const[tab,setTab]=useState("overview");const chatEndRef=useRef(null);const[chatInput,setChatInput]=useState("");
-  const[messages,setMessages]=useState(c.chat||[]);const[creators,setCreators]=useState(c.creators||[]);
-  useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:"smooth"});},[messages,tab]);
-  const sendMsg=()=>{if(!chatInput.trim())return;setMessages(p=>[...p,{from:"You",role:"client",time:"Just now",msg:chatInput.trim()}]);setChatInput("");};
+  const[tab,setTab]=useState("overview");const[creators,setCreators]=useState(c.creators||[]);
 
   const updateApproval=(idx,role,val)=>{setCreators(prev=>prev.map((cr,i)=>{if(i!==idx)return cr;const a={...cr.approval};
     if(role.endsWith("Lock")){a[role.replace("Lock","")+"Locked"]=true;}else{a[role]=val;}
@@ -513,7 +509,7 @@ function DetailPanel({campaign:c,onClose,userRole}){const P=useP();
   const engByNiche=(()=>{const g={},c2={};creators.forEach(cr=>{if(cr.engRate!=="—"){const n=cr.niche;g[n]=(g[n]||0)+parseFloat(cr.engRate);c2[n]=(c2[n]||0)+1;}});return Object.entries(g).map(([k,v])=>({label:k,value:Math.round((v/c2[k])*10)/10}));})();
   const engBD=creators.length?{creator:engByCreator,niche:engByNiche}:null;
 
-  const tabs=[{id:"overview",label:"Overview"},{id:"brief",label:"Brief"},...(!isAEO?[{id:"creators",label:"Creators",count:numCr||null}]:[]),...(c.queries?[{id:"queries",label:"Queries"}]:[]),{id:"chat",label:"Chat",count:messages.length||null}];
+  const tabs=[{id:"overview",label:"Overview"},{id:"brief",label:"Brief"},...(!isAEO?[{id:"creators",label:"Creators",count:numCr||null}]:[]),...(c.queries?[{id:"queries",label:"Queries"}]:[])];
 
   return(<div className="fixed inset-0 z-[200] flex justify-end">
     <div onClick={onClose} className="fade-in absolute inset-0 bg-[rgba(3,6,16,0.45)] backdrop-blur-[8px]"/>
@@ -576,27 +572,7 @@ function DetailPanel({campaign:c,onClose,userRole}){const P=useP();
           <div className="flex items-center gap-1">{<Dot color={q.status==="live"?P.green:P.amber}/>}<span className="text-[11px] capitalize text-sub">{q.status}</span></div>
           <span className={`text-[11px] ${q.position!=="—"?"font-semibold text-green":"font-normal text-mute"}`}>{q.position}</span>
           <span className="text-[11px] text-mute">{q.engine}</span></div>))}
-
-        {tab==="chat"&&(<div>
-          {messages.length===0&&<div className="px-5 py-[30px] text-center text-[12px] text-mute">No messages yet.</div>}
-          {messages.map((m,i)=>{const isYou=m.from==="You";const rc=m.role==="management"?P.accent:m.role==="execution"?P.pink:P.mute;return(
-            <div key={i} className={`anim-up mb-2 flex flex-col ${isYou?"items-end":"items-start"}`} style={{animationDelay:`${i*15}ms`}}>
-              <div className="mb-1 flex items-center gap-1">
-                <span className="text-[11px] font-medium text-ink">{m.from}</span>
-                {!isYou&&m.role!=="system"&&<span className="rounded-full px-1.5 py-px text-[9px] font-semibold uppercase" style={{color:rc,background:`${rc}15`}}>{m.role}</span>}
-                <span className="text-[10px] text-mute">{m.time}</span></div>
-              <div className={`max-w-[78%] rounded-[14px] border px-3 py-2 text-[12.5px] leading-normal text-ink shadow-sm ${isYou?"border-accent/[0.1] bg-accent/[0.05]":"border-[rgba(15,23,42,0.06)] bg-white/70"}`}>{m.msg}</div>
-            </div>);})}
-          <div ref={chatEndRef}/></div>)}
       </div>
-
-      {tab==="chat"&&(<div className="shrink-0 border-t border-[rgba(15,23,42,0.06)] bg-[#F7F8FA]/80 px-6 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-1.5 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 py-1 pl-4 pr-1 shadow-sm">
-          <input value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMsg()} placeholder="Type..."
-            className="flex-1 border-none bg-transparent text-[12.5px] text-ink outline-none"/>
-          <button onClick={sendMsg} className={`rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all duration-150 ${chatInput.trim()?"bg-accent text-white shadow-sm hover:-translate-y-px":"bg-well text-mute"}`}>Send</button>
-        </div>
-      </div>)}
     </div>
   </div>);}
 
@@ -627,7 +603,7 @@ export default function CampaignsPage(){
   // New requirements are local-only until a portal submission endpoint exists
   // on the backend — they show as "Pending" but won't survive a refresh.
   const handleSubmit=(form)=>{
-    setCampaigns(p=>[{id:`req_${Date.now()}`,name:form.description?.slice(0,35)||`${form.svc} Campaign`,service:form.svc,region:"—",phase:"brief",progress:0,reach:"—",engagement:"—",impressions:"—",engRate:"—",views:"—",start:"—",end:"—",budget:`₹${form.budget}L`,brief:form.description||"",lockedBrief:null,status:"pending",creators:[],topAssets:[],chat:[],
+    setCampaigns(p=>[{id:`req_${Date.now()}`,name:form.description?.slice(0,35)||`${form.svc} Campaign`,service:form.svc,region:"—",phase:"brief",progress:0,reach:"—",engagement:"—",impressions:"—",engRate:"—",views:"—",start:"—",end:"—",budget:`₹${form.budget}L`,brief:form.description||"",lockedBrief:null,status:"pending",creators:[],topAssets:[],
       pendingBrief:{objective:form.description||"",targetAudience:"",keyMessages:"",deliverables:"",budget:`₹${form.budget}L`,timeline:"",vars:{objective:"pending",targetAudience:"waiting",keyMessages:"waiting",deliverables:"waiting",budget:"pending",timeline:"waiting"}}},...(p||[])]);
     setShowNewReq(false);setToast("Requirement submitted!");setTimeout(()=>setToast(""),3000);};
 

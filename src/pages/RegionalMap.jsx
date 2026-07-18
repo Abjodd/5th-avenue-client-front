@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { PortalAPI, phaseOf } from "../lib/api";
-import { parseFollowers, fmtNum, fmtINR } from "../lib/format";
+import { parseFollowers, fmtNum, fmtINR, initials } from "../lib/format";
 import { STATES_META, stateCode, REGION_COLORS as RC, REGION_NAMES as RN } from "../lib/geo";
 import { PATHS } from "../lib/indiaPaths";
 import { PHASE_LABELS as PL, phaseColors } from "../lib/phases";
@@ -23,7 +23,7 @@ function aggregate(campaigns) {
   const campMeta = campaigns.map(c => ({
     id: c.id, n: c.name, s: c.service || "—", p: phaseOf(c.stage),
     pr: Number(c.progress) || 0, b: fmtINR(Number(c.budget) || null),
-    states: new Set(), regions: new Set(),
+    states: new Set(), regions: new Set(), crs: [],
   }));
 
   campaigns.forEach((c, i) => {
@@ -36,6 +36,12 @@ function aggregate(campaigns) {
       states[code].followers += parseFollowers(cr.followers);
       campMeta[i].states.add(code);
       campMeta[i].regions.add(STATES_META[code].region);
+      // Keep the located creators on the campaign so the drill panel can list
+      // exactly who this campaign has in the selected state/region.
+      campMeta[i].crs.push({
+        name: cr.name || "—", niche: cr.niche || "—",
+        followers: parseFollowers(cr.followers), er: Number(cr.avgER) || 0, code,
+      });
       const lang = cr.language || STATES_META[code].lang;
       if (!langs[lang]) langs[lang] = { camps:new Set(), creators:0 };
       langs[lang].camps.add(c.id);
@@ -211,18 +217,51 @@ function MapLegend({mode,stateData,langData,P}){
   </div>);
 }
 
-function CampCard({c,i,onClick,P}){
+/* Campaign card in the drill panel — expands inline to list the creators this
+   campaign has in the selected state/region, so seeing who's where no longer
+   requires opening the campaign page. */
+function CampCard({c,i,scope,open,onToggle,onOpenCampaign,P}){
   const pc=phaseColors(P);
-  return(<div className="anim-up group mb-2 cursor-pointer rounded-[16px] border border-[rgba(15,23,42,0.06)] bg-white/65 px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-[2px] hover:shadow-[0_12px_28px_rgba(15,23,42,0.09)]" onClick={onClick} style={{animationDelay:`${i*30}ms`}}>
-    <div className="mb-1 flex items-center justify-between"><div><h4 className="text-[13px] font-medium text-ink transition-colors group-hover:text-accent">{c.n}</h4><span className="text-[10px] uppercase tracking-[0.04em] text-accent">{c.s}</span></div>
-      <div className="flex items-center gap-1"><Dot color={pc[c.p]||P.mute}/><span className="text-[11px] text-sub">{PL[c.p]}</span><span className="text-[11px] font-semibold" style={{color:pc[c.p]}}>{c.pr}%</span></div></div>
-    <div className="text-[11px] text-sub">Budget {c.b}</div>
+  const crs=c.crs.filter(cr=>scope.type==="state"?cr.code===scope.id:STATES_META[cr.code].region===scope.id);
+  return(<div className="anim-up mb-2 overflow-hidden rounded-[16px] border border-[rgba(15,23,42,0.06)] bg-white/65 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:shadow-[0_12px_28px_rgba(15,23,42,0.09)]" style={{animationDelay:`${i*30}ms`}}>
+    <div className="group cursor-pointer px-4 py-3" onClick={onToggle}>
+      <div className="mb-1 flex items-center justify-between"><div><h4 className="text-[13px] font-medium text-ink transition-colors group-hover:text-accent">{c.n}</h4><span className="text-[10px] uppercase tracking-[0.04em] text-accent">{c.s}</span></div>
+        <div className="flex items-center gap-1"><Dot color={pc[c.p]||P.mute}/><span className="text-[11px] text-sub">{PL[c.p]}</span><span className="text-[11px] font-semibold" style={{color:pc[c.p]}}>{c.pr}%</span></div></div>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-sub">Budget {c.b}</span>
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-accent">
+          {crs.length} creator{crs.length===1?"":"s"} here
+          <span className={`text-[9px] transition-transform duration-200 ${open?"-rotate-180":""}`}>▾</span>
+        </span>
+      </div>
+    </div>
+    {open&&(<div className="fi border-t border-[rgba(15,23,42,0.05)]">
+      {crs.map((cr,j)=>{const m=STATES_META[cr.code];return(
+        <div key={`${cr.name}-${j}`} className="flex items-center gap-2.5 border-b border-[rgba(15,23,42,0.04)] px-4 py-2.5 transition-colors duration-150 hover:bg-accent/[0.03]">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white" style={{background:RC[m.region]}}>{initials(cr.name)}</div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12px] font-medium text-ink">{cr.name}</div>
+            <div className="text-[10px] text-sub">{cr.niche} · {m.name}</div>
+          </div>
+          <div className="text-right"><div className="text-[11.5px] font-semibold text-accent">{cr.followers?fmtNum(cr.followers):"—"}</div><div className="text-[8.5px] uppercase tracking-[0.06em] text-mute">followers</div></div>
+          <div className="min-w-[44px] text-right"><div className="text-[11.5px] font-semibold text-pink">{cr.er?`${cr.er.toFixed(1)}%`:"—"}</div><div className="text-[8.5px] uppercase tracking-[0.06em] text-mute">avg er</div></div>
+        </div>);})}
+      <button onClick={onOpenCampaign} className="block w-full px-4 py-2.5 text-center text-[11.5px] font-semibold text-accent transition-colors duration-150 hover:bg-accent/[0.05]">
+        Open Campaign Page →
+      </button>
+    </div>)}
   </div>);
 }
 
 /* ═══ DRILL PANEL ═══ */
-function DrillPanel({type,id,data,onBack,onCampClick,P}){
+function DrillPanel({type,id,data,onBack,onOpenCampaign,P}){
   const {stateData,regionData,campMeta}=data;
+  const [openCamp,setOpenCamp]=useState(null); // expanded campaign id (keyed remount resets on drill change)
+  const campList=(camps,scope)=>camps.map((c,i)=>(
+    <CampCard key={c.id} c={c} i={i} scope={scope} open={openCamp===c.id}
+      onToggle={()=>setOpenCamp(openCamp===c.id?null:c.id)}
+      onOpenCampaign={()=>onOpenCampaign(c)} P={P}/>
+  ));
   const backBtn=(<button onClick={onBack} className="mb-3 flex items-center gap-1 rounded-full border border-[rgba(15,23,42,0.08)] bg-well/70 px-3 py-1.5 text-[11px] text-sub transition-all duration-150 hover:-translate-x-0.5 hover:text-ink">← Back</button>);
   const statCard=([l,v],i)=>(
     <div key={l} className="anim-up rounded-[14px] border border-[rgba(15,23,42,0.06)] bg-white/65 px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md" style={{animationDelay:`${i*50}ms`}}>
@@ -247,8 +286,8 @@ function DrillPanel({type,id,data,onBack,onCampClick,P}){
       <div className="mb-4 grid grid-cols-3 gap-2">
         {[["Campaigns",d.c],["Creators",d.cr],["Followers",d.f?fmtNum(d.f):"—"]].map(statCard)}
       </div>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Campaigns with creators here</div>
-      {camps.length?camps.map((c,i)=><CampCard key={c.id} c={c} i={i} onClick={()=>onCampClick(c)} P={P}/>):<div className="p-7 text-center text-[12.5px] text-mute">No campaigns here yet</div>}
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Campaigns with creators here — tap to see who</div>
+      {camps.length?campList(camps,{type:"state",id}):<div className="p-7 text-center text-[12.5px] text-mute">No campaigns here yet</div>}
     </div>);
   }
 
@@ -273,19 +312,8 @@ function DrillPanel({type,id,data,onBack,onCampClick,P}){
       <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-1 border-b border-[rgba(15,23,42,0.06)] bg-black/[0.015] px-3.5 py-2">{["State","Camp.","Creators","Followers"].map(h=><span key={h} className="text-[9px] font-semibold uppercase tracking-[0.08em] text-mute">{h}</span>)}</div>
       {statesInR.map(([sid,m],i)=>{const d=stateData[sid];return<div key={sid} className={`grid grid-cols-[2fr_1fr_1fr_1fr] gap-1 px-3.5 py-2.5 transition-colors duration-150 hover:bg-accent/[0.03] ${i<statesInR.length-1?"border-b border-[rgba(15,23,42,0.05)]":""}`}><span className="text-[12px] font-medium text-ink">{m.name}</span><span className={`text-[12px] ${d.c?"text-ink":"text-donetxt"}`}>{d.c}</span><span className={`text-[12px] ${d.cr?"text-ink":"text-donetxt"}`}>{d.cr}</span><span className={`text-[12px] ${d.f?"text-ink":"text-donetxt"}`}>{d.f?fmtNum(d.f):"—"}</span></div>;})}
     </div>
-    {camps.map((c,i)=><CampCard key={c.id} c={c} i={i} onClick={()=>onCampClick(c)} P={P}/>)}
-  </div>);
-}
-
-function CampPopup({c,onClose,setPage,P}){
-  const pc=phaseColors(P);
-  return(<div className="fixed inset-0 z-[200] flex items-center justify-center"><div onClick={onClose} className="fi absolute inset-0 bg-[rgba(3,6,16,0.5)] backdrop-blur-[10px]"/>
-    <div className="au relative w-[min(400px,90vw)] rounded-[22px] border border-[rgba(15,23,42,0.07)] bg-[#F7F8FA]/95 px-7 py-6 shadow-[0_30px_80px_rgba(15,23,42,0.25)] backdrop-blur-2xl" style={{ animation:"popIn 0.35s cubic-bezier(0.16,1,0.3,1)" }}>
-      <button onClick={onClose} className="absolute right-3.5 top-3.5 flex size-7 items-center justify-center rounded-full border border-[rgba(15,23,42,0.08)] bg-well/70 text-[12.5px] text-sub transition-colors hover:bg-red/[0.08] hover:text-red">✕</button>
-      <h3 className="mb-1 font-serif text-[20px] italic font-semibold text-ink">{c.n}</h3><span className="text-[10.5px] uppercase tracking-[0.04em] text-accent">{c.s}</span>
-      <div className="mt-3 flex items-center gap-1.5 rounded-[12px] border border-[rgba(15,23,42,0.06)] bg-white/60 px-3 py-2"><Dot color={pc[c.p]||P.mute}/><span className="text-[12px] text-sub">{PL[c.p]}</span><span className="text-[12px] font-semibold" style={{color:pc[c.p]}}>{c.pr}%</span><span className="ml-auto text-[12px] text-sub">Budget {c.b}</span></div>
-      <button onClick={()=>{onClose();setPage&&setPage("campaigns",{campaignId:c.id});}} className="mt-4 block w-full rounded-full bg-accent py-2.5 text-center text-[12.5px] font-semibold text-white shadow-[0_8px_22px_rgba(37,99,235,0.35)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(37,99,235,0.45)]">Open Campaign Page →</button>
-    </div>
+    <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Campaigns with creators here — tap to see who</div>
+    {campList(camps,{type:"region",id})}
   </div>);
 }
 
@@ -312,7 +340,7 @@ export default function RegionalMap(){
   const { user } = useAuth();
   const[mode,setMode]=useState("state");
   const[sel,setSel]=useState(null);const[selType,setSelType]=useState(null);
-  const[hov,setHov]=useState(null);const[popup,setPopup]=useState(null);
+  const[hov,setHov]=useState(null);
   const[campaigns,setCampaigns]=useState(null);const[error,setError]=useState(null);
 
   useEffect(()=>{
@@ -333,7 +361,6 @@ export default function RegionalMap(){
 
   return(<div className="relative min-h-screen w-full bg-page font-sans text-ink">
     <style>{`
-      @keyframes popIn { from { opacity:0; transform:translateY(14px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
       @keyframes floatSlow { 0%,100% { transform:translateY(0) translateX(0); } 50% { transform:translateY(-18px) translateX(10px); } }
       @keyframes floatSlower { 0%,100% { transform:translateY(0) translateX(0); } 50% { transform:translateY(14px) translateX(-14px); } }
     `}</style>
@@ -383,7 +410,8 @@ export default function RegionalMap(){
         {/* Side panel — differs per view */}
         <div className="min-w-[280px] flex-1">
           {sel&&selType?(
-            <DrillPanel type={selType} id={sel} data={data} onBack={handleBack} onCampClick={setPopup} P={P}/>
+            <DrillPanel key={`${selType}-${sel}`} type={selType} id={sel} data={data} onBack={handleBack}
+              onOpenCampaign={(c)=>setPage("campaigns",{campaignId:c.id})} P={P}/>
           ):mode==="language"?(
             <LangPanel langData={data.langData} P={P}/>
           ):mode==="state"?(
@@ -411,6 +439,5 @@ export default function RegionalMap(){
         </div>
       </div>
     </div>
-    {popup&&<CampPopup c={popup} onClose={()=>setPopup(null)} setPage={setPage} P={P}/>}
   </div>);
 }

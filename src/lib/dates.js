@@ -23,7 +23,8 @@ export const RANGE_PRESETS = [
   { id: "all", label: "All time",      from: () => new Date(2000, 0, 1) },
 ];
 
-export const GRANULARITIES = [
+// How fine the chart's time axis is sliced: one point per day, week, or month.
+export const INTERVALS = [
   { id: "daily",   label: "Daily" },
   { id: "weekly",  label: "Weekly" },
   { id: "monthly", label: "Monthly" },
@@ -37,47 +38,52 @@ export function rangeFor(presetId, now = new Date()) {
   return { from: p.from(now), to: now };
 }
 
-// Start of the bucket a date falls into, per granularity (weeks start Monday).
-export function bucketStart(date, gran) {
+// A "bucket" is one slot on the chart's time axis — one day, one week, or one
+// month depending on the interval. Every dated event lands in exactly one
+// bucket; the helpers below find a date's bucket, step to the next one, and
+// label it for the axis. (Weeks start Monday.)
+export function bucketStart(date, interval) {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  if (gran === "monthly") return new Date(d.getFullYear(), d.getMonth(), 1);
-  if (gran === "weekly") {
+  if (interval === "monthly") return new Date(d.getFullYear(), d.getMonth(), 1);
+  if (interval === "weekly") {
     const day = (d.getDay() + 6) % 7;
     return addDays(d, -day);
   }
   return d;
 }
 
-export function nextBucket(date, gran) {
-  if (gran === "monthly") return addMonths(date, 1);
-  if (gran === "weekly")  return addDays(date, 7);
+export function nextBucket(date, interval) {
+  if (interval === "monthly") return addMonths(date, 1);
+  if (interval === "weekly")  return addDays(date, 7);
   return addDays(date, 1);
 }
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-export function bucketLabel(date, gran) {
-  if (gran === "monthly") return `${MONTH_NAMES[date.getMonth()]} '${String(date.getFullYear()).slice(2)}`;
+export function bucketLabel(date, interval) {
+  if (interval === "monthly") return `${MONTH_NAMES[date.getMonth()]} '${String(date.getFullYear()).slice(2)}`;
   return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
 }
 
-/* Build the full series of buckets covering [from, to], summing each event's
-   numeric fields into its bucket. Events: [{ date: Date, ...numbers }]. */
-export function bucketSeries(events, { from, to }, gran, fields) {
-  const buckets = [];
+/* Turn dated events into a chart-ready time series: one row per bucket
+   covering [from, to] (empty buckets included, so the axis has no gaps),
+   with each event's numeric fields summed into the bucket its date falls
+   in. Events: [{ date: Date, ...numbers }]. */
+export function buildTimeSeries(events, { from, to }, interval, fields) {
+  const series = [];
   const index = new Map();
-  for (let t = bucketStart(from, gran); t <= to; t = nextBucket(t, gran)) {
-    const b = { date: t, label: bucketLabel(t, gran) };
-    fields.forEach(f => { b[f] = 0; });
-    b.count = 0;
-    index.set(+t, b);
-    buckets.push(b);
+  for (let t = bucketStart(from, interval); t <= to; t = nextBucket(t, interval)) {
+    const row = { date: t, label: bucketLabel(t, interval) };
+    fields.forEach(f => { row[f] = 0; });
+    row.count = 0;
+    index.set(+t, row);
+    series.push(row);
   }
   events.forEach(ev => {
     if (ev.date < from || ev.date > to) return;
-    const b = index.get(+bucketStart(ev.date, gran));
-    if (!b) return;
-    fields.forEach(f => { b[f] += Number(ev[f]) || 0; });
-    b.count++;
+    const row = index.get(+bucketStart(ev.date, interval));
+    if (!row) return;
+    fields.forEach(f => { row[f] += Number(ev[f]) || 0; });
+    row.count++;
   });
-  return buckets;
+  return series;
 }
