@@ -13,12 +13,6 @@ const needsInput = cr =>
   cr.status === "pending_brand" || cr.concept?.status === "received" ||
   cr.demo?.status === "received" || cr.demo?.status === "rework";
 
-// Trimmed to the launch scope — AEO / Offline / Ads tabs return later.
-const SERVICES = [
-  { id:"all",        label:"Overall",    icon:"⊕" },
-  { id:"influencer", label:"Influencer", icon:"◎" },
-];
-
 // Creator filters are built from the data itself (only options that actually
 // occur in this client's creators are offered). Age/gender aren't stored in
 // the DB, so unlike the reference design they are not offered here.
@@ -122,7 +116,6 @@ export default function OverviewDashboard() {
   const { P, setPage } = useApp();
   const { user } = useAuth();
   const clientName = user?.clientName ?? "Your Brand";
-  const [service, setService] = useState("all");
   const [filters, setFilters] = useState({ niche:[], size:[], language:[], status:[] });
   const [openFilter, setOpenFilter] = useState(null);
   const [campaigns, setCampaigns] = useState(null); // null = loading
@@ -138,12 +131,8 @@ export default function OverviewDashboard() {
   const clearFilters = () => setFilters({ niche:[], size:[], language:[], status:[] });
   const activeFilterCount = Object.values(filters).reduce((s, a) => s + a.length, 0);
 
-  /* Campaigns for the selected service tab */
-  const serviceCampaigns = useMemo(() => {
-    if (!campaigns) return [];
-    if (service === "all") return campaigns;
-    return campaigns.filter(c => (c.service || "").toLowerCase().includes("influencer"));
-  }, [campaigns, service]);
+  /* All campaigns for this client (the per-service influencer view was removed) */
+  const serviceCampaigns = useMemo(() => campaigns || [], [campaigns]);
 
   /* Flatten creators across campaigns, normalising followers/size */
   const allCreators = useMemo(() =>
@@ -228,17 +217,6 @@ export default function OverviewDashboard() {
           <div>
             <h1 className="font-serif text-[42px] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Overview</h1>
             <div className="mt-1.5 text-[14px] text-sub">{clientName} <span className="mx-1.5 text-mute">·</span> {kpis.total} campaign{kpis.total === 1 ? "" : "s"}</div>
-          </div>
-          {/* Service tabs */}
-          <div className="flex gap-1 rounded-full border border-[rgba(15,23,42,0.07)] bg-white/70 p-1.5 shadow-[0_1px_10px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-            {SERVICES.map(s => (
-              <button key={s.id} onClick={() => setService(s.id)}
-                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-[12.5px] font-semibold transition-all duration-200 ease-out ${
-                  service === s.id ? "bg-accent text-white shadow-[0_4px_14px_rgba(37,99,235,0.35)]" : "text-sub hover:text-ink"
-                }`}>
-                <span>{s.icon}</span>{s.label}
-              </button>
-            ))}
           </div>
         </header>
 
@@ -364,10 +342,13 @@ export default function OverviewDashboard() {
         </div>
 
         {/* Creator breakdowns */}
-        {[["Creator Niche Performance", byNiche], ["Creator Size Performance", bySize]].map(([title, data]) => (
+        {[
+          ["Creator Niche Performance", byNiche, "Your creators grouped by content niche — how many, how they engage, and their share of your total audience"],
+          ["Creator Size Performance", bySize, "Your creators grouped by follower tier (Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+)"],
+        ].map(([title, data, subtitle]) => (
           <div className="au mt-4 rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-6 py-5 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]" key={title}>
             <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">{title}</h3>
-            <p className="mb-4 text-[12.5px] text-sub">Avg ER vs overall · outliers beyond ±1.3σ flagged</p>
+            <p className="mb-4 text-[12.5px] text-sub">{subtitle}</p>
             <div className="grid gap-3" style={{ gridTemplateColumns:"repeat(auto-fill, minmax(190px, 1fr))" }}>
               {data.rows.map(r => (
                 <BreakdownCard key={r.group} group={r.group} grp={r} total={creators.length}
@@ -376,6 +357,12 @@ export default function OverviewDashboard() {
               ))}
               {!data.rows.length && <div className="p-3 text-[12.5px] text-mute">No creators match the current filters</div>}
             </div>
+            <p className="mt-3.5 text-[10.5px] text-mute">
+              Big number = creators in the group (% of all creators). Avg ER = the group's average engagement rate;
+              the ±% beside it compares against your overall average (the thin marker on the bar). Followers = the
+              group's combined audience and its share of your total. Groups engaging unusually far above or below
+              the rest are flagged ▲ high / ▼ low.
+            </p>
           </div>
         ))}
 
