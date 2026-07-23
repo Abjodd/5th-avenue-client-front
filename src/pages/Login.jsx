@@ -47,7 +47,7 @@ export default function LoginPage() {
     setSpot({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
   };
 
-  const inputCls = "w-full rounded-[12px] border border-[rgba(15,23,42,0.09)] bg-white/70 px-3.5 py-3 text-[13.5px] text-ink outline-none backdrop-blur-sm transition-all duration-200 focus:border-accent/50 focus:shadow-[0_0_0_4px_rgba(37,99,235,0.1)] focus:bg-white";
+  const inputCls = "w-full rounded-[12px] border border-[rgba(25,22,17,0.09)] bg-white/70 px-3.5 py-3 text-[13.5px] text-ink outline-none backdrop-blur-sm transition-all duration-200 focus:border-accent/50 focus:shadow-[0_0_0_4px_rgba(44,62,126,0.1)] focus:bg-white";
   const labelCls = "mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.1em] text-mute";
 
   return (
@@ -71,9 +71,9 @@ export default function LoginPage() {
       >
         {/* drifting mesh blobs */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[-10%] top-[-15%] size-[480px] rounded-full opacity-40 blur-[90px]" style={{ background: "radial-gradient(circle, #2563EB, transparent 70%)", animation: "meshDrift1 16s ease-in-out infinite" }} />
-          <div className="absolute bottom-[-15%] right-[-10%] size-[440px] rounded-full opacity-35 blur-[100px]" style={{ background: "radial-gradient(circle, #7860D6, transparent 70%)", animation: "meshDrift2 20s ease-in-out infinite" }} />
-          <div className="absolute left-[30%] top-[40%] size-[360px] rounded-full opacity-25 blur-[100px]" style={{ background: "radial-gradient(circle, #1E9E5A, transparent 70%)", animation: "meshDrift3 22s ease-in-out infinite" }} />
+          <div className="absolute left-[-10%] top-[-15%] size-[480px] rounded-full opacity-40 blur-[90px]" style={{ background: "radial-gradient(circle, var(--color-accent), transparent 70%)", animation: "meshDrift1 16s ease-in-out infinite" }} />
+          <div className="absolute bottom-[-15%] right-[-10%] size-[440px] rounded-full opacity-35 blur-[100px]" style={{ background: "radial-gradient(circle, var(--color-purple), transparent 70%)", animation: "meshDrift2 20s ease-in-out infinite" }} />
+          <div className="absolute left-[30%] top-[40%] size-[360px] rounded-full opacity-25 blur-[100px]" style={{ background: "radial-gradient(circle, #17915A, transparent 70%)", animation: "meshDrift3 22s ease-in-out infinite" }} />
         </div>
 
         {/* cursor-follow spotlight */}
@@ -122,13 +122,13 @@ export default function LoginPage() {
       <div className="relative flex flex-1 items-center justify-center overflow-hidden px-6">
         {/* ambient soft glow behind the form on light side */}
         <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute right-[10%] top-[12%] size-[380px] rounded-full opacity-[0.12] blur-[110px]" style={{ background: "radial-gradient(circle, #2563EB, transparent 70%)", animation: "meshDrift1 18s ease-in-out infinite" }} />
-          <div className="absolute bottom-[8%] left-[8%] size-[320px] rounded-full opacity-[0.09] blur-[100px]" style={{ background: "radial-gradient(circle, #A8519E, transparent 70%)", animation: "meshDrift2 22s ease-in-out infinite" }} />
+          <div className="absolute right-[10%] top-[12%] size-[380px] rounded-full opacity-[0.12] blur-[110px]" style={{ background: "radial-gradient(circle, var(--color-accent), transparent 70%)", animation: "meshDrift1 18s ease-in-out infinite" }} />
+          <div className="absolute bottom-[8%] left-[8%] size-[320px] rounded-full opacity-[0.09] blur-[100px]" style={{ background: "radial-gradient(circle, #A2489A, transparent 70%)", animation: "meshDrift2 22s ease-in-out infinite" }} />
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="relative w-full max-w-[380px] rounded-[28px] border border-[rgba(15,23,42,0.06)] bg-white/70 p-9 shadow-[0_30px_80px_rgba(15,23,42,0.1)] backdrop-blur-2xl"
+          className="relative w-full max-w-[380px] rounded-[28px] border border-[rgba(25,22,17,0.06)] bg-white/70 p-9 shadow-[0_30px_80px_rgba(25,22,17,0.1)] backdrop-blur-2xl"
           style={{ animation: "riseIn 0.6s cubic-bezier(0.16,1,0.3,1) both" }}
         >
           <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-accent/15 bg-accent/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent">
@@ -161,7 +161,7 @@ export default function LoginPage() {
             className={`group relative w-full overflow-hidden rounded-full py-3 text-[13px] font-semibold transition-all duration-250 ease-out ${
               loading || !email || !password
                 ? "cursor-not-allowed bg-well text-mute"
-                : "bg-accent text-white shadow-[0_10px_28px_rgba(37,99,235,0.35)] hover:-translate-y-px hover:shadow-[0_16px_36px_rgba(37,99,235,0.45)] active:translate-y-0"
+                : "bg-accent text-white shadow-[0_10px_28px_rgba(44,62,126,0.35)] hover:-translate-y-px hover:shadow-[0_16px_36px_rgba(44,62,126,0.45)] active:translate-y-0"
             }`}>
             <span className="relative z-10 flex items-center justify-center gap-2">
               {loading && <span className="size-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
@@ -180,7 +180,7 @@ export default function LoginPage() {
 
           {/* Demo credentials hint — fake data, so surface it for quick access
               (same pattern as the internal staff app's login page). */}
-          {/* <div className="mt-8 rounded-[16px] border border-[rgba(15,23,42,0.07)] bg-white/60 px-4 py-4 shadow-sm backdrop-blur-sm">
+          {/* <div className="mt-8 rounded-[16px] border border-[rgba(25,22,17,0.07)] bg-white/60 px-4 py-4 shadow-sm backdrop-blur-sm">
             <div className="mb-2.5 flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">
               <span className="size-1 rounded-full bg-accent/60" />
               Demo credentials
@@ -189,7 +189,7 @@ export default function LoginPage() {
               <button key={u.email} type="button"
                 onClick={() => { setEmail(u.email); setPassword(u.password); setErr(""); }}
                 className={`group flex w-full items-center justify-between rounded-[10px] px-1.5 py-2 text-left transition-colors duration-150 hover:bg-accent/[0.05] ${
-                  i !== DEMO_LOGINS.length - 1 ? "border-b border-[rgba(15,23,42,0.06)]" : ""
+                  i !== DEMO_LOGINS.length - 1 ? "border-b border-[rgba(25,22,17,0.06)]" : ""
                 }`}>
                 <span className="text-[10.5px] font-medium text-ink transition-colors group-hover:text-accent">{u.clientName}</span>
                 <span className="font-mono text-[10px] text-mute">{u.email}</span>

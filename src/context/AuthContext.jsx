@@ -9,6 +9,7 @@
  * its own data.
  */
 import { createContext, useContext, useState, useCallback } from "react";
+import { INTRO_KEY, USER_KEY } from "../lib/session";
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -17,7 +18,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
-      const stored = sessionStorage.getItem("5av_portal_user");
+      const stored = sessionStorage.getItem(USER_KEY);
       return stored ? JSON.parse(stored) : null;
     } catch { return null; }
   });
@@ -32,7 +33,8 @@ export function AuthProvider({ children }) {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: body.error || "Invalid email or password." };
       setUser(body.user);
-      sessionStorage.setItem("5av_portal_user", JSON.stringify(body.user));
+      sessionStorage.setItem(USER_KEY, JSON.stringify(body.user));
+      sessionStorage.removeItem(INTRO_KEY); // replay the brand-story intro on every fresh login
       return { ok: true, user: body.user };
     } catch {
       return { ok: false, error: "Could not reach the server. Please try again." };
@@ -41,7 +43,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     setUser(null);
-    sessionStorage.removeItem("5av_portal_user");
+    sessionStorage.removeItem(USER_KEY);
   }, []);
 
   return (

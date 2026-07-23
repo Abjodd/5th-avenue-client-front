@@ -13,8 +13,8 @@ export function PageSkeleton() {
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
       `}</style>
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-40 -top-40 size-[520px] rounded-full opacity-[0.08] blur-[110px]" style={{ background: "radial-gradient(circle, #2563EB, transparent 70%)" }} />
-        <div className="absolute -right-32 top-40 size-[460px] rounded-full opacity-[0.06] blur-[120px]" style={{ background: "radial-gradient(circle, #7860D6, transparent 70%)" }} />
+        <div className="absolute -left-40 -top-40 size-[520px] rounded-full opacity-[0.08] blur-[110px]" style={{ background: "radial-gradient(circle, var(--color-accent), transparent 70%)" }} />
+        <div className="absolute -right-32 top-40 size-[460px] rounded-full opacity-[0.06] blur-[120px]" style={{ background: "radial-gradient(circle, var(--color-purple), transparent 70%)" }} />
       </div>
       <div className="mx-auto w-full max-w-[1600px] px-5 pt-9 sm:px-9">
         <Skeleton className="mb-3 h-10 w-56" />
@@ -47,7 +47,7 @@ export function ErrorState({ message }) {
 
 export function EmptyState({ icon = "◎", title, hint, actionLabel, onAction }) {
   return (
-    <div className="rounded-[20px] border border-dashed border-[rgba(15,23,42,0.12)] bg-white/40 px-6 py-11 text-center backdrop-blur-sm transition-colors duration-300 hover:border-accent/25 hover:bg-white/60">
+    <div className="rounded-[20px] border border-dashed border-[rgba(25,22,17,0.12)] bg-white/40 px-6 py-11 text-center backdrop-blur-sm transition-colors duration-300 hover:border-accent/25 hover:bg-white/60">
       <div className="mb-3 inline-flex size-12 items-center justify-center rounded-full bg-accent/[0.06] text-2xl text-accent/70 shadow-sm">
         {icon}
       </div>
@@ -56,7 +56,7 @@ export function EmptyState({ icon = "◎", title, hint, actionLabel, onAction })
       {actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="mt-4 rounded-full bg-accent px-5 py-2.5 text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(37,99,235,0.3)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_10px_26px_rgba(37,99,235,0.4)]"
+          className="mt-4 rounded-full bg-accent px-5 py-2.5 text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(44,62,126,0.3)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_10px_26px_rgba(44,62,126,0.4)]"
         >
           {actionLabel}
         </button>
