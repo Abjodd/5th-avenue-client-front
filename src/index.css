@@ -6,30 +6,36 @@
   --font-sans: "Sora", -apple-system, sans-serif;
   --font-serif: "Newsreader", serif;
 
-  --color-page: #F7F6F2;             /* app background (P.bg) */
+  --color-page: #F6F4EE;             /* app background (P.bg) — warm cream */
   --color-surface: #FFFFFF;          /* cards / bars */
-  --color-raised: #FBFAF8;
-  --color-ink: #1C1A15;              /* primary text */
-  --color-sub: #6E6A5C;              /* secondary text */
-  --color-mute: #7A7566;             /* faint text / labels — 4.5:1 on white (WCAG AA) */
-  --color-line: rgba(28, 24, 16, 0.09);      /* borders */
-  --color-line-mid: rgba(28, 24, 16, 0.15);
-  --color-well: rgba(28, 24, 16, 0.06);      /* track behind bars & chips */
-  --color-wash: rgba(28, 24, 16, 0.035);     /* hover wash */
-  --color-done: #F1EFE9;             /* completed-card wash */
-  --color-donetxt: #B0AA98;
+  --color-raised: #FCFAF5;
+  --color-ink: #191611;              /* primary text */
+  --color-sub: #625D4E;              /* secondary text */
+  --color-mute: #6F6A5A;             /* faint text / labels — 4.5:1 on white (WCAG AA) */
+  --color-line: rgba(25, 22, 17, 0.10);      /* borders */
+  --color-line-mid: rgba(25, 22, 17, 0.16);
+  --color-well: rgba(25, 22, 17, 0.055);     /* track behind bars & chips */
+  --color-wash: rgba(25, 22, 17, 0.035);     /* hover wash */
+  --color-done: #F0EDE5;             /* completed-card wash */
+  --color-donetxt: #A9A28E;
 
-  --color-accent: #2F3E6B;           /* deep indigo-navy */
-  --color-green: #1E9E5A;
-  --color-amber: #B5790A;
-  --color-red: #C13A3A;
-  --color-purple: #7860D6;
-  --color-teal: #1C9C8C;
-  --color-pink: #A8519E;
-  --color-gold: #A6862E;
+  --color-accent: #2C3E7E;           /* rich indigo-navy */
+  --color-green: #17915A;
+  --color-amber: #A8720C;
+  --color-red: #BE3A3A;
+  --color-purple: #6C55CE;
+  --color-teal: #178E80;
+  --color-pink: #A2489A;
+  --color-gold: #96792A;
 
-  --shadow-card: 0 1px 2px rgba(28,24,16,0.04), 0 6px 20px rgba(28,24,16,0.06);
-  --shadow-modal: 0 12px 40px rgba(28,24,16,0.14);
+  --color-glass: rgba(255, 255, 255, 0.68);        /* glass card fill */
+  --color-glass-strong: rgba(255, 255, 255, 0.88); /* drawers / modals */
+
+  --shadow-card: 0 1px 2px rgba(25,22,17,0.05), 0 8px 24px rgba(25,22,17,0.07);
+  --shadow-float: 0 18px 44px rgba(25,22,17,0.10);
+  --shadow-modal: 0 24px 64px rgba(25,22,17,0.18);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
   --animate-au: au 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
   --animate-fi: fi 0.2s ease both;
@@ -77,6 +83,9 @@
   .microlabel { @apply text-[10px] font-semibold uppercase tracking-[0.1em] text-mute; }
   /* Standard card shell */
   .card { @apply rounded-xl border border-line bg-surface; }
+  /* Glassmorphism recipes — use instead of hand-rolled bg-white/70 stacks */
+  .glass-card { @apply rounded-[20px] border border-line shadow-card backdrop-blur-xl; background: var(--color-glass); }
+  .glass-panel { @apply border border-line backdrop-blur-2xl; background: var(--color-glass-strong); box-shadow: var(--shadow-modal); }
 }
 
 /* Legacy animation class names kept so animationDelay-driven lists keep working */
@@ -85,3 +94,17 @@
 .slide-in { animation: slide-in 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
 .pulse { animation: pulse-dot 1.2s ease-in-out infinite; }
 .bounce-1 { animation: bounce-soft 1.4s ease-in-out infinite; }
+
+/* Ambient background blobs — slow, GPU-friendly drift */
+.ambient-blob { animation: ambient-drift 26s ease-in-out infinite alternate; will-change: transform; }
+@keyframes ambient-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(30px, -24px, 0) scale(1.06); }
+  to   { transform: translate3d(-24px, 20px, 0) scale(0.97); }
+}
+
+/* Reduced motion: kill legacy CSS animations (motion/react handles its own via MotionConfig) */
+@media (prefers-reduced-motion: reduce) {
+  .au, .anim-up, .fi, .fade-in, .slide-in, .pulse, .bounce-1, .ambient-blob { animation: none !important; }
+  * { scroll-behavior: auto !important; }
+}

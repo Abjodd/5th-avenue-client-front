@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { PortalAPI, phaseOf } from "../lib/api";
@@ -7,6 +8,13 @@ import { PHASES, phaseColors as phaseColorsFor } from "../lib/phases";
 import { Dot } from "../components/Dot";
 import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import PerformanceSection from "../components/PerformanceSection";
+import AnimatedNumber from "../components/AnimatedNumber";
+import { Stagger, StaggerItem, Reveal, AmbientBackground } from "../components/motion/Motion";
+import { EASE, fadeUp, scaleIn } from "../lib/motion";
+import { INTRO_KEY } from "../lib/session";
+
+/* Brand-story intro is its own chunk — most sessions load it once per login */
+const BrandIntro = lazy(() => import("../components/intro/BrandIntro"));
 
 /* A creator is "waiting on the client" when something needs their review */
 const needsInput = cr =>
@@ -36,32 +44,37 @@ function isOutlier(value, avg, stdDev) {
   return z > 1.3 ? "high" : z < -1.3 ? "low" : null;
 }
 
-function KPICard({ label, value, sublabel, color }) {
+function KPICard({ label, value, format, sublabel, color }) {
   return (
-    <div className="group relative overflow-hidden rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-5 py-[18px] shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
+    <StaggerItem className="group relative overflow-hidden rounded-[20px] border border-line bg-[--color-glass] px-5 py-[18px] shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(25,22,17,0.08)]">
+      {/* faint color wash keyed to the card's accent */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-[20px] opacity-[0.05]"
+        style={{ background: `radial-gradient(120% 90% at 100% 0%, ${color}, transparent 60%)` }}
+      />
       <div
         className="pointer-events-none absolute inset-0 rounded-[20px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         style={{ boxShadow: `inset 0 0 0 1px ${color}30` }}
       />
       <div className="microlabel mb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-mute">{label}</div>
       <div className="text-[30px] font-bold leading-none tracking-tight transition-transform duration-300 group-hover:scale-[1.02]" style={{ color }}>
-        {value}
+        <AnimatedNumber value={value} format={format} duration={1000} />
       </div>
       {sublabel && <div className="mt-2 text-[11.5px] text-mute">{sublabel}</div>}
-    </div>
+    </StaggerItem>
   );
 }
 
 /* Grouped creator breakdown (count, avg ER vs overall, follower share) */
-function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P }) {
+function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P, index = 0 }) {
   const erPctOfAvg = erAvg > 0 && grp.er > 0 ? ((grp.er / erAvg - 1) * 100).toFixed(0) : "0";
   const folPct = totalFollowers > 0 ? ((grp.followers / totalFollowers) * 100).toFixed(1) : 0;
   const countPct = total > 0 ? ((grp.count / total) * 100).toFixed(0) : 0;
   const badge = erOutlier === "high" ? { c:P.green, label:"HIGH OUTLIER", sym:"▲" }
     : erOutlier === "low" ? { c:P.red, label:"LOW OUTLIER", sym:"▼" } : null;
   return (
-    <div className="rounded-[16px] border bg-white/60 px-4 py-3.5 shadow-[0_1px_10px_rgba(15,23,42,0.03)] backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_10px_26px_rgba(15,23,42,0.07)]"
-      style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : "rgba(15,23,42,0.07)" }}>
+    <Reveal delay={Math.min(index * 0.05, 0.3)} className="rounded-[16px] border bg-white/60 px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_10px_26px_rgba(25,22,17,0.07)]"
+      style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : "rgba(25,22,17,0.07)" }}>
       <div className="mb-[3px] flex items-start justify-between">
         <div>
           <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{group}</div>
@@ -70,10 +83,12 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P 
           </div>
         </div>
         {badge && (
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] shadow-sm"
+          <motion.span
+            variants={scaleIn} initial="hidden" whileInView="show" viewport={{ once: true }}
+            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] shadow-sm"
             style={{ color:badge.c, background:`${badge.c}12` }}>
             {badge.sym} {badge.label}
-          </span>
+          </motion.span>
         )}
       </div>
       <div className="mt-3 flex flex-col gap-2">
@@ -90,7 +105,10 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P 
             </div>
           </div>
           <div className="relative h-[5px] rounded-full bg-well">
-            <div className="h-full rounded-full bg-pink transition-[width] duration-700 ease-out" style={{ width:`${Math.min((grp.er/10)*100, 100)}%` }}/>
+            <motion.div
+              className="h-full rounded-full bg-pink"
+              initial={{ width: 0 }} whileInView={{ width: `${Math.min((grp.er/10)*100, 100)}%` }}
+              viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE }}/>
             {erAvg > 0 && <div className="absolute -inset-y-1 w-px bg-ink opacity-40" style={{ left:`${Math.min((erAvg/10)*100, 100)}%` }}/>}
           </div>
         </div>
@@ -103,11 +121,14 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P 
             </div>
           </div>
           <div className="h-[5px] rounded-full bg-well">
-            <div className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out" style={{ width:`${folPct}%` }}/>
+            <motion.div
+              className="h-full rounded-full bg-accent"
+              initial={{ width: 0 }} whileInView={{ width: `${folPct}%` }}
+              viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE, delay: 0.1 }}/>
           </div>
         </div>
       </div>
-    </div>
+    </Reveal>
   );
 }
 
@@ -115,16 +136,29 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P 
 export default function OverviewDashboard() {
   const { P, setPage } = useApp();
   const { user } = useAuth();
+  const reducedMotion = useReducedMotion();
   const clientName = user?.clientName ?? "Your Brand";
   const [filters, setFilters] = useState({ niche:[], size:[], language:[], status:[] });
   const [openFilter, setOpenFilter] = useState(null);
   const [campaigns, setCampaigns] = useState(null); // null = loading
   const [error, setError] = useState(null);
+  const introSeen = sessionStorage.getItem(INTRO_KEY) === "1";
+  const [introDone, setIntroDone] = useState(introSeen);     // gates the dashboard cascade
+  const [introClosed, setIntroClosed] = useState(introSeen); // unmounts the overlay after its exit fade
 
   useEffect(() => {
     if (!user?.clientName) return;
     PortalAPI.campaigns(user.clientName).then(setCampaigns).catch(e => setError(e.message));
   }, [user?.clientName]);
+
+  /* Reduced motion ⇒ the cinematic intro never plays */
+  useEffect(() => {
+    if (reducedMotion && !introDone) {
+      sessionStorage.setItem(INTRO_KEY, "1");
+      setIntroDone(true);
+      setIntroClosed(true);
+    }
+  }, [reducedMotion, introDone]);
 
   const toggleFilter = (group, val) =>
     setFilters(f => ({ ...f, [group]: f[group].includes(val) ? f[group].filter(x => x !== val) : [...f[group], val] }));
@@ -199,53 +233,81 @@ export default function OverviewDashboard() {
     .map(c => ({ id: c.id, name: c.name, n: (c.creators || []).filter(needsInput).length }))
     .filter(x => x.n > 0), [serviceCampaigns]);
 
+  /* Intro data — derived from the same kpis memo the dashboard renders */
+  const introData = useMemo(() => ({
+    clientName,
+    totalCampaigns: kpis.total,
+    activeCampaigns: kpis.active,
+    creators: kpis.creators,
+    liveCreators: kpis.liveCreators,
+    followers: kpis.followers,
+    avgER: kpis.avgER,
+    budget: kpis.budget,
+  }), [clientName, kpis]);
+
   if (error) return <ErrorState message={error}/>;
   if (!campaigns) return <PageSkeleton/>;
 
   return (
     <div className="relative">
-      {/* Ambient background — soft radial gradients, barely-there mesh */}
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-40 -top-40 size-[520px] rounded-full opacity-[0.10] blur-[110px]" style={{ background: "radial-gradient(circle, #2563EB, transparent 70%)" }}/>
-        <div className="absolute -right-32 top-40 size-[460px] rounded-full opacity-[0.08] blur-[120px]" style={{ background: "radial-gradient(circle, #7860D6, transparent 70%)" }}/>
-        <div className="absolute bottom-0 left-1/3 size-[400px] rounded-full opacity-[0.07] blur-[100px]" style={{ background: "radial-gradient(circle, #1E9E5A, transparent 70%)" }}/>
-      </div>
+      {/* Cinematic brand story — once per login, over the loaded dashboard */}
+      {!introClosed && (
+        <Suspense fallback={null}>
+          <BrandIntro data={introData} onDone={() => setIntroDone(true)} onClosed={() => setIntroClosed(true)} />
+        </Suspense>
+      )}
+
+      <AmbientBackground variant="a" />
 
       <div className="mx-auto w-full max-w-[1600px] px-5 pb-14 sm:px-9">
-        {/* Header */}
-        <header className="flex flex-wrap items-end justify-between gap-3 pb-6 pt-9">
-          <div>
-            <h1 className="font-serif text-[42px] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Overview</h1>
-            <div className="mt-1.5 text-[14px] text-sub">{clientName} <span className="mx-1.5 text-mute">·</span> {kpis.total} campaign{kpis.total === 1 ? "" : "s"}</div>
-          </div>
-        </header>
+        {/* Editorial hero header — cascades in after the intro hands off */}
+        <Stagger key={`hdr-${introDone}`} animate={introDone ? "show" : "hidden"} stagger={0.08} className="pb-7 pt-10">
+          <StaggerItem>
+            <div className="microlabel mb-2 tracking-[0.2em]">Overview · {kpis.total} campaign{kpis.total === 1 ? "" : "s"}</div>
+          </StaggerItem>
+          <StaggerItem>
+            <h1 className="font-serif text-[clamp(34px,4.5vw,52px)] font-bold leading-[1.05] tracking-[-0.02em] text-ink">
+              The story of <span className="italic text-accent">{clientName}</span>
+            </h1>
+          </StaggerItem>
+          <StaggerItem>
+            <div className="mt-2 text-[14px] text-sub">
+              {kpis.creators} creator{kpis.creators === 1 ? "" : "s"} · {fmtNum(kpis.followers)} combined audience
+            </div>
+          </StaggerItem>
+        </Stagger>
 
         {/* Action needed — creators waiting on client review, across campaigns */}
-        {actionItems.length > 0 && (
-          <div className="au mb-6 flex flex-wrap items-center gap-2.5 rounded-[18px] border border-amber/20 bg-amber/[0.06] px-5 py-4 shadow-[0_2px_16px_rgba(180,120,10,0.05)] backdrop-blur-md">
-            <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-amber">
-              <span className="text-[13px]">⚠</span> {actionItems.reduce((s, x) => s + x.n, 0)} creator{actionItems.reduce((s, x) => s + x.n, 0) === 1 ? "" : "s"} waiting on your review
-            </span>
-            {actionItems.map(x => (
-              <button key={x.id} onClick={() => setPage("campaigns", { campaignId: x.id })}
-                className="rounded-full border border-amber/25 bg-white/70 px-3.5 py-1.5 text-[11.5px] font-medium text-ink shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-amber/50 hover:shadow-md">
-                {x.name} <span className="mx-0.5 text-mute">·</span> <b className="text-amber">{x.n}</b>
-              </button>
-            ))}
-          </div>
-        )}
+        <AnimatePresence>
+          {actionItems.length > 0 && introDone && (
+            <motion.div
+              variants={fadeUp} initial="hidden" animate="show"
+              className="mb-6 flex flex-wrap items-center gap-2.5 rounded-[18px] border border-amber/20 bg-amber/[0.06] px-5 py-4 shadow-[0_2px_16px_rgba(180,120,10,0.05)] backdrop-blur-md">
+              <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-amber">
+                <span className="text-[13px]">⚠</span> {actionItems.reduce((s, x) => s + x.n, 0)} creator{actionItems.reduce((s, x) => s + x.n, 0) === 1 ? "" : "s"} waiting on your review
+              </span>
+              {actionItems.map(x => (
+                <button key={x.id} onClick={() => setPage("campaigns", { campaignId: x.id })}
+                  className="rounded-full border border-amber/25 bg-white/70 px-3.5 py-1.5 text-[11.5px] font-medium text-ink shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-amber/50 hover:shadow-md">
+                  {x.name} <span className="mx-0.5 text-mute">·</span> <b className="text-amber">{x.n}</b>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* KPI row */}
-        <div className="au mb-6 grid gap-3.5" style={{ gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))" }}>
-          <KPICard label="Active Campaigns" value={kpis.active} sublabel={`of ${kpis.total} total`} color={P.accent}/>
-          <KPICard label="Creators" value={kpis.creators} sublabel={`${kpis.liveCreators} live`} color={P.green}/>
-          <KPICard label="Combined Followers" value={fmtNum(kpis.followers)} sublabel="across creators" color={P.pink}/>
-          <KPICard label="Avg Engagement" value={`${kpis.avgER.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber}/>
-          <KPICard label="Campaign Budget" value={fmtINR(kpis.budget)} sublabel="committed" color={P.purple}/>
-        </div>
+        {/* KPI row — numbers count up as the row cascades in */}
+        <Stagger key={`kpi-${introDone}`} animate={introDone ? "show" : "hidden"} stagger={0.07} delayChildren={0.1}
+          className="mb-6 grid gap-3.5" style={{ gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))" }}>
+          <KPICard label="Active Campaigns" value={kpis.active} format={v => Math.round(v)} sublabel={`of ${kpis.total} total`} color={P.accent}/>
+          <KPICard label="Creators" value={kpis.creators} format={v => Math.round(v)} sublabel={`${kpis.liveCreators} live`} color={P.green}/>
+          <KPICard label="Combined Followers" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.pink}/>
+          <KPICard label="Avg Engagement" value={kpis.avgER} format={v => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber}/>
+          <KPICard label="Campaign Budget" value={kpis.budget} format={fmtINR} sublabel="committed" color={P.purple}/>
+        </Stagger>
 
         {/* Creator filters */}
-        <div className="au mb-6 rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-5 py-4 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+        <Reveal className="mb-6 rounded-[20px] border border-line bg-[--color-glass] px-5 py-4 shadow-card backdrop-blur-xl">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">Creator Filters</span>
             {FILTER_GROUPS.map(g => (
@@ -253,7 +315,7 @@ export default function OverviewDashboard() {
                 className={`rounded-full border px-3.5 py-[7px] text-[11.5px] font-semibold transition-all duration-200 ease-out ${
                   filters[g.id].length
                     ? "border-accent/20 bg-accent/[0.08] text-accent shadow-sm"
-                    : "border-[rgba(15,23,42,0.08)] bg-well/70 text-sub hover:text-ink"
+                    : "border-line bg-well/70 text-sub hover:text-ink"
                 }`}>
                 {g.label}{filters[g.id].length ? ` · ${filters[g.id].length}` : ""} {openFilter === g.id ? "▴" : "▾"}
               </button>
@@ -265,29 +327,39 @@ export default function OverviewDashboard() {
             )}
             <span className="ml-auto text-[11.5px] text-sub">{creators.length} of {allCreators.length} creators</span>
           </div>
-          {openFilter && (
-            <div className="fi mt-3 flex flex-wrap gap-1.5 border-t border-[rgba(15,23,42,0.06)] pt-3">
-              {(filterOptions[openFilter] || []).map(opt => {
-                const on = filters[openFilter].includes(opt);
-                return (
-                  <button key={opt} onClick={() => toggleFilter(openFilter, opt)}
-                    className={`rounded-full border px-3 py-1 text-[11.5px] transition-all duration-200 ${
-                      on ? "border-accent/25 bg-accent/[0.1] font-semibold text-accent shadow-sm" : "border-[rgba(15,23,42,0.08)] bg-well/70 text-sub hover:text-ink"
-                    }`}>{opt}</button>
-                );
-              })}
-              {!(filterOptions[openFilter] || []).length && <span className="text-[11.5px] text-mute">No data for this filter yet</span>}
-            </div>
-          )}
-        </div>
+          <AnimatePresence initial={false}>
+            {openFilter && (
+              <motion.div
+                key={openFilter}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.28, ease: EASE }}
+                className="overflow-hidden">
+                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
+                  {(filterOptions[openFilter] || []).map(opt => {
+                    const on = filters[openFilter].includes(opt);
+                    return (
+                      <button key={opt} onClick={() => toggleFilter(openFilter, opt)}
+                        className={`rounded-full border px-3 py-1 text-[11.5px] transition-all duration-200 ${
+                          on ? "border-accent/25 bg-accent/[0.1] font-semibold text-accent shadow-sm" : "border-line bg-well/70 text-sub hover:text-ink"
+                        }`}>{opt}</button>
+                    );
+                  })}
+                  {!(filterOptions[openFilter] || []).length && <span className="text-[11.5px] text-mute">No data for this filter yet</span>}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Reveal>
 
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.4fr_1fr]">
           {/* Pipeline snapshot */}
-          <div className="au rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-6 py-5 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]">
+          <Reveal className="rounded-[20px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
             <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">Campaign Pipeline</h3>
             <p className="mb-5 text-[12.5px] text-sub">Where each campaign stands</p>
             <div className="flex flex-col gap-3.5">
-              {PHASES.map(p => {
+              {PHASES.map((p, pi) => {
                 const n = phaseCounts[p.id];
                 const pct = kpis.total ? (n / kpis.total) * 100 : 0;
                 return (
@@ -299,37 +371,41 @@ export default function OverviewDashboard() {
                       <span className="text-[13.5px] font-bold" style={{ color: n ? phaseColors[p.id] : P.doneTxt }}>{n}</span>
                     </div>
                     <div className="h-[7px] overflow-hidden rounded-full bg-well">
-                      <div className="h-full rounded-full transition-[width] duration-700 ease-out"
-                        style={{ width:`${pct}%`, background:phaseColors[p.id], boxShadow: n ? `0 0 10px ${phaseColors[p.id]}55` : "none" }}/>
+                      <motion.div className="h-full rounded-full"
+                        initial={{ width: 0 }} whileInView={{ width: `${pct}%` }}
+                        viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE, delay: pi * 0.08 }}
+                        style={{ background:phaseColors[p.id], boxShadow: n ? `0 0 10px ${phaseColors[p.id]}55` : "none" }}/>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </Reveal>
 
           {/* Campaign list */}
-          <div className="au rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-6 py-5 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]">
+          <Reveal delay={0.08} className="rounded-[20px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
             <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">Campaigns</h3>
             <p className="mb-4 text-[12.5px] text-sub">Tap to open</p>
-            <div className="flex flex-col gap-2">
+            <Stagger animate="show" stagger={0.05} className="flex flex-col gap-2">
               {[...serviceCampaigns]
                 .sort((a,b) => (b.creators?.length || 0) - (a.creators?.length || 0))
                 .map(c => {
                   const phase = phaseOf(c.stage);
                   return (
-                    <button key={c.id} onClick={() => setPage("campaigns", { campaignId: c.id })}
-                      className="group rounded-[14px] border border-[rgba(15,23,42,0.06)] bg-white/60 px-4 py-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-accent/20 hover:shadow-[0_8px_22px_rgba(15,23,42,0.07)]">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[13.5px] font-semibold text-ink">{c.name}</span>
-                        <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color:phaseColors[phase] }}>
-                          <Dot color={phaseColors[phase]} sz={5}/> {PHASES.find(p => p.id === phase)?.short}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-[11.5px] text-sub">
-                        {(c.creators || []).length} creator{(c.creators || []).length === 1 ? "" : "s"} · {fmtINR(Number(c.budget) || null)}
-                      </div>
-                    </button>
+                    <StaggerItem key={c.id}>
+                      <button onClick={() => setPage("campaigns", { campaignId: c.id })}
+                        className="group w-full rounded-[14px] border border-line bg-white/60 px-4 py-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-accent/20 hover:shadow-[0_8px_22px_rgba(25,22,17,0.07)]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[13.5px] font-semibold text-ink">{c.name}</span>
+                          <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color:phaseColors[phase] }}>
+                            <Dot color={phaseColors[phase]} sz={5}/> {PHASES.find(p => p.id === phase)?.short}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[11.5px] text-sub">
+                          {(c.creators || []).length} creator{(c.creators || []).length === 1 ? "" : "s"} · {fmtINR(Number(c.budget) || null)}
+                        </div>
+                      </button>
+                    </StaggerItem>
                   );
                 })}
               {!serviceCampaigns.length && (
@@ -337,8 +413,8 @@ export default function OverviewDashboard() {
                   hint="Start one by sending us a requirement from the Campaigns page."
                   actionLabel="Go to Campaigns" onAction={() => setPage("campaigns")}/>
               )}
-            </div>
-          </div>
+            </Stagger>
+          </Reveal>
         </div>
 
         {/* Creator breakdowns */}
@@ -346,14 +422,14 @@ export default function OverviewDashboard() {
           ["Creator Niche Performance", byNiche, "Your creators grouped by content niche — how many, how they engage, and their share of your total audience"],
           ["Creator Size Performance", bySize, "Your creators grouped by follower tier (Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+)"],
         ].map(([title, data, subtitle]) => (
-          <div className="au mt-4 rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 px-6 py-5 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]" key={title}>
+          <Reveal className="mt-4 rounded-[20px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]" key={title}>
             <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">{title}</h3>
             <p className="mb-4 text-[12.5px] text-sub">{subtitle}</p>
             <div className="grid gap-3" style={{ gridTemplateColumns:"repeat(auto-fill, minmax(190px, 1fr))" }}>
-              {data.rows.map(r => (
+              {data.rows.map((r, i) => (
                 <BreakdownCard key={r.group} group={r.group} grp={r} total={creators.length}
                   totalFollowers={totalFollowers} erAvg={data.erStats.avg}
-                  erOutlier={isOutlier(r.er, data.erStats.avg, data.erStats.stdDev)} P={P}/>
+                  erOutlier={isOutlier(r.er, data.erStats.avg, data.erStats.stdDev)} P={P} index={i}/>
               ))}
               {!data.rows.length && <div className="p-3 text-[12.5px] text-mute">No creators match the current filters</div>}
             </div>
@@ -363,7 +439,7 @@ export default function OverviewDashboard() {
               group's combined audience and its share of your total. Groups engaging unusually far above or below
               the rest are flagged ▲ high / ▼ low.
             </p>
-          </div>
+          </Reveal>
         ))}
 
         {/* Performance — dual-axis charts, funnel, spend split */}

@@ -6,6 +6,7 @@
  */
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { MotionConfig } from "motion/react";
 import { LIGHT, AppContext } from "./context";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -34,11 +35,13 @@ function PortalLayout() {
 
   return (
     <AppContext.Provider value={{ page, setPage, navParams: location.state || {}, P: LIGHT }}>
-      <AppShell>
-        <Suspense fallback={<PageSkeleton />}>
-          <Outlet />
-        </Suspense>
-      </AppShell>
+      <MotionConfig reducedMotion="user">
+        <AppShell>
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
+        </AppShell>
+      </MotionConfig>
     </AppContext.Provider>
   );
 }

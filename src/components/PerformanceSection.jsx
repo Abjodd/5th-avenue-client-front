@@ -13,6 +13,7 @@
  * separate dark theme.
  */
 import { useMemo, useState, useEffect } from "react";
+import { motion } from "motion/react";
 import {
   ResponsiveContainer,
   ComposedChart, Line,
@@ -20,6 +21,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import PeriodFilter from "./PeriodFilter";
+import AnimatedNumber from "./AnimatedNumber";
 import { useApp } from "../context";
 import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/dates";
 import { fmtNum, fmtINR } from "../lib/format";
@@ -39,34 +41,36 @@ function serviceColor(name, P) {
 }
 
 const axisProps = {
-  tick: { fontSize: 10, fill: "#7A7566", fontFamily: "Sora, sans-serif" },
+  tick: { fontSize: 10, fill: "#6F6A5A", fontFamily: "Sora, sans-serif" },
   axisLine: false,
   tickLine: false,
 };
 const tooltipStyle = {
   contentStyle: {
     background: "#FFFFFF",
-    border: "1px solid rgba(28,24,16,0.09)",
+    border: "1px solid rgba(25,22,17,0.10)",
     borderRadius: 8,
     fontSize: 11.5,
     fontFamily: "Sora, sans-serif",
-    boxShadow: "0 12px 32px rgba(28,24,16,0.12)",
-    color: "#1C1A15",
+    boxShadow: "0 12px 32px rgba(25,22,17,0.12)",
+    color: "#191611",
   },
-  labelStyle: { color: "#1C1A15", fontWeight: 700, marginBottom: 3 },
-  cursor: { stroke: "rgba(28,24,16,0.12)", strokeWidth: 1, fill: "rgba(28,24,16,0.03)" },
+  labelStyle: { color: "#191611", fontWeight: 700, marginBottom: 3 },
+  cursor: { stroke: "rgba(25,22,17,0.12)", strokeWidth: 1, fill: "rgba(25,22,17,0.03)" },
 };
 
-function StatTile({ label, value, color }) {
+function StatTile({ label, value, format = fmtNum, loading, color }) {
   return (
-    <div className="rounded-[16px] border border-[rgba(15,23,42,0.06)] bg-white/60 px-3.5 py-3 shadow-[0_1px_10px_rgba(15,23,42,0.03)] backdrop-blur-md">
+    <div className="rounded-[16px] border border-line bg-white/60 px-3.5 py-3 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
       <div className="microlabel">{label}</div>
-      <div className="mt-1 text-[22px] font-bold leading-none" style={{ color }}>{value}</div>
+      <div className="mt-1 text-[22px] font-bold leading-none" style={{ color }}>
+        {loading ? "…" : <AnimatedNumber value={value} format={format} duration={900}/>}
+      </div>
     </div>
   );
 }
 
-function FunnelRow({ label, value, pct, drop, color, isFirst }) {
+function FunnelRow({ label, value, pct, drop, color, isFirst, index = 0 }) {
   return (
     <div>
       <div className="mb-[5px] flex items-center justify-between">
@@ -79,8 +83,10 @@ function FunnelRow({ label, value, pct, drop, color, isFirst }) {
         <span className="text-[13px] font-bold" style={{ color }}>{fmtNum(value)}</span>
       </div>
       <div className="relative h-[18px] overflow-hidden rounded-sm bg-well">
-        <div className="absolute inset-y-0 left-0 rounded-sm transition-all duration-700"
-          style={{ width: `${Math.min(pct, 100)}%`, background: color, opacity: 0.85 }}/>
+        <motion.div className="absolute inset-y-0 left-0 rounded-sm"
+          initial={{ width: 0 }} whileInView={{ width: `${Math.min(pct, 100)}%` }}
+          viewport={{ once: true }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: index * 0.1 }}
+          style={{ background: color, opacity: 0.85 }}/>
         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-ink">
           {pct.toFixed(1)}%
         </span>
@@ -174,10 +180,10 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const isLoading = analytics === null && !error;
 
   return (
-    <div className="au mt-4 overflow-hidden rounded-[20px] border border-[rgba(15,23,42,0.06)] bg-white/70 shadow-[0_2px_20px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(15,23,42,0.06)]">
+    <div className="au mt-4 overflow-hidden rounded-[20px] border border-[rgba(25,22,17,0.06)] bg-white/70 shadow-[0_2px_20px_rgba(25,22,17,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
 
       {/* Header + period filter */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(15,23,42,0.06)] px-6 py-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(25,22,17,0.06)] px-6 py-5">
         <div>
           <h3 className="font-serif text-[19px] italic font-semibold text-ink">Performance</h3>
           <p className="mt-0.5 text-[12.5px] text-sub">Dual-axis · {intervalLabel} view · overall trend</p>
@@ -194,15 +200,15 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
         {/* KPI stat strip */}
         <div className="mb-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
-          <StatTile label="Total Reach"    value={isLoading ? "…" : fmtNum(totals.reach)}  color={P.pink} />
-          <StatTile label="Impressions"    value={isLoading ? "…" : fmtNum(totals.imp)}    color={P.accent} />
-          <StatTile label="Engagements"    value={isLoading ? "…" : fmtNum(totals.eng)}    color={P.amber} />
-          <StatTile label="Clicks (est.)"  value={isLoading ? "…" : fmtNum(totals.clicks)} color={P.green} />
-          <StatTile label="Total Spend"    value={isLoading ? "…" : fmtINR(totals.spend)}  color={P.purple} />
+          <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.pink} />
+          <StatTile label="Impressions"    value={totals.imp}    loading={isLoading} color={P.accent} />
+          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber} />
+          <StatTile label="Clicks (est.)"  value={totals.clicks} loading={isLoading} color={P.green} />
+          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple} />
         </div>
 
         {/* Row 1: Dual-axis line chart */}
-        <div className="mb-4 overflow-hidden rounded-[16px] border border-[rgba(15,23,42,0.06)] bg-white/60 p-4 shadow-[0_1px_10px_rgba(15,23,42,0.03)] backdrop-blur-md">
+        <div className="mb-4 overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-white/60 p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="font-serif text-[15px] italic font-semibold text-ink">
@@ -240,7 +246,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           ) : (
             <ResponsiveContainer width="100%" height={210}>
               <ComposedChart data={series} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(28,24,16,0.06)" vertical={false} />
+                <CartesianGrid stroke="rgba(25,22,17,0.06)" vertical={false} />
                 <XAxis dataKey="label" {...axisProps} minTickGap={20} interval="preserveStartEnd" />
                 <YAxis yAxisId="left"  {...axisProps} tickFormatter={v => fmtNum(v)} width={44} />
                 <YAxis yAxisId="right" {...axisProps} orientation="right" tickFormatter={v => fmtINR(v)} width={52} />
@@ -268,19 +274,19 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
         {/* Row 2: Funnel + Spend Split side by side */}
         <div className="grid gap-4 lg:grid-cols-2">
 
-          <div className="overflow-hidden rounded-[16px] border border-[rgba(15,23,42,0.06)] bg-white/60 p-4 shadow-[0_1px_10px_rgba(15,23,42,0.03)] backdrop-blur-md">
+          <div className="overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-white/60 p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Funnel</div>
             <p className="mb-4 text-[10.5px] text-mute">Exposure → Engagement → Click · based on campaign reach</p>
             {isLoading ? (
               <div className="flex h-[140px] items-center justify-center text-[12px] text-mute">Loading…</div>
             ) : (
               <div className="flex flex-col gap-3.5">
-                {funnelRows.map(r => <FunnelRow key={r.label} {...r} />)}
+                {funnelRows.map((r, i) => <FunnelRow key={r.label} {...r} index={i} />)}
               </div>
             )}
           </div>
 
-          <div className="overflow-hidden rounded-[16px] border border-[rgba(15,23,42,0.06)] bg-white/60 p-4 shadow-[0_1px_10px_rgba(15,23,42,0.03)] backdrop-blur-md">
+          <div className="overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-white/60 p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Spend Split</div>
             <p className="mb-2 text-[10.5px] text-mute">By service · selected period</p>
 

@@ -4,7 +4,7 @@
 
 // Region hues drawn from the portal theme (context.js) so the map reads as
 // part of the same system: accent / green / pink / amber / purple / teal.
-export const REGION_COLORS = { north:"#2F3E6B", south:"#1E9E5A", west:"#A8519E", east:"#B5790A", northeast:"#7860D6", central:"#1C9C8C" };
+export const REGION_COLORS = { north:"#2C3E7E", south:"#17915A", west:"#A2489A", east:"#A8720C", northeast:"#7860D6", central:"#178E80" };
 export const REGION_NAMES  = { north:"North", south:"South", west:"West", east:"East", northeast:"North-East", central:"Central" };
 
 export const STATES_META = {
