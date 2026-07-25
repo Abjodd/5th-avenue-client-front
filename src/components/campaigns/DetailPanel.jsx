@@ -291,7 +291,7 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(idx * 0.035, 0.4), duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       className="mb-2 rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md"
-      style={{ borderColor: actionable ? P.amber + "25" : autoResult === "approved" ? P.green + "25" : autoResult === "rejected" ? P.red + "20" : "rgba(25,22,17,0.06)" }}>
+      style={{ borderColor: actionable ? P.amber + "25" : autoResult === "approved" ? P.green + "25" : autoResult === "rejected" ? P.red + "20" : "var(--color-line)" }}>
       <div className="flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[12.5px] font-semibold text-accent shadow-sm">{cr.avatar || cr.name[0]}</div>
         <div className="min-w-0 flex-1">

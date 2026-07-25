@@ -118,7 +118,7 @@ export default function LoginPage() {
     else setErr(result.error);
   };
 
-  const inputCls = "w-full rounded-[12px] border border-[rgba(25,22,17,0.09)] bg-white/70 px-3.5 py-3 text-[13.5px] text-ink outline-none backdrop-blur-sm transition-all duration-200 focus:border-accent/50 focus:shadow-[0_0_0_4px_rgba(44,62,126,0.1)] focus:bg-white";
+  const inputCls = "w-full rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-3 text-[13.5px] text-ink outline-none backdrop-blur-sm transition-all duration-200 focus:border-accent/50 focus:shadow-[0_0_0_4px_rgba(44,62,126,0.1)] focus:bg-white";
   const labelCls = "mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.1em] text-mute";
 
   return (
@@ -219,7 +219,7 @@ export default function LoginPage() {
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-[380px] rounded-[28px] border border-white/60 bg-white/70 p-9 shadow-[0_30px_80px_rgba(25,22,17,0.12)] backdrop-blur-2xl"
+            className="relative w-full max-w-[380px] rounded-[28px] border border-line bg-[--color-glass] p-9 shadow-[0_30px_80px_rgba(25,22,17,0.12)] backdrop-blur-2xl"
           >
             <div className="mb-4 font-serif text-[20px] italic font-semibold text-accent md:hidden">5th Avenue</div>
 

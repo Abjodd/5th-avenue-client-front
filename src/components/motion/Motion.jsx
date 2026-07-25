@@ -1,5 +1,5 @@
 // src/components/motion/Motion.jsx — shared motion primitives.
-// Reveal, Stagger/StaggerItem, HoverLift, Magnetic, useTilt, AmbientBackground.
+// Reveal, Stagger/StaggerItem, HoverLift, Magnetic, AmbientBackground.
 // All motion respects prefers-reduced-motion via <MotionConfig reducedMotion="user"> in App.jsx.
 
 import { useRef, useState } from "react";
@@ -79,24 +79,6 @@ export function Magnetic({ children, strength = 0.25, className }) {
       {children}
     </motion.div>
   );
-}
-
-/* ── useTilt: cursor-tracking 3D tilt (extracted from RegionalMap's IndiaMap) ── */
-export function useTilt(maxRx = 10, maxRy = 12) {
-  const ref = useRef(null);
-  const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
-  const reduced = useReducedMotion();
-  const onMouseMove = (e) => {
-    if (reduced) return;
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    setTilt({ rx: (0.5 - py) * maxRx, ry: (px - 0.5) * maxRy });
-  };
-  const onMouseLeave = () => setTilt({ rx: 0, ry: 0 });
-  return { ref, tilt, handlers: { onMouseMove, onMouseLeave } };
 }
 
 /* ── AmbientBackground: token-colored gradient blobs behind pages ──

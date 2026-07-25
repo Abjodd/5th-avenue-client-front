@@ -53,7 +53,7 @@ export function ErrorState({ message, onRetry }) {
 
 export function EmptyState({ icon = "◎", title, hint, actionLabel, onAction }) {
   return (
-    <div className="rounded-[20px] border border-dashed border-[rgba(25,22,17,0.12)] bg-[--color-glass-soft] px-6 py-11 text-center backdrop-blur-sm transition-colors duration-300 hover:border-accent/25 hover:bg-[--color-glass]">
+    <div className="rounded-[20px] border border-dashed border-line-mid bg-[--color-glass-soft] px-6 py-11 text-center backdrop-blur-sm transition-colors duration-300 hover:border-accent/25 hover:bg-[--color-glass]">
       <div className="mb-3 inline-flex size-12 items-center justify-center rounded-full bg-accent/[0.06] text-2xl text-accent/70 shadow-sm">
         {icon}
       </div>

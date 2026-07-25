@@ -12,8 +12,6 @@ import { PageSkeleton, ErrorState } from "../components/PageStates";
 import AnimatedNumber from "../components/AnimatedNumber";
 import { AmbientBackground } from "../components/motion/Motion";
 
-/* Shared count-up (extracted to components/AnimatedNumber during the redesign) */
-const CountUp = AnimatedNumber;
 // Language tints drawn from the theme palette (base hues + lighter tints)
 // so the language view matches the rest of the portal.
 const LC = {"Hindi":"#2C3E7E","Tamil":"#17915A","Telugu":"#A2489A","Kannada":"#A8720C","Malayalam":"#6C55CE","Bengali":"#96792A","Marathi":"#BE3A3A","Gujarati":"#178E80","Punjabi":"#5B6FA3","Odia":"#4FA97E","Assamese":"#9B85DE","English":"#6F6A5A","Kashmiri":"#6E86C4","Konkani":"#C27FBA","Nepali":"#55B3A6","Meitei":"#8A6FD0","Khasi":"#2FA98F","Mizo":"#7D93CF"};
@@ -304,10 +302,10 @@ function StatesPanel({stateData,onSelect,P}){
   return(<div>
     <div className="mb-2.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">States with creators — click to drill down</div>
     {rows.map(([code,d],i)=>{const m=STATES_META[code];const maxCr=rows[0][1].cr;return(
-      <div key={code} className="anim-up group mb-2 cursor-pointer rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:scale-[1.01] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
+      <div key={code} className="anim-up group mb-2 cursor-pointer rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:scale-[1.01] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
         style={{animationDelay:`${i*30}ms`}}
         onClick={()=>onSelect(code)}
-        onMouseOver={e=>e.currentTarget.style.borderColor=RC[m.region]+"55"} onMouseOut={e=>e.currentTarget.style.borderColor="rgba(25,22,17,0.06)"}>
+        onMouseOver={e=>e.currentTarget.style.borderColor=RC[m.region]+"55"} onMouseOut={e=>e.currentTarget.style.borderColor="var(--color-line)"}>
         <div className="flex items-center gap-3">
           <div className="relative flex size-8 shrink-0 items-center justify-center">
             <div className="absolute inset-0 rounded-full opacity-20 transition-transform duration-300 group-hover:scale-125" style={{background:RC[m.region]}}/>
@@ -317,8 +315,8 @@ function StatesPanel({stateData,onSelect,P}){
             <div className="text-[13.5px] font-semibold text-ink">{m.name}</div>
             <div className="mt-px text-[10.5px] text-sub">{RN[m.region]} · {m.lang}</div>
           </div>
-          <div className="text-right"><div className="text-[15px] font-bold text-accent"><CountUp value={d.cr}/></div><div className="text-[9px] uppercase text-mute">creators</div></div>
-          <div className="text-right"><div className="text-[15px] font-bold text-green"><CountUp value={d.c}/></div><div className="text-[9px] uppercase text-mute">campaigns</div></div>
+          <div className="text-right"><div className="text-[15px] font-bold text-accent"><AnimatedNumber value={d.cr}/></div><div className="text-[9px] uppercase text-mute">creators</div></div>
+          <div className="text-right"><div className="text-[15px] font-bold text-green"><AnimatedNumber value={d.c}/></div><div className="text-[9px] uppercase text-mute">campaigns</div></div>
           <div className="min-w-[56px] text-right"><div className="text-[15px] font-bold text-ink">{d.f?fmtNum(d.f):"—"}</div><div className="text-[9px] uppercase text-mute">followers</div></div>
           <span className="text-[13px] text-mute opacity-0 transition-all duration-200 group-hover:translate-x-1 group-hover:opacity-100">→</span>
         </div>
@@ -336,13 +334,13 @@ function MapLegend({mode,stateData,langData,P}){
     const langs=Object.entries(langData).sort((a,b)=>b[1].cr-a[1].cr).slice(0,6);
     if(!langs.length)return null;
     return(<div className="mt-3 flex flex-wrap justify-center gap-2">
-      {langs.map(([l,d],i)=>(<span key={l} className="fi flex items-center gap-1.5 rounded-full border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-2.5 py-1 text-[10.5px] text-sub shadow-sm backdrop-blur-sm transition-transform duration-200 hover:-translate-y-px" style={{animationDelay:`${i*40}ms`}}><Dot color={LC[l]||P.mute} sz={6}/>{l} <b className="text-ink">{d.cr}</b></span>))}
+      {langs.map(([l,d],i)=>(<span key={l} className="fi flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-2.5 py-1 text-[10.5px] text-sub shadow-sm backdrop-blur-sm transition-transform duration-200 hover:-translate-y-px" style={{animationDelay:`${i*40}ms`}}><Dot color={LC[l]||P.mute} sz={6}/>{l} <b className="text-ink">{d.cr}</b></span>))}
     </div>);
   }
   const active=new Set(Object.entries(stateData).filter(([,d])=>d.cr>0).map(([c])=>STATES_META[c].region));
   return(<div className="mt-3 flex flex-wrap justify-center gap-2">
     {Object.entries(RN).map(([r,label],i)=>(
-      <span key={r} className={`fi flex items-center gap-1.5 rounded-full border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-2.5 py-1 text-[10.5px] shadow-sm backdrop-blur-sm transition-transform duration-200 hover:-translate-y-px ${active.has(r)?"text-sub":"text-donetxt"}`} style={{animationDelay:`${i*40}ms`}}>
+      <span key={r} className={`fi flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-2.5 py-1 text-[10.5px] shadow-sm backdrop-blur-sm transition-transform duration-200 hover:-translate-y-px ${active.has(r)?"text-sub":"text-donetxt"}`} style={{animationDelay:`${i*40}ms`}}>
         <Dot color={RC[r]} sz={6}/><span className={active.has(r)?"":"opacity-45"}>{label}</span>
       </span>))}
   </div>);
@@ -354,7 +352,7 @@ function MapLegend({mode,stateData,langData,P}){
 function CampCard({c,i,scope,open,onToggle,onOpenCampaign,P}){
   const pc=phaseColors(P);
   const crs=c.crs.filter(cr=>scope.type==="state"?cr.code===scope.id:STATES_META[cr.code].region===scope.id);
-  return(<div className="anim-up mb-2 overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:shadow-[0_12px_28px_rgba(25,22,17,0.09)]" style={{animationDelay:`${i*30}ms`}}>
+  return(<div className="anim-up mb-2 overflow-hidden rounded-[16px] border border-line bg-[--color-glass] shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:shadow-[0_12px_28px_rgba(25,22,17,0.09)]" style={{animationDelay:`${i*30}ms`}}>
     <div className="group cursor-pointer px-4 py-3" onClick={onToggle}>
       <div className="mb-1 flex items-center justify-between"><div><h4 className="text-[13px] font-medium text-ink transition-colors group-hover:text-accent">{c.n}</h4><span className="text-[10px] uppercase tracking-[0.04em] text-accent">{c.s}</span></div>
         <div className="flex items-center gap-1"><Dot color={pc[c.p]||P.mute}/><span className="text-[11px] text-sub">{PL[c.p]}</span><span className="text-[11px] font-semibold" style={{color:pc[c.p]}}>{c.pr}%</span></div></div>
@@ -366,9 +364,9 @@ function CampCard({c,i,scope,open,onToggle,onOpenCampaign,P}){
         </span>
       </div>
     </div>
-    {open&&(<div className="fi border-t border-[rgba(25,22,17,0.05)]">
+    {open&&(<div className="fi border-t border-line">
       {crs.map((cr,j)=>{const m=STATES_META[cr.code];return(
-        <div key={`${cr.name}-${j}`} className="flex items-center gap-2.5 border-b border-[rgba(25,22,17,0.04)] px-4 py-2.5 transition-colors duration-150 hover:bg-accent/[0.03]">
+        <div key={`${cr.name}-${j}`} className="flex items-center gap-2.5 border-b border-line px-4 py-2.5 transition-colors duration-150 hover:bg-accent/[0.03]">
           <div className="flex size-7 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white" style={{background:RC[m.region]}}>{initials(cr.name)}</div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12px] font-medium text-ink">{cr.name}</div>
@@ -393,9 +391,9 @@ function DrillPanel({type,id,data,onBack,onOpenCampaign,P}){
       onToggle={()=>setOpenCamp(openCamp===c.id?null:c.id)}
       onOpenCampaign={()=>onOpenCampaign(c)} P={P}/>
   ));
-  const backBtn=(<button onClick={onBack} className="mb-3 flex items-center gap-1 rounded-full border border-[rgba(25,22,17,0.08)] bg-well/70 px-3 py-1.5 text-[11px] text-sub transition-all duration-150 hover:-translate-x-0.5 hover:text-ink">← Back</button>);
+  const backBtn=(<button onClick={onBack} className="mb-3 flex items-center gap-1 rounded-full border border-line bg-well/70 px-3 py-1.5 text-[11px] text-sub transition-all duration-150 hover:-translate-x-0.5 hover:text-ink">← Back</button>);
   const statCard=([l,v],i)=>(
-    <div key={l} className="anim-up rounded-[14px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md" style={{animationDelay:`${i*50}ms`}}>
+    <div key={l} className="anim-up rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md" style={{animationDelay:`${i*50}ms`}}>
       <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">{l}</div>
       <div className={`mt-1 text-[19px] font-bold ${v&&v!=="—"?"text-ink":"text-donetxt"}`}>{v}</div>
     </div>);
@@ -406,7 +404,7 @@ function DrillPanel({type,id,data,onBack,onOpenCampaign,P}){
     const camps=campMeta.filter(c=>c.states.has(id));
     return(<div className="au">
       {backBtn}
-      <div className="mb-3 flex items-center gap-2.5 rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
+      <div className="mb-3 flex items-center gap-2.5 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
         <div className="relative flex size-9 items-center justify-center">
           <div className="pulse absolute inset-0 rounded-full opacity-25" style={{background:color}}/>
           <Dot color={color} sz={9}/>
@@ -428,7 +426,7 @@ function DrillPanel({type,id,data,onBack,onOpenCampaign,P}){
   const camps=campMeta.filter(c=>c.regions.has(id));
   return(<div className="au">
     {backBtn}
-    <div className="mb-3 flex items-center gap-2.5 rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
+    <div className="mb-3 flex items-center gap-2.5 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
       <div className="relative flex size-9 items-center justify-center">
         <div className="pulse absolute inset-0 rounded-full opacity-25" style={{background:RC[id]}}/>
         <Dot color={RC[id]} sz={9}/>
@@ -439,9 +437,9 @@ function DrillPanel({type,id,data,onBack,onOpenCampaign,P}){
       {[["Campaigns",meta.c],["Creators",meta.cr],["Followers",meta.f?fmtNum(meta.f):"—"]].map(statCard)}
     </div>
     <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">State Breakdown</div>
-    <div className="mb-4 overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] shadow-sm backdrop-blur-md">
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-1 border-b border-[rgba(25,22,17,0.06)] bg-black/[0.015] px-3.5 py-2">{["State","Camp.","Creators","Followers"].map(h=><span key={h} className="text-[9px] font-semibold uppercase tracking-[0.08em] text-mute">{h}</span>)}</div>
-      {statesInR.map(([sid,m],i)=>{const d=stateData[sid];return<div key={sid} className={`grid grid-cols-[2fr_1fr_1fr_1fr] gap-1 px-3.5 py-2.5 transition-colors duration-150 hover:bg-accent/[0.03] ${i<statesInR.length-1?"border-b border-[rgba(25,22,17,0.05)]":""}`}><span className="text-[12px] font-medium text-ink">{m.name}</span><span className={`text-[12px] ${d.c?"text-ink":"text-donetxt"}`}>{d.c}</span><span className={`text-[12px] ${d.cr?"text-ink":"text-donetxt"}`}>{d.cr}</span><span className={`text-[12px] ${d.f?"text-ink":"text-donetxt"}`}>{d.f?fmtNum(d.f):"—"}</span></div>;})}
+    <div className="mb-4 overflow-hidden rounded-[16px] border border-line bg-[--color-glass] shadow-sm backdrop-blur-md">
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-1 border-b border-line bg-black/[0.015] px-3.5 py-2">{["State","Camp.","Creators","Followers"].map(h=><span key={h} className="text-[9px] font-semibold uppercase tracking-[0.08em] text-mute">{h}</span>)}</div>
+      {statesInR.map(([sid,m],i)=>{const d=stateData[sid];return<div key={sid} className={`grid grid-cols-[2fr_1fr_1fr_1fr] gap-1 px-3.5 py-2.5 transition-colors duration-150 hover:bg-accent/[0.03] ${i<statesInR.length-1?"border-b border-line":""}`}><span className="text-[12px] font-medium text-ink">{m.name}</span><span className={`text-[12px] ${d.c?"text-ink":"text-donetxt"}`}>{d.c}</span><span className={`text-[12px] ${d.cr?"text-ink":"text-donetxt"}`}>{d.cr}</span><span className={`text-[12px] ${d.f?"text-ink":"text-donetxt"}`}>{d.f?fmtNum(d.f):"—"}</span></div>;})}
     </div>
     <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Campaigns with creators here — tap to see who</div>
     {campList(camps,{type:"region",id})}
@@ -453,14 +451,14 @@ function LangPanel({langData,P}){
   const sorted=Object.entries(langData).sort((a,b)=>b[1].cr-a[1].cr);
   if(!sorted.length)return<div className="p-8 text-center text-[12.5px] text-mute">No creator language data yet</div>;
   return(<div><div className="mb-2.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">Language Distribution</div>
-    {sorted.map(([lang,d],i)=><div key={lang} className="anim-up group mb-2 flex items-center gap-3 rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-[2px] hover:shadow-[0_12px_28px_rgba(25,22,17,0.08)]" style={{animationDelay:`${i*30}ms`}}>
+    {sorted.map(([lang,d],i)=><div key={lang} className="anim-up group mb-2 flex items-center gap-3 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-[2px] hover:shadow-[0_12px_28px_rgba(25,22,17,0.08)]" style={{animationDelay:`${i*30}ms`}}>
       <div className="relative flex size-8 items-center justify-center">
         <div className="absolute inset-0 rounded-full opacity-20 transition-transform duration-300 group-hover:scale-125" style={{background:LC[lang]||P.mute}}/>
         <Dot color={LC[lang]||P.mute} sz={8}/>
       </div>
       <div className="flex-1"><div className="text-[13.5px] font-semibold text-ink">{lang}</div></div>
-      <div className="text-right"><div className={`text-[15px] font-bold ${d.c?"text-accent":"text-donetxt"}`}><CountUp value={d.c}/></div><div className="text-[9px] uppercase text-mute">campaigns</div></div>
-      <div className="text-right"><div className={`text-[15px] font-bold ${d.cr?"text-green":"text-donetxt"}`}><CountUp value={d.cr}/></div><div className="text-[9px] uppercase text-mute">creators</div></div>
+      <div className="text-right"><div className={`text-[15px] font-bold ${d.c?"text-accent":"text-donetxt"}`}><AnimatedNumber value={d.c}/></div><div className="text-[9px] uppercase text-mute">campaigns</div></div>
+      <div className="text-right"><div className={`text-[15px] font-bold ${d.cr?"text-green":"text-donetxt"}`}><AnimatedNumber value={d.cr}/></div><div className="text-[9px] uppercase text-mute">creators</div></div>
     </div>)}
   </div>);
 }
@@ -494,10 +492,10 @@ export default function RegionalMap(){
           <div>
             <h1 className="font-serif text-[42px] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Regional Reach</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[12.5px] text-sub">
-              <span className="fi rounded-full border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm"><b className="text-ink"><CountUp value={totalCreators}/></b> creator{totalCreators===1?"":"s"} mapped</span>
-              <span className="fi rounded-full border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{animationDelay:"60ms"}}><b className="text-ink"><CountUp value={Object.values(data.stateData).filter(d=>d.cr>0).length}/></b> states</span>
-              <span className="fi rounded-full border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{animationDelay:"120ms"}}><b className="text-ink"><CountUp value={Object.values(data.regionData).filter(d=>d.cr>0).length}/></b> regions</span>
-              <span className="fi rounded-full border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{animationDelay:"180ms"}}><b className="text-ink"><CountUp value={Object.keys(data.langData).length}/></b> languages</span>
+              <span className="fi rounded-full border border-line bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm"><b className="text-ink"><AnimatedNumber value={totalCreators}/></b> creator{totalCreators===1?"":"s"} mapped</span>
+              <span className="fi rounded-full border border-line bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{animationDelay:"60ms"}}><b className="text-ink"><AnimatedNumber value={Object.values(data.stateData).filter(d=>d.cr>0).length}/></b> states</span>
+              <span className="fi rounded-full border border-line bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{animationDelay:"120ms"}}><b className="text-ink"><AnimatedNumber value={Object.values(data.regionData).filter(d=>d.cr>0).length}/></b> regions</span>
+              <span className="fi rounded-full border border-line bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{animationDelay:"180ms"}}><b className="text-ink"><AnimatedNumber value={Object.keys(data.langData).length}/></b> languages</span>
               {data.unassigned>0&&<span className="text-mute">{data.unassigned} creator{data.unassigned===1?"":"s"} without a location yet</span>}
             </div>
           </div>
@@ -546,7 +544,7 @@ export default function RegionalMap(){
               <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Regions — click to drill down</div>
               <div className="grid gap-2.5" style={{gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))"}}>
                 {Object.entries(data.regionData).filter(([,d])=>d.cr>0).map(([r,d],i)=>(
-                  <div key={r} onClick={()=>{setSel(r);setSelType("region");}} className="anim-up group cursor-pointer rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-1 hover:scale-[1.015] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]" style={{animationDelay:`${i*30}ms`}}>
+                  <div key={r} onClick={()=>{setSel(r);setSelType("region");}} className="anim-up group cursor-pointer rounded-[16px] border border-line bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-1 hover:scale-[1.015] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]" style={{animationDelay:`${i*30}ms`}}>
                     <div className="mb-2.5 flex items-center gap-1.5">
                       <div className="relative flex size-6 items-center justify-center">
                         <div className="absolute inset-0 rounded-full opacity-20 transition-transform duration-300 group-hover:scale-150" style={{background:RC[r]}}/>

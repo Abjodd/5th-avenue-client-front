@@ -9,8 +9,8 @@
  * by the selected period. Falls back to derived zeros if the backend is
  * unreachable so the UI never hard-crashes.
  *
- * Styled to match the rest of the (light, warm-paper) Overview page — no
- * separate dark theme.
+ * Fully theme-aware (light/dark) — every color, including Recharts axes and
+ * tooltips, is derived from the active palette (see chartTheme() / P below).
  */
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "motion/react";
@@ -64,13 +64,33 @@ const chartTheme = (P) => ({
   },
 });
 
-function StatTile({ label, value, format = fmtNum, loading, color }) {
+/* Period-over-period trend badge — null delta (no prior-bucket data, or the
+   very first period) renders nothing rather than a misleading "0%". */
+function TrendBadge({ delta, P }) {
+  if (delta == null || !Number.isFinite(delta)) return null;
+  const flat = Math.abs(delta) < 0.5;
+  const up = delta > 0;
+  const tone = flat ? P.mute : up ? P.green : P.red;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[10.5px] font-bold" style={{ color: tone }}>
+      {flat ? "→" : up ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}%
+    </span>
+  );
+}
+
+function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaLabel, P }) {
   return (
     <div className="rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
-      <div className="microlabel">{label}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="microlabel">{label}</div>
+        {!loading && <TrendBadge delta={delta} P={P}/>}
+      </div>
       <div className="mt-1 text-[22px] font-bold leading-none" style={{ color }}>
         {loading ? "…" : <AnimatedNumber value={value} format={format} duration={900}/>}
       </div>
+      {!loading && delta != null && Number.isFinite(delta) && (
+        <div className="mt-0.5 text-[9.5px] text-mute">vs previous {deltaLabel}</div>
+      )}
     </div>
   );
 }
@@ -168,6 +188,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   }, [series]);
 
   const intervalLabel = INTERVALS.find(iv => iv.id === chartInterval)?.label.toLowerCase() || chartInterval;
+  const trendUnit = { daily: "day", weekly: "week", monthly: "month" }[chartInterval] || intervalLabel;
   // Dots clutter dense series (e.g. daily over 6 months) — hide them there.
   const showDots = series.length <= 45;
 
@@ -198,10 +219,10 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const isLoading = analytics === null && !error;
 
   return (
-    <div className="au mt-4 overflow-hidden rounded-[20px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] shadow-[0_2px_20px_rgba(25,22,17,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
+    <div className="au mt-4 overflow-hidden rounded-[20px] border border-line bg-[--color-glass] shadow-[0_2px_20px_rgba(25,22,17,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
 
       {/* Header + period filter */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(25,22,17,0.06)] px-6 py-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-6 py-5">
         <div>
           <h3 className="font-serif text-[19px] italic font-semibold text-ink">Performance</h3>
           <p className="mt-0.5 text-[12.5px] text-sub">Dual-axis · {intervalLabel} view · overall trend</p>
@@ -216,17 +237,20 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           </div>
         )}
 
-        {/* KPI stat strip */}
+        {/* KPI stat strip — each tile's ▲/▼ badge compares the most recent
+            {intervalLabel} bucket against the one before it, so a brand can
+            tell at a glance whether reach/spend/engagement is trending up or
+            down, not just what the flat total is. */}
         <div className="mb-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
-          <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.pink} />
-          <StatTile label="Impressions"    value={totals.imp}    loading={isLoading} color={P.accent} />
-          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber} />
-          <StatTile label="Clicks (est.)"  value={totals.clicks} loading={isLoading} color={P.green} />
-          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple} />
+          <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.pink}   delta={trend?.reach}  deltaLabel={trendUnit} P={P}/>
+          <StatTile label="Impressions"    value={totals.imp}    loading={isLoading} color={P.accent} delta={trend?.imp}    deltaLabel={trendUnit} P={P}/>
+          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber}  delta={trend?.eng}    deltaLabel={trendUnit} P={P}/>
+          <StatTile label="Clicks (est.)"  value={totals.clicks} loading={isLoading} color={P.green}  delta={trend?.clicks} deltaLabel={trendUnit} P={P}/>
+          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple} delta={trend?.spend} deltaLabel={trendUnit} P={P}/>
         </div>
 
         {/* Row 1: Dual-axis line chart */}
-        <div className="mb-4 overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
+        <div className="mb-4 overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="font-serif text-[15px] italic font-semibold text-ink">
@@ -292,7 +316,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
         {/* Row 2: Funnel + Spend Split side by side */}
         <div className="grid gap-4 lg:grid-cols-2">
 
-          <div className="overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
+          <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Funnel</div>
             <p className="mb-4 text-[10.5px] text-mute">Exposure → Engagement → Click · based on campaign reach</p>
             {isLoading ? (
@@ -304,7 +328,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-[16px] border border-[rgba(25,22,17,0.06)] bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
+          <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Spend Split</div>
             <p className="mb-2 text-[10.5px] text-mute">By service · selected period</p>
 

@@ -75,7 +75,7 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P,
     : erOutlier === "low" ? { c:P.red, label:"LOW OUTLIER", sym:"▼" } : null;
   return (
     <Reveal delay={Math.min(index * 0.05, 0.3)} className="rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_10px_26px_rgba(25,22,17,0.07)]"
-      style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : "rgba(25,22,17,0.07)" }}>
+      style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : "var(--color-line)" }}>
       <div className="mb-[3px] flex items-start justify-between">
         <div>
           <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{group}</div>

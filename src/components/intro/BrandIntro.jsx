@@ -214,7 +214,7 @@ export default function BrandIntro({ data, onDone, onClosed }) {
                 className="h-[6px] rounded-full"
                 animate={{
                   width: i === step ? 22 : 6,
-                  backgroundColor: i === step ? "var(--color-accent)" : "rgba(25,22,17,0.18)",
+                  backgroundColor: i === step ? "var(--color-accent)" : "var(--color-line-mid)",
                 }}
                 transition={{ duration: 0.3, ease: EASE }}
               />

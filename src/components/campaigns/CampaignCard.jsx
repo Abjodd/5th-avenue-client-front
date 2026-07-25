@@ -98,7 +98,7 @@ export default function CampaignCard({ campaign: c, onClick }) {
       className={`group cursor-pointer rounded-[16px] border-[1.5px] px-4 py-3.5 shadow-sm backdrop-blur-md transition-colors duration-200 ${
         done ? "bg-well/40 opacity-60" : "bg-[--color-glass] hover:bg-[--color-glass-strong] hover:shadow-[0_14px_32px_rgba(25,22,17,0.09)]"
       }`}
-      style={{ borderColor: pending ? P.amber + "55" : "rgba(25,22,17,0.06)" }}
+      style={{ borderColor: pending ? P.amber + "55" : "var(--color-line)" }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">

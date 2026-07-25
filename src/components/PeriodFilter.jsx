@@ -22,12 +22,12 @@ export default function PeriodFilter({ preset, onPreset, interval, onInterval })
       {/* Range preset dropdown */}
       <div ref={ref} className="relative">
         <button onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 rounded-full border border-[rgba(25,22,17,0.08)] bg-[--color-glass] px-3.5 py-[7px] text-[11.5px] font-semibold text-ink shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md">
+          className="flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-3.5 py-[7px] text-[11.5px] font-semibold text-ink shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md">
           {current?.label}
           <span className={`text-[9px] text-mute transition-transform duration-200 ${open ? "-rotate-180" : ""}`}>▾</span>
         </button>
         {open && (
-          <div className="fi absolute left-0 top-[calc(100%+6px)] z-[60] min-w-[160px] overflow-hidden rounded-[14px] border border-[rgba(25,22,17,0.08)] bg-[--color-glass-strong] py-1.5 shadow-[0_16px_40px_rgba(25,22,17,0.14)] backdrop-blur-xl">
+          <div className="fi absolute left-0 top-[calc(100%+6px)] z-[60] min-w-[160px] overflow-hidden rounded-[14px] border border-line bg-[--color-glass-strong] py-1.5 shadow-[0_16px_40px_rgba(25,22,17,0.14)] backdrop-blur-xl">
             {RANGE_PRESETS.map(r => (
               <button key={r.id} onClick={() => { onPreset(r.id); setOpen(false); }}
                 className={`flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12px] transition-colors duration-150 hover:bg-accent/[0.06] ${
@@ -41,7 +41,7 @@ export default function PeriodFilter({ preset, onPreset, interval, onInterval })
       </div>
 
       {/* Interval tabs — daily / weekly / monthly */}
-      <div className="flex gap-0.5 rounded-full border border-[rgba(25,22,17,0.08)] bg-[--color-glass] p-1 shadow-sm backdrop-blur-sm">
+      <div className="flex gap-0.5 rounded-full border border-line bg-[--color-glass] p-1 shadow-sm backdrop-blur-sm">
         {INTERVALS.map(iv => (
           <button key={iv.id} onClick={() => onInterval(iv.id)}
             className={`rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-all duration-200 ease-out ${
