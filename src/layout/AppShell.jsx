@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
+import ThemeToggle from "../components/ThemeToggle";
 
 const NAV_ITEMS = [
   { id: "overview",  label: "Overview",     icon: "◎" },
@@ -36,7 +37,7 @@ export default function AppShell({ children }) {
       {/* Floating glass navbar */}
       <div className="sticky top-0 z-40 px-3 pt-3 sm:px-5">
         <div
-          className={`mx-auto flex h-[72px] max-w-[1600px] items-stretch overflow-hidden rounded-2xl border border-line pl-[22px] backdrop-blur-[20px] transition-shadow duration-300 ${
+          className={`mx-auto flex h-[72px] max-w-[1600px] items-stretch rounded-2xl border border-line pl-[22px] backdrop-blur-[20px] transition-shadow duration-300 ${
             scrolled ? "shadow-[0_16px_40px_rgba(25,22,17,0.12)]" : "shadow-[0_8px_30px_rgba(25,22,17,0.06)]"
           }`}
           style={{ background: "var(--color-glass)" }}
@@ -50,7 +51,7 @@ export default function AppShell({ children }) {
 
           {/* Client identity — scoped to the logged-in brand */}
           <div className="hidden shrink-0 items-center gap-2.5 border-r border-line px-5 sm:flex">
-            <span className="whitespace-nowrap rounded-full bg-white/60 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute shadow-sm ring-1 ring-line">
+            <span className="whitespace-nowrap rounded-full bg-[--color-glass] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute shadow-sm ring-1 ring-line">
               Client
             </span>
             <span className="whitespace-nowrap text-[13.5px] font-semibold text-ink">{user?.clientName}</span>
@@ -101,9 +102,17 @@ export default function AppShell({ children }) {
             })}
           </div>
 
-          {/* User pill + logout */}
+          {/* Theme + user pill + logout */}
           <div className="flex items-center gap-2.5 border-l border-line pl-4 pr-[18px]">
-            <div className="flex items-center gap-[9px] rounded-full border border-line bg-white/50 py-[5px] pl-[5px] pr-3.5 text-[12.5px] text-ink shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:shadow-md">
+            <ThemeToggle />
+            <button
+              onClick={() => setPage("profile")}
+              title="View your profile"
+              aria-current={page === "profile" ? "page" : undefined}
+              className={`flex items-center gap-[9px] rounded-full border bg-[--color-glass-soft] py-[5px] pl-[5px] pr-3.5 text-[12.5px] text-ink shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:shadow-md ${
+                page === "profile" ? "border-accent/40 ring-1 ring-accent/20" : "border-line hover:border-accent/25"
+              }`}
+            >
               <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-purple text-[12px] font-semibold text-white shadow-[0_2px_8px_rgba(44,62,126,0.35)]">
                 {user?.avatar}
               </div>
@@ -111,11 +120,11 @@ export default function AppShell({ children }) {
                 <div className="text-[13px] font-semibold leading-tight text-ink">{user?.name?.split(" ")[0]}</div>
                 <div className="text-[11px] leading-tight text-sub">{user?.title}</div>
               </div>
-            </div>
+            </button>
             <button
               onClick={handleLogout}
               title="Sign out"
-              className="group flex items-center gap-1.5 rounded-full border border-line bg-white/40 px-3 py-[9px] text-[11.5px] font-medium text-sub backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-red/25 hover:bg-red/[0.05] hover:text-red hover:shadow-sm"
+              className="group flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass-soft] px-3 py-[9px] text-[11.5px] font-medium text-sub backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-red/25 hover:bg-red/[0.05] hover:text-red hover:shadow-sm"
             >
               <span className="text-[12px] transition-transform duration-200 group-hover:translate-x-[1px]">⏻</span>
               <span className="hidden sm:inline">Sign out</span>

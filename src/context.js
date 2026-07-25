@@ -39,9 +39,42 @@ export const LIGHT = {
   radiusSm: 5,
 };
 
-// The portal is light-only like the internal dashboard; DARK stays exported
-// so nothing breaks if a stray import remains, but it's the same palette.
-export const DARK = LIGHT;
+// Dark theme — mirrors the [data-theme="dark"] token overrides in index.css so
+// inline P.* colours (SVG maps, charts, dynamic styles) match the CSS utilities.
+export const DARK = {
+  bg: "#131217",
+  surface: "#1B1A21",
+  card: "#1B1A21",
+  raised: "#22212A",
+  hover: "rgba(255,255,255,0.04)",
+  border: "rgba(255,255,255,0.11)",
+  borderMid: "rgba(255,255,255,0.18)",
+  text: "#ECEAE3",
+  sub: "#ABA697",
+  mute: "#8E897A",
+  label: "#8E897A",
+  white: "#ECEAE3",
+  done: "#23222B",
+  doneTxt: "#6C6858",
+
+  accent: "#7C93E4",
+  accentInk: "#FFFFFF",
+  green: "#3FB97E",
+  amber: "#D69A38",
+  red: "#E06A6A",
+  purple: "#9A86EC",
+  teal: "#3CB9A9",
+  pink: "#D46BC7",
+  gold: "#C7A452",
+
+  barBg: "rgba(255,255,255,0.06)",
+  inputBg: "#22212A",
+  modalBg: "#1B1A21",
+  shadow: "0 1px 2px rgba(0,0,0,0.35), 0 10px 28px rgba(0,0,0,0.45)",
+  shadowLg: "0 26px 70px rgba(0,0,0,0.6)",
+  radius: 8,
+  radiusSm: 5,
+};
 
 import { createContext, useContext } from "react";
 export const AppContext = createContext(null);

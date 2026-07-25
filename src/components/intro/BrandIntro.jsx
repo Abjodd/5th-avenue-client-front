@@ -196,7 +196,7 @@ export default function BrandIntro({ data, onDone, onClosed }) {
               finish();
             }}
             aria-label="Skip intro"
-            className="absolute right-6 top-6 z-10 flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-white/60 text-[15px] text-sub shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:text-ink hover:shadow-md"
+            className="absolute right-6 top-6 z-10 flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-[--color-glass] text-[15px] text-sub shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:text-ink hover:shadow-md"
           >
             ✕
           </button>

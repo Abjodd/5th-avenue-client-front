@@ -23,7 +23,7 @@ const TEAM = [{name:"Rahul Sharma",role:"Manager"},{name:"Priya Nair",role:"Mana
 
 /* ── Form utilities ── */
 function Stepper({ value, onChange, min = 1 }) {
-  const b = "flex size-[28px] items-center justify-center rounded-[8px] border border-line bg-white/70 text-[14px] text-ink shadow-sm transition-all duration-150 hover:-translate-y-px hover:shadow-md active:translate-y-0";
+  const b = "flex size-[28px] items-center justify-center rounded-[8px] border border-line bg-[--color-glass] text-[14px] text-ink shadow-sm transition-all duration-150 hover:-translate-y-px hover:shadow-md active:translate-y-0";
   return (<div className="flex items-center gap-2"><button className={`${b} ${value <= min ? "opacity-30" : ""}`} onClick={() => onChange(Math.max(min, value - 1))}>−</button><span className="min-w-6 text-center text-[14px] font-semibold text-ink">{value}</span><button className={b} onClick={() => onChange(value + 1)}>+</button></div>);
 }
 
@@ -41,11 +41,11 @@ function DropdownSelect({ options: io, value, onChange, placeholder, allowNew })
   useEffect(() => { if (!open) return; const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, [open]);
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(!open)} className={`flex w-full items-center justify-between rounded-[10px] border border-line bg-white/70 px-3 py-2 text-left text-[13px] backdrop-blur-sm transition-all duration-200 ${value ? "text-ink" : "text-mute"}`}><span className="truncate">{value || placeholder}</span><span className="text-[10px] text-mute">▾</span></button>
+      <button onClick={() => setOpen(!open)} className={`flex w-full items-center justify-between rounded-[10px] border border-line bg-[--color-glass] px-3 py-2 text-left text-[13px] backdrop-blur-sm transition-all duration-200 ${value ? "text-ink" : "text-mute"}`}><span className="truncate">{value || placeholder}</span><span className="text-[10px] text-mute">▾</span></button>
       {open && (
-        <div className="absolute inset-x-0 top-[calc(100%+5px)] z-[60] max-h-[170px] overflow-y-auto rounded-[12px] border border-line bg-white/95 py-1 shadow-[0_16px_40px_rgba(25,22,17,0.14)] backdrop-blur-xl">
+        <div className="absolute inset-x-0 top-[calc(100%+5px)] z-[60] max-h-[170px] overflow-y-auto rounded-[12px] border border-line bg-[--color-glass-strong] py-1 shadow-[0_16px_40px_rgba(25,22,17,0.14)] backdrop-blur-xl">
           {opts.map(o => (<div key={o} onClick={() => { onChange(o); setOpen(false); }} className="cursor-pointer px-3 py-1.5 text-[12px] text-ink transition-colors hover:bg-accent/[0.06]">{o}</div>))}
-          {allowNew && (<div className="flex gap-1 border-t border-line px-2.5 py-1.5"><input value={nv} onChange={e => setNv(e.target.value)} placeholder="Add new..." className="flex-1 rounded-lg border border-line bg-white/70 px-2 py-1 text-[12px] text-ink outline-none"/><button onClick={() => { if (nv.trim()) { setOpts(p => [...p, nv.trim()]); onChange(nv.trim()); setNv(""); setOpen(false); } }} className="rounded-lg bg-accent px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">Add</button></div>)}
+          {allowNew && (<div className="flex gap-1 border-t border-line px-2.5 py-1.5"><input value={nv} onChange={e => setNv(e.target.value)} placeholder="Add new..." className="flex-1 rounded-lg border border-line bg-[--color-glass] px-2 py-1 text-[12px] text-ink outline-none"/><button onClick={() => { if (nv.trim()) { setOpts(p => [...p, nv.trim()]); onChange(nv.trim()); setNv(""); setOpen(false); } }} className="rounded-lg bg-accent px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">Add</button></div>)}
         </div>
       )}
     </div>
@@ -111,7 +111,7 @@ function GuidedBriefWizard({ onComplete }) {
         {msgs.map((m, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className={`mb-2 flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
-            <div className={`max-w-[85%] rounded-[14px] border px-3.5 py-2.5 text-[13px] leading-normal text-ink shadow-sm ${m.role === "user" ? "border-accent/[0.1] bg-accent/[0.05]" : "border-line bg-white/70"}`}>{m.content}</div>
+            <div className={`max-w-[85%] rounded-[14px] border px-3.5 py-2.5 text-[13px] leading-normal text-ink shadow-sm ${m.role === "user" ? "border-accent/[0.1] bg-accent/[0.05]" : "border-line bg-[--color-glass]"}`}>{m.content}</div>
           </motion.div>
         ))}
         <div ref={endRef}/>
@@ -122,7 +122,7 @@ function GuidedBriefWizard({ onComplete }) {
         <div className="border-t border-line pt-2.5">
           {curStep.type === "text" ? (
             <div className="flex gap-1.5">
-              <input value={customInput} onChange={e => setCustomInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleTextSubmit()} placeholder={curStep.placeholder || "Type here..."} className="flex-1 rounded-[12px] border border-line bg-white/70 px-3.5 py-2.5 text-[13px] text-ink outline-none transition-all duration-200 focus:border-accent/40 focus:shadow-[0_0_0_3px_rgba(44,62,126,0.08)]"/>
+              <input value={customInput} onChange={e => setCustomInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleTextSubmit()} placeholder={curStep.placeholder || "Type here..."} className="flex-1 rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-2.5 text-[13px] text-ink outline-none transition-all duration-200 focus:border-accent/40 focus:shadow-[0_0_0_3px_rgba(44,62,126,0.08)]"/>
               <button onClick={handleTextSubmit} className={`rounded-[12px] px-4 py-2.5 text-[12px] font-semibold shadow-sm transition-all duration-150 ${customInput.trim() ? "bg-accent text-white hover:-translate-y-px hover:shadow-md" : "bg-well text-mute"}`}>Next</button>
               {curStep.optional && <button onClick={handleSkip} className="rounded-[12px] border border-line bg-well/70 px-3 py-2.5 text-[12px] text-mute">Skip</button>}
             </div>
@@ -136,7 +136,7 @@ function GuidedBriefWizard({ onComplete }) {
               <div className="flex flex-wrap gap-1.5">{curStep.options.map(o => (<button key={o} onClick={() => handleOption(o)} className="rounded-full border border-accent/[0.15] bg-accent/[0.04] px-4 py-1.5 text-[12px] font-medium text-accent shadow-sm transition-all duration-150 hover:-translate-y-px hover:bg-accent/[0.08] hover:shadow-md">{o}</button>))}</div>
               {curStep.allowCustom && (
                 <div className="mt-2 flex gap-1.5">
-                  <input value={customInput} onChange={e => setCustomInput(e.target.value)} placeholder="Or type your own..." className="flex-1 rounded-[10px] border border-line bg-white/70 px-3 py-1.5 text-[12px] text-ink outline-none"/>
+                  <input value={customInput} onChange={e => setCustomInput(e.target.value)} placeholder="Or type your own..." className="flex-1 rounded-[10px] border border-line bg-[--color-glass] px-3 py-1.5 text-[12px] text-ink outline-none"/>
                   <button onClick={handleTextSubmit} disabled={!customInput.trim()} className={`rounded-[10px] px-3 py-1.5 text-[12px] font-semibold shadow-sm ${customInput.trim() ? "bg-accent text-white" : "bg-well text-mute"}`}>Go</button>
                 </div>
               )}
@@ -149,7 +149,7 @@ function GuidedBriefWizard({ onComplete }) {
       {isDone && (
         <div className="border-t border-line pt-2.5">
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-green">Brief Summary</div>
-          <div className="rounded-[14px] border border-green/[0.15] bg-white/70 px-3 py-2.5 text-[12px] leading-relaxed text-ink shadow-sm backdrop-blur-sm">
+          <div className="rounded-[14px] border border-green/[0.15] bg-[--color-glass] px-3 py-2.5 text-[12px] leading-relaxed text-ink shadow-sm backdrop-blur-sm">
             {data.service && <div><span className="text-mute">Service:</span> {data.service}</div>}
             {data.description && data.description !== "—" && <div><span className="text-mute">Goal:</span> {data.description}</div>}
             {data.budget && <div><span className="text-mute">Budget:</span> {data.budget}</div>}
@@ -180,7 +180,7 @@ export default function NewReqModal({ onClose, onSubmit }) {
   const toggleProduct = (id) => { if (products.includes(id)) { setProducts(products.filter(p => p !== id)); const pv = { ...productVols }; delete pv[id]; setProductVols(pv); } else setProducts([...products, id]); };
   const canSubmit = svc && parseFloat(budgetText) > 0 && description.trim();
   const showPlatform = svc === "Influencer Marketing";
-  const modeCard = "flex-1 cursor-pointer rounded-[18px] border border-line bg-white/70 px-4 py-6 text-center shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-[3px] hover:border-accent/25 hover:shadow-[0_14px_32px_rgba(25,22,17,0.08)]";
+  const modeCard = "flex-1 cursor-pointer rounded-[18px] border border-line bg-[--color-glass] px-4 py-6 text-center shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-[3px] hover:border-accent/25 hover:shadow-[0_14px_32px_rgba(25,22,17,0.08)]";
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center">
@@ -219,7 +219,7 @@ export default function NewReqModal({ onClose, onSubmit }) {
             <div className="mb-3"><label className={labelCls}>Budget (Lakhs ₹) — max 1.5 Cr</label>
               <div className="flex items-center gap-2.5">
                 <input type="range" min={1} max={150} step={0.5} value={parseFloat(budgetText) || 1} onChange={e => { setBudgetText(e.target.value); }} className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full outline-none" style={{ background: `linear-gradient(to right,${P.accent} ${((parseFloat(budgetText) || 1) / 150) * 100}%,${P.barBg} ${((parseFloat(budgetText) || 1) / 150) * 100}%)` }}/>
-                <div className="flex items-center gap-1 rounded-lg border border-line bg-white/70 px-1.5 py-1">
+                <div className="flex items-center gap-1 rounded-lg border border-line bg-[--color-glass] px-1.5 py-1">
                   <span className="text-[12.5px] text-mute">₹</span>
                   <input type="number" min={1} max={150} step={0.5} value={budgetText} onChange={e => handleBudgetInput(e.target.value)} className="w-[50px] bg-transparent p-1 text-center text-[12.5px] text-ink outline-none"/>
                   <span className="text-[12px] text-mute">L</span>
@@ -230,7 +230,7 @@ export default function NewReqModal({ onClose, onSubmit }) {
             {showPlatform && <div className="mb-3"><label className={labelCls}>Platform</label><ChipSelect options={PLATFORMS} selected={platforms} onChange={setPlatforms}/></div>}
             {svc === "Influencer Marketing" && (<>
               <div className="mb-3 flex items-center justify-between"><label className={`${labelCls} mb-0`}>Number of Creators</label><Stepper value={numCreators} onChange={setNumCreators}/></div>
-              <div className="mb-3 rounded-[14px] border border-line bg-white/60 px-3.5 py-3 shadow-sm backdrop-blur-sm">
+              <div className="mb-3 rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-sm">
                 <div className={`${labelCls} mb-2`}>Creator Requirements</div>
                 <div className="mb-2"><label className={`${labelCls} text-[10px]`}>Niche</label><ChipSelect options={NICHES} selected={niches} onChange={setNiches}/></div>
                 <div className="mb-2"><label className={`${labelCls} text-[10px]`}>Size</label><ChipSelect options={SIZES} selected={sizes} onChange={setSizes}/></div>
@@ -243,7 +243,7 @@ export default function NewReqModal({ onClose, onSubmit }) {
                 {languages.length > 0 && <div className="mb-1.5 flex flex-wrap gap-1">{languages.map(l => (<span key={l} className="flex items-center gap-1 rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10.5px] text-accent shadow-sm">{l}<button onClick={() => setLanguages(languages.filter(x => x !== l))} className="p-0 text-[10px] text-mute hover:text-red">×</button></span>))}</div>}
               </div>
               <div className="mb-3"><label className={labelCls}>Product & Volume</label><div className="flex flex-col gap-1.5">{IM_PRODUCTS.map(p => { const a = products.includes(p.id); return (<div key={p.id} className="flex items-center gap-1.5"><button onClick={() => toggleProduct(p.id)} className={`flex-1 rounded-[10px] border px-3 py-1.5 text-left text-[11px] font-medium transition-all duration-150 ${a ? chipOn : chipOff}`}>{p.label}</button>
-                {a && <input type="number" min={1} value={productVols[p.id] || 1} onChange={e => setProductVols({ ...productVols, [p.id]: Math.max(1, parseInt(e.target.value) || 1) })} className="w-[42px] rounded-lg border border-line bg-white/70 p-1 text-center text-[12px] text-ink outline-none"/>}</div>); })}</div></div>
+                {a && <input type="number" min={1} value={productVols[p.id] || 1} onChange={e => setProductVols({ ...productVols, [p.id]: Math.max(1, parseInt(e.target.value) || 1) })} className="w-[42px] rounded-lg border border-line bg-[--color-glass] p-1 text-center text-[12px] text-ink outline-none"/>}</div>); })}</div></div>
               <div className="mb-3"><label className={labelCls}>Usage Rights</label><div className="flex gap-1.5">{[{ id: "ad", label: "Ad Rights" }, { id: "media", label: "Media (Perpetual)" }].map(u => (<button key={u.id} onClick={() => setUsage(u.id)} className={`flex-1 rounded-[10px] border py-2 text-[12px] font-medium transition-all duration-150 ${usage === u.id ? chipOn : chipOff}`}>{u.label}</button>))}</div>
                 {usage === "ad" && <div className="mt-1.5"><Slider value={adDays} onChange={setAdDays} min={7} max={365} step={1} suffix="d"/></div>}</div>
               <div className="mb-3"><label className={labelCls}>Reference Creator</label><input value={refLink} onChange={e => setRefLink(e.target.value)} placeholder="Profile link..." className={inputCls}/></div>

@@ -6,8 +6,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "../context";
-import { useAuth } from "../context/AuthContext";
-import { PortalAPI } from "../lib/api";
+import { usePortalCampaigns } from "../lib/usePortalData";
 import { fmtINR } from "../lib/format";
 import { PHASES, phaseColors as phaseColorsFor } from "../lib/phases";
 import { Dot } from "../components/Dot";
@@ -19,10 +18,12 @@ import CampaignCard from "../components/campaigns/CampaignCard";
 import DetailPanel from "../components/campaigns/DetailPanel";
 import NewReqModal from "../components/campaigns/NewReqModal";
 
+/* Stable mapper reference so the fetch hook doesn't re-run on re-render */
+const mapCampaigns = (data) => data.map(toViewCampaign);
+
 export default function CampaignsPage() {
   const { P, navParams } = useApp();
-  const [campaigns, setCampaigns] = useState(null);
-  const [error, setError] = useState(null);
+  const { data: campaigns, setData: setCampaigns, error, retry } = usePortalCampaigns(mapCampaigns);
   const [selected, setSelected] = useState(null);
   const [view, setView] = useState("board");
   const [search, setSearch] = useState("");
@@ -30,13 +31,6 @@ export default function CampaignsPage() {
   const [toast, setToast] = useState("");
   const [svcFilter, setSvcFilter] = useState("all");
   const userRole = "management"; // client-side approvals default to the management view
-
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (!user?.clientName) return;
-    PortalAPI.campaigns(user.clientName).then(data => setCampaigns(data.map(toViewCampaign))).catch(e => setError(e.message));
-  }, [user?.clientName]);
 
   // Auto-open campaign when navigated from another page
   useEffect(() => {
@@ -60,7 +54,7 @@ export default function CampaignsPage() {
     setShowNewReq(false); setToast("Requirement submitted!"); setTimeout(() => setToast(""), 3000);
   };
 
-  if (error) return <ErrorState message={error}/>;
+  if (error) return <ErrorState message={error} onRetry={retry}/>;
   if (!campaigns) return <PageSkeleton/>;
 
   const filtered = campaigns.filter(c => {
@@ -94,7 +88,7 @@ export default function CampaignsPage() {
               <h1 className="font-serif text-[42px] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Campaigns</h1>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-baseline gap-4 rounded-full border border-line bg-white/60 px-4 py-2 shadow-sm backdrop-blur-md">
+              <div className="flex items-baseline gap-4 rounded-full border border-line bg-[--color-glass] px-4 py-2 shadow-sm backdrop-blur-md">
                 {nPending > 0 && <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-amber"><AnimatedNumber value={nPending}/></span><span className="text-[10.5px] text-mute">Pending</span></div>}
                 <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-ink"><AnimatedNumber value={nActive}/></span><span className="text-[10.5px] text-mute">Active</span></div>
                 <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-donetxt"><AnimatedNumber value={nDone}/></span><span className="text-[10.5px] text-mute">Done</span></div>
@@ -106,18 +100,18 @@ export default function CampaignsPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3.5">
             <div className="flex items-center gap-2">
-              <div className="flex w-44 items-center gap-1.5 rounded-full border border-line bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur-sm transition-all duration-200 focus-within:border-accent/40 focus-within:shadow-md">
+              <div className="flex w-44 items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-3 py-1.5 shadow-sm backdrop-blur-sm transition-all duration-200 focus-within:border-accent/40 focus-within:shadow-md">
                 <span className="text-[12px] text-mute">⌕</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className="w-full border-none bg-transparent text-[12px] text-ink outline-none"/>
               </div>
               {/* Service filter */}
-              <div className="flex overflow-hidden rounded-full border border-line bg-white/70 shadow-sm backdrop-blur-sm">
+              <div className="flex overflow-hidden rounded-full border border-line bg-[--color-glass] shadow-sm backdrop-blur-sm">
                 {seg(svcFilter === "all", () => setSvcFilter("all"), "All", "svc-pill")}
                 {allServices.map(s => seg(svcFilter === s, () => setSvcFilter(s), s === "Influencer Marketing" ? "IM" : s === "Performance Ads" ? "Ads" : s, "svc-pill"))}
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <div className="flex overflow-hidden rounded-full border border-line bg-white/70 shadow-sm backdrop-blur-sm">
+              <div className="flex overflow-hidden rounded-full border border-line bg-[--color-glass] shadow-sm backdrop-blur-sm">
                 {seg(view === "board", () => setView("board"), "Board", "view-pill")}
                 {seg(view === "grid", () => setView("grid"), "Grid", "view-pill")}
               </div>
@@ -156,7 +150,7 @@ export default function CampaignsPage() {
                   className="flex min-w-[220px] flex-col rounded-[18px] p-1.5"
                   style={{ flex: `1 1 ${100 / PHASES.length}%`, background: `${color}06` }}>
                   {/* Phase-tinted column header: icon · label · count · budget sum */}
-                  <div className="mb-2 rounded-[14px] border bg-white/55 px-3 py-2 backdrop-blur-sm" style={{ borderColor: `${color}25` }}>
+                  <div className="mb-2 rounded-[14px] border bg-[--color-glass] px-3 py-2 backdrop-blur-sm" style={{ borderColor: `${color}25` }}>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ color }}>
                         <span className="text-[12px]">{phase.icon}</span>{phase.label}

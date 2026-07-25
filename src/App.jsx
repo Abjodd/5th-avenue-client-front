@@ -7,8 +7,9 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { MotionConfig } from "motion/react";
-import { LIGHT, AppContext } from "./context";
+import { AppContext } from "./context";
 import { AuthProvider } from "./context/AuthContext";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AppShell from "./layout/AppShell";
 import { PageSkeleton } from "./components/PageStates";
@@ -20,12 +21,14 @@ import LoginPage from "./pages/Login";
 const Overview    = lazy(() => import("./pages/Overview"));
 const Campaigns   = lazy(() => import("./pages/Campaigns"));
 const RegionalMap = lazy(() => import("./pages/RegionalMap"));
+const Profile     = lazy(() => import("./pages/Profile"));
 
 // Keeps the setPage(page, params) API the pages already use, but backed by
 // the router: params travel as location.state so deep links survive refresh.
 function PortalLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { P } = useTheme();
   const page = location.pathname.replace(/^\//, "") || "overview";
 
   const setPage = (newPage, params = {}) => {
@@ -34,7 +37,7 @@ function PortalLayout() {
   };
 
   return (
-    <AppContext.Provider value={{ page, setPage, navParams: location.state || {}, P: LIGHT }}>
+    <AppContext.Provider value={{ page, setPage, navParams: location.state || {}, P }}>
       <MotionConfig reducedMotion="user">
         <AppShell>
           <Suspense fallback={<PageSkeleton />}>
@@ -48,6 +51,7 @@ function PortalLayout() {
 
 export default function App() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -56,11 +60,13 @@ export default function App() {
             <Route path="/overview"  element={<Overview />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/regional"  element={<RegionalMap />} />
+            <Route path="/profile"   element={<Profile />} />
             <Route path="/"          element={<Navigate to="/overview" replace />} />
             <Route path="*"          element={<Navigate to="/overview" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ThemeProvider>
   );
 }

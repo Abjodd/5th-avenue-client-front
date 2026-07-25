@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
-import { PortalAPI, phaseOf } from "../lib/api";
+import { phaseOf } from "../lib/api";
+import { usePortalCampaigns } from "../lib/usePortalData";
 import { parseFollowers, sizeOf, fmtNum, fmtINR } from "../lib/format";
 import { PHASES, phaseColors as phaseColorsFor } from "../lib/phases";
 import { Dot } from "../components/Dot";
@@ -73,7 +74,7 @@ function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P,
   const badge = erOutlier === "high" ? { c:P.green, label:"HIGH OUTLIER", sym:"▲" }
     : erOutlier === "low" ? { c:P.red, label:"LOW OUTLIER", sym:"▼" } : null;
   return (
-    <Reveal delay={Math.min(index * 0.05, 0.3)} className="rounded-[16px] border bg-white/60 px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_10px_26px_rgba(25,22,17,0.07)]"
+    <Reveal delay={Math.min(index * 0.05, 0.3)} className="rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_10px_26px_rgba(25,22,17,0.07)]"
       style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : "rgba(25,22,17,0.07)" }}>
       <div className="mb-[3px] flex items-start justify-between">
         <div>
@@ -140,16 +141,10 @@ export default function OverviewDashboard() {
   const clientName = user?.clientName ?? "Your Brand";
   const [filters, setFilters] = useState({ niche:[], size:[], language:[], status:[] });
   const [openFilter, setOpenFilter] = useState(null);
-  const [campaigns, setCampaigns] = useState(null); // null = loading
-  const [error, setError] = useState(null);
+  const { data: campaigns, error, retry } = usePortalCampaigns(); // null = loading
   const introSeen = sessionStorage.getItem(INTRO_KEY) === "1";
   const [introDone, setIntroDone] = useState(introSeen);     // gates the dashboard cascade
   const [introClosed, setIntroClosed] = useState(introSeen); // unmounts the overlay after its exit fade
-
-  useEffect(() => {
-    if (!user?.clientName) return;
-    PortalAPI.campaigns(user.clientName).then(setCampaigns).catch(e => setError(e.message));
-  }, [user?.clientName]);
 
   /* Reduced motion ⇒ the cinematic intro never plays */
   useEffect(() => {
@@ -245,7 +240,7 @@ export default function OverviewDashboard() {
     budget: kpis.budget,
   }), [clientName, kpis]);
 
-  if (error) return <ErrorState message={error}/>;
+  if (error) return <ErrorState message={error} onRetry={retry}/>;
   if (!campaigns) return <PageSkeleton/>;
 
   return (
@@ -288,7 +283,7 @@ export default function OverviewDashboard() {
               </span>
               {actionItems.map(x => (
                 <button key={x.id} onClick={() => setPage("campaigns", { campaignId: x.id })}
-                  className="rounded-full border border-amber/25 bg-white/70 px-3.5 py-1.5 text-[11.5px] font-medium text-ink shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-amber/50 hover:shadow-md">
+                  className="rounded-full border border-amber/25 bg-[--color-glass] px-3.5 py-1.5 text-[11.5px] font-medium text-ink shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-amber/50 hover:shadow-md">
                   {x.name} <span className="mx-0.5 text-mute">·</span> <b className="text-amber">{x.n}</b>
                 </button>
               ))}
@@ -394,7 +389,7 @@ export default function OverviewDashboard() {
                   return (
                     <StaggerItem key={c.id}>
                       <button onClick={() => setPage("campaigns", { campaignId: c.id })}
-                        className="group w-full rounded-[14px] border border-line bg-white/60 px-4 py-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-accent/20 hover:shadow-[0_8px_22px_rgba(25,22,17,0.07)]">
+                        className="group w-full rounded-[14px] border border-line bg-[--color-glass] px-4 py-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-accent/20 hover:shadow-[0_8px_22px_rgba(25,22,17,0.07)]">
                         <div className="flex items-center justify-between gap-2">
                           <span className="truncate text-[13.5px] font-semibold text-ink">{c.name}</span>
                           <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color:phaseColors[phase] }}>

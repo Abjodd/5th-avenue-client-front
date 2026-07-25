@@ -22,7 +22,7 @@ function PhaseTracker({ currentPhase }) {
   const P = useP();
   const idx = PHASES.findIndex(p => p.id === currentPhase);
   return (
-    <div className="mb-4 rounded-[18px] border border-line bg-white/70 px-6 py-5 shadow-card backdrop-blur-xl">
+    <div className="mb-4 rounded-[18px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl">
       <div className="flex items-center">
         {PHASES.map((p, i) => {
           const isCur = i === idx, isDone = i < idx;
@@ -53,7 +53,7 @@ function PhaseTracker({ currentPhase }) {
 // none is invented here. A real split can return once the backend has one.
 function BudgetCard({ value }) {
   return (
-    <div className="rounded-[14px] border border-line bg-white/60 px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+    <div className="rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
       <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Budget</div>
       <div className="mt-1 text-[18px] font-bold text-ink">{value}</div>
     </div>
@@ -88,7 +88,7 @@ function MetricCard({ label, value, breakdowns, suffix = "" }) {
   const [filter, setFilter] = useState(breakdowns ? Object.keys(breakdowns)[0] : null);
   const has = breakdowns && Object.keys(breakdowns).length > 0 && value !== "—" && value !== "0";
   return (
-    <div className={`rounded-[14px] border border-line bg-white/60 px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has?"cursor-pointer":""}`} onClick={() => has && setOpen(!open)}>
+    <div className={`rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has?"cursor-pointer":""}`} onClick={() => has && setOpen(!open)}>
       <div className="flex items-center justify-between">
         <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</div>
         {has && <span className="text-[9px] text-accent">{open ? "▴" : "▾"}</span>}
@@ -133,7 +133,7 @@ function LivePerformance({ totals, lastFetched }) {
       </div>
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(tiles.length, 4)}, 1fr)` }}>
         {tiles.map(([l, v, c]) => (
-          <div key={l} className="rounded-[12px] border border-line bg-white/70 px-3 py-2.5 text-center shadow-sm">
+          <div key={l} className="rounded-[12px] border border-line bg-[--color-glass] px-3 py-2.5 text-center shadow-sm">
             <div className="text-[17px] font-bold leading-tight" style={{ color: c }}>
               <AnimatedNumber value={v} format={fmtNum} duration={900}/>
             </div>
@@ -151,7 +151,7 @@ function SentimentStrip({ avgPositivity, creators }) {
   const quotes = (creators || []).filter(cr => cr.tracking?.commentAnalysis);
   if (avgPositivity == null && !quotes.length) return null;
   return (
-    <div className="mb-3 rounded-[16px] border border-line bg-white/65 px-4 py-3.5 shadow-sm backdrop-blur-md">
+    <div className="mb-3 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md">
       <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.09em] text-mute">Audience Sentiment</div>
       {avgPositivity != null && (
         <div className="mb-3">
@@ -173,7 +173,7 @@ function SentimentStrip({ avgPositivity, creators }) {
       {quotes.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {quotes.map((cr, i) => (
-            <div key={i} className="rounded-[12px] border border-line bg-white/70 px-3 py-2 shadow-sm">
+            <div key={i} className="rounded-[12px] border border-line bg-[--color-glass] px-3 py-2 shadow-sm">
               <div className="text-[11.5px] italic leading-normal text-ink">"{cr.tracking.commentAnalysis}"</div>
               <div className="mt-1 flex items-center gap-1.5 text-[10px] text-mute">
                 <span className="font-semibold text-accent">{cr.name}</span>
@@ -229,7 +229,7 @@ function Observations({ creators, topAssets }) {
   return (
     <div className="mt-4">
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Observations</div>
-      <div className={`rounded-[14px] border border-line bg-white/60 px-4 py-3 shadow-sm backdrop-blur-md ${strategies.length?"mb-3":""}`}>
+      <div className={`rounded-[14px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md ${strategies.length?"mb-3":""}`}>
         {obs.map((o, i) => (
           <div key={i} className={`flex items-start gap-1.5 ${i < obs.length-1 ? "mb-1.5" : ""}`}>
             <span className="mt-[3px] shrink-0 text-[10px] text-accent">●</span>
@@ -290,7 +290,7 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(idx * 0.035, 0.4), duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="mb-2 rounded-[16px] border bg-white/65 px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md"
+      className="mb-2 rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md"
       style={{ borderColor: actionable ? P.amber + "25" : autoResult === "approved" ? P.green + "25" : autoResult === "rejected" ? P.red + "20" : "rgba(25,22,17,0.06)" }}>
       <div className="flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[12.5px] font-semibold text-accent shadow-sm">{cr.avatar || cr.name[0]}</div>
@@ -374,7 +374,7 @@ function BriefPage({ lockedBrief, pendingBrief }) {
       {[["Objective","objective"],["Target Audience","targetAudience"],["Key Messages","keyMessages"],["Deliverables","deliverables"],["Budget","budget"],["Timeline","timeline"]].map(([label, key]) => {
         const val = brief[key]; const si = statusIcon(vars[key]);
         return (
-          <div key={key} className="mb-1.5 flex items-start gap-2 rounded-[12px] border border-line bg-white/60 px-3.5 py-2.5 shadow-sm backdrop-blur-sm">
+          <div key={key} className="mb-1.5 flex items-start gap-2 rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-2.5 shadow-sm backdrop-blur-sm">
             <div className="flex-1">
               <div className="mb-[3px] flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">{label}<span className="text-[11px]" style={{ color: si.color }}>{si.icon}</span></div>
               <div className={`text-[13px] leading-normal ${val?"text-ink":"italic text-mute"}`}>{val || "Awaiting input"}</div>
@@ -462,7 +462,7 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                     <MetricCard label="Deliverables" value={`${numDel}`}/>
                   </div>
                   <MetricCard label="Engagement Rate" value={c.engRate} breakdowns={engBD} suffix="%"/>
-                  <div className="mb-3 mt-2 rounded-[16px] border border-line bg-white/65 px-4 py-3 shadow-sm backdrop-blur-md">
+                  <div className="mb-3 mt-2 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
                     <div className="flex items-center justify-between">
                       <div><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Timeline</div><div className="mt-0.5 text-[12.5px] font-medium text-ink">{c.start} — {c.end}</div></div>
                       <span className="text-[12.5px] font-semibold text-accent">{c.progress}%</span>
@@ -471,7 +471,7 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                       <motion.div className="h-full rounded-full bg-accent" initial={{ width: 0 }} animate={{ width: `${c.progress}%` }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}/>
                     </div>
                   </div>
-                  <div className="mb-3 flex flex-wrap gap-4 rounded-[14px] border border-line bg-white/60 px-4 py-2.5 shadow-sm backdrop-blur-sm">
+                  <div className="mb-3 flex flex-wrap gap-4 rounded-[14px] border border-line bg-[--color-glass] px-4 py-2.5 shadow-sm backdrop-blur-sm">
                     {[["Service", c.service], ["Region", c.region]].map(([k, v]) => (<div key={k}><div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">{k}</div><div className="mt-px text-[12px] font-medium text-ink">{v}</div></div>))}
                   </div>
                   {c.topAssets?.length > 0 && (
@@ -479,7 +479,7 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Top Performing Assets</div>
                       <div className="flex gap-2 overflow-x-auto pb-1">
                         {c.topAssets.map((a2, i) => (
-                          <div key={i} className="flex min-w-[130px] flex-col items-center gap-1 rounded-[16px] border border-line bg-white/65 px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+                          <div key={i} className="flex min-w-[130px] flex-col items-center gap-1 rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
                             <div className="flex size-[38px] items-center justify-center rounded-full bg-accent/[0.1] text-[13px] font-bold text-accent">{a2.avatar}</div>
                             <span className="text-[11px] font-medium text-ink">{a2.creator}</span><span className="text-[10.5px] text-accent">{a2.handle}</span><span className="text-[10px] text-sub">{a2.label}</span>
                             <a href={a2.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="rounded-full bg-accent/[0.07] px-2 py-0.5 text-[10px] text-accent no-underline hover:bg-accent/[0.12]">View →</a>
@@ -511,7 +511,7 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
               )}
 
               {tab === "queries" && c.queries?.map((q, i) => (
-                <div key={i} className="mb-1.5 flex items-center gap-2 rounded-[12px] border border-line bg-white/65 px-3.5 py-2.5 shadow-sm backdrop-blur-sm">
+                <div key={i} className="mb-1.5 flex items-center gap-2 rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-2.5 shadow-sm backdrop-blur-sm">
                   <div className="flex-[2]"><div className="text-[12.5px] font-medium text-ink">{q.query}</div><div className="mt-px text-[11px] text-mute">{q.volume}</div></div>
                   <div className="flex items-center gap-1">{<Dot color={q.status === "live" ? P.green : P.amber}/>}<span className="text-[11px] capitalize text-sub">{q.status}</span></div>
                   <span className={`text-[11px] ${q.position !== "—" ? "font-semibold text-green" : "font-normal text-mute"}`}>{q.position}</span>

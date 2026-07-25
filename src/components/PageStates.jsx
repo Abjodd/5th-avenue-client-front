@@ -33,7 +33,7 @@ export function PageSkeleton() {
   );
 }
 
-export function ErrorState({ message }) {
+export function ErrorState({ message, onRetry }) {
   return (
     <div className="mx-auto flex min-h-[50vh] max-w-[420px] flex-col items-center justify-center px-6 text-center">
       <div className="mb-4 flex size-14 items-center justify-center rounded-full border border-red/15 bg-red/[0.06] shadow-[0_8px_24px_rgba(220,38,38,0.08)]">
@@ -41,13 +41,19 @@ export function ErrorState({ message }) {
       </div>
       <div className="mb-1.5 text-[14px] font-semibold text-ink">Couldn't reach the server</div>
       <div className="text-[12.5px] leading-relaxed text-mute">{message}</div>
+      {onRetry && (
+        <button onClick={onRetry}
+          className="mt-4 rounded-full bg-accent px-5 py-2 text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(44,62,126,0.3)] transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+          Try again
+        </button>
+      )}
     </div>
   );
 }
 
 export function EmptyState({ icon = "◎", title, hint, actionLabel, onAction }) {
   return (
-    <div className="rounded-[20px] border border-dashed border-[rgba(25,22,17,0.12)] bg-white/40 px-6 py-11 text-center backdrop-blur-sm transition-colors duration-300 hover:border-accent/25 hover:bg-white/60">
+    <div className="rounded-[20px] border border-dashed border-[rgba(25,22,17,0.12)] bg-[--color-glass-soft] px-6 py-11 text-center backdrop-blur-sm transition-colors duration-300 hover:border-accent/25 hover:bg-[--color-glass]">
       <div className="mb-3 inline-flex size-12 items-center justify-center rounded-full bg-accent/[0.06] text-2xl text-accent/70 shadow-sm">
         {icon}
       </div>
