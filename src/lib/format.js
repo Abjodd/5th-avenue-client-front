@@ -26,6 +26,12 @@ export const fmtNum = (n) => {
   return String(Math.round(n));
 };
 
+// Lakhs in, not rupees — the marketing site's headline figures are authored in
+// lakhs (see lib/marketing/data/landing-copy.ts), so they need their own
+// formatter rather than fmtINR's rupee scale.
+export const fmtL = (n) =>
+  n >= 100 ? `₹${(n / 100).toFixed(1)}Cr` : `₹${n.toFixed(n < 10 ? 1 : 0)}L`;
+
 export const fmtINR = (n) => {
   if (n == null || isNaN(n)) return "—";
   if (n >= 1e7) return `₹${(n/1e7).toFixed(1)}Cr`;
@@ -42,7 +48,12 @@ export const initials = (name) =>
 // non-ISO strings not yet migrated) through unchanged.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export function prettyDate(s) {
-  return ISO_DATE.test(s || "")
-    ? new Date(`${s}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-    : (s || "—");
+  if (ISO_DATE.test(s || ""))
+    return new Date(`${s}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  // Full ISO timestamps (createdAt, tracking.lastFetched, …) parse too;
+  // anything unparseable ("TBD", free text) is echoed as-is.
+  const t = Date.parse(s || "");
+  return isNaN(t)
+    ? (s || "—")
+    : new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }

@@ -1,24 +1,39 @@
 {
-  "name": "5th-avenue-client-portal",
-  "version": "1.0.0",
-  "description": "5th Avenue Marketing Agency — Client Portal (brand login, scoped per client)",
+  "name": "5th-avenue-client",
+  "version": "2.0.0",
+  "description": "5th Avenue Marketing Agency — public marketing site + client portal (brand login, scoped per client)",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "lint": "oxlint"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2",
+    "@fontsource-variable/instrument-sans": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@fontsource-variable/jost": "^5.2.8",
+    "@fontsource/instrument-serif": "^5.2.8",
+    "@gsap/react": "^2.1.2",
+    "gsap": "^3.15.0",
+    "lucide-react": "^1.23.0",
+    "motion": "^12.42.2",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1",
     "recharts": "^2.15.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
     "tailwindcss": "^4.3.2",
-    "vite": "^6.0.0"
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
   }
 }
