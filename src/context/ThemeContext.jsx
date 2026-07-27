@@ -49,7 +49,17 @@ export function ThemeProvider({ children }) {
   }, [resolved, setMode]);
 
   const value = useMemo(
-    () => ({ mode, setMode, toggle, resolved, P: resolved === "dark" ? DARK : LIGHT }),
+    () => ({
+      mode, setMode, toggle, resolved,
+      P: resolved === "dark" ? DARK : LIGHT,
+      // Aliases for the marketing-site components merged in from the landing
+      // repo, which were written against its old ThemeProvider's API. Same
+      // values, second set of names — cheaper than rewriting 3 call sites and
+      // it keeps future ports from either side working unchanged.
+      theme: resolved,
+      setTheme: setMode,
+      toggleTheme: toggle,
+    }),
     [mode, setMode, toggle, resolved]
   );
 

@@ -10,63 +10,136 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, useSpring, useTransform, useReducedMotion, MotionConfig } from "motion/react";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 
-/* Simple creator tiles — a handle, a face, a like count. Nothing more. */
+/* Page wash behind the split scene. The login page used to pin itself to the
+   light theme; it now follows the resolved theme like every other surface, so
+   arriving here from a dark landing page doesn't flash white. */
+const PAGE_WASH = {
+  light: "linear-gradient(135deg,#E9F0FF 0%,#F1F7FF 38%,#EAF7EF 68%,#FFF3E6 100%)",
+  dark:  "linear-gradient(135deg,#141726 0%,#12161F 38%,#111A18 68%,#1A1712 100%)",
+};
+/* Readability scrim over the collage, on the copy side. */
+const COPY_SCRIM = {
+  light: "linear-gradient(102deg, rgba(238,243,252,0.9) 0%, rgba(238,243,252,0.55) 26%, transparent 55%)",
+  dark:  "linear-gradient(102deg, rgba(16,18,26,0.92) 0%, rgba(16,18,26,0.6) 26%, transparent 55%)",
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   EDIT HERE — the creator posts in the login collage.
+
+   Drop image files into  public/login-posts/  and point `image` at them, e.g.
+   "/login-posts/anjali-salad.jpg". Paths are absolute from the site root, so
+   they always start with a slash and no import is needed.
+
+   · Any entry whose image is missing or fails to load falls back to the
+     coloured gradient + emoji, so a wrong path never breaks the page.
+   · Set `image: null` to use the gradient look deliberately.
+   · Add or remove entries freely — they're dealt into the scrolling columns
+     round-robin, and each column loops seamlessly however many it gets.
+   · Portrait crops (9:13) look best; anything else is centre-cropped.
+   ════════════════════════════════════════════════════════════════════════ */
+const POSTS = [
+  { handle: "@tastewithanjali", like: "128K", image: "/login-posts/01.jpg", hue: "blue",   emoji: "🥗" },
+  { handle: "@breakfastclub",   like: "94K",  image: "/login-posts/02.jpg", hue: "orange", emoji: "🍳" },
+  { handle: "@freshfuel",       like: "212K", image: "/login-posts/03.jpg", hue: "green",  emoji: "🥑" },
+  { handle: "@reelsbykaya",     like: "76K",  image: "/login-posts/04.jpg", hue: "blue",   emoji: "🎬" },
+  { handle: "@spicerouteco",    like: "154K", image: "/login-posts/05.jpg", hue: "orange", emoji: "🌶️" },
+  { handle: "@morningpour",     like: "88K",  image: "/login-posts/06.jpg", hue: "green",  emoji: "☕" },
+];
+
+/* How fast each column scrolls, in seconds per full loop. One entry per
+   column — the number of entries IS the number of columns. Alternating signs
+   make neighbouring columns travel in opposite directions. */
+const COLUMNS = [46, -38];
+
+/* Fallback gradients, used when a post has no usable image. */
 const HUES = {
   blue:   "linear-gradient(155deg,#6E8BE4,#3B54A6)",
   orange: "linear-gradient(155deg,#F5B36C,#E4863A)",
   green:  "linear-gradient(155deg,#6BC79A,#279E63)",
 };
-const TILES = [
-  { hue: "blue",   handle: "@tastewithanjali", like: "128K", emoji: "🥗", x: "50%", y: "3%",  rot: -5, dur: 7.5, depth: 1.4 },
-  { hue: "orange", handle: "@breakfastclub",   like: "94K",  emoji: "🍳", x: "12%", y: "26%", rot: 4,  dur: 9,   depth: 0.7 },
-  { hue: "green",  handle: "@freshfuel",       like: "212K", emoji: "🥑", x: "56%", y: "48%", rot: 6,  dur: 6.8, depth: 1.8 },
-  { hue: "blue",   handle: "@reelsbykaya",     like: "76K",  emoji: "🎬", x: "16%", y: "66%", rot: -6, dur: 8.4, depth: 1 },
-];
 const CYCLE = ["watching.", "sharing.", "loving."];
-const HEARTS = ["❤️", "🧡", "💚", "💙"];
+const HEARTS = ["❤️"];
 
-function Tile({ t, parallaxX, parallaxY, reduced }) {
-  const x = useTransform(parallaxX, (v) => v * t.depth);
-  const y = useTransform(parallaxY, (v) => v * t.depth);
+/** One post card. Shows the image when it loads; on a 404 or a null path it
+    swaps to the gradient + emoji treatment so the column never shows a broken
+    image icon. */
+function PostCard({ post }) {
+  const [failed, setFailed] = useState(false);
+  const showImage = post.image && !failed;
+
   return (
-    <motion.div
-      className="absolute w-[clamp(120px,13vw,158px)]"
-      style={{ left: t.x, top: t.y, x, y }}
-      initial={{ opacity: 0, scale: 0.8, y: 30 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 200, damping: 20, delay: 0.2 + TILES.indexOf(t) * 0.12 }}
+    <div
+      className="group relative w-full overflow-hidden rounded-[20px] shadow-[0_20px_45px_rgba(25,22,17,0.18)] ring-1 ring-white/15 transition-transform duration-500 hover:scale-[1.03]"
+      style={{ aspectRatio: "9 / 13", background: HUES[post.hue] }}
     >
-      <motion.div
-        className="relative overflow-hidden rounded-[20px] shadow-[0_20px_45px_rgba(25,22,17,0.18)] ring-1 ring-white/40"
-        style={{ aspectRatio: "9 / 13", background: HUES[t.hue], rotate: t.rot }}
-        animate={reduced ? undefined : { y: [0, -14, 0] }}
-        transition={reduced ? undefined : { duration: t.dur, repeat: Infinity, ease: "easeInOut" }}
-        whileHover={{ scale: 1.06, rotate: 0, boxShadow: "0 30px 60px rgba(25,22,17,0.25)" }}
+      {showImage ? (
+        <img
+          src={post.image}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : (
+        <span
+          className="absolute inset-0 flex items-center justify-center text-[44px]"
+          style={{ filter: "drop-shadow(0 6px 12px rgba(0,0,0,0.25))" }}
+        >
+          {post.emoji}
+        </span>
+      )}
+
+      {/* top + bottom scrims so the handle and like count stay legible on any
+          photo, however light or busy it is */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 28%, transparent 62%, rgba(0,0,0,0.5) 100%)" }}
+      />
+
+      <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 p-2.5">
+        <span className="flex size-5 items-center justify-center rounded-full bg-white/90 text-[10px] shadow-sm">{post.emoji}</span>
+        <span className="truncate text-[10px] font-semibold text-white drop-shadow-sm">{post.handle}</span>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 flex justify-center p-2.5">
+        <span className="flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
+          <span>❤</span> {post.like}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** A column of posts scrolling forever. The list is rendered twice and the
+    track travels exactly -50%, so the second copy lands where the first began
+    and the loop is seamless. A negative `speed` scrolls the other way. */
+function PostColumn({ posts, speed, parallaxX, parallaxY, depth }) {
+  const x = useTransform(parallaxX, (v) => v * depth);
+  const y = useTransform(parallaxY, (v) => v * depth);
+
+  return (
+    <motion.div className="relative w-[clamp(118px,12vw,158px)] flex-none overflow-hidden" style={{ x, y }}>
+      <div
+        className="login-marquee flex flex-col gap-5"
+        style={{
+          "--marquee-duration": `${Math.abs(speed)}s`,
+          animationDirection: speed < 0 ? "reverse" : "normal",
+        }}
       >
-        <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: "radial-gradient(120% 70% at 25% 0%, rgba(255,255,255,0.55), transparent 55%)" }} />
-        {/* handle */}
-        <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 p-2.5">
-          <span className="flex size-5 items-center justify-center rounded-full bg-white/90 text-[10px] shadow-sm">{t.emoji}</span>
-          <span className="truncate text-[10px] font-semibold text-white drop-shadow-sm">{t.handle}</span>
-        </div>
-        {/* face */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[44px]" style={{ filter: "drop-shadow(0 6px 12px rgba(0,0,0,0.25))" }}>{t.emoji}</span>
-        </div>
-        {/* like pill */}
-        <div className="absolute inset-x-0 bottom-0 flex justify-center p-2.5">
-          <span className="flex items-center gap-1 rounded-full bg-black/25 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
-            <span>❤</span> {t.like}
-          </span>
-        </div>
-      </motion.div>
+        {[...posts, ...posts].map((post, i) => (
+          <PostCard key={`${post.handle}-${i}`} post={post} />
+        ))}
+      </div>
     </motion.div>
   );
 }
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { resolved } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const reduced = useReducedMotion();
@@ -114,18 +187,18 @@ export default function LoginPage() {
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
-    if (result.ok) navigate(location.state?.from?.pathname || "/overview", { replace: true });
+    if (result.ok) navigate(location.state?.from?.pathname || "/portal/overview", { replace: true });
     else setErr(result.error);
   };
 
-  const inputCls = "w-full rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-3 text-[13.5px] text-ink outline-none backdrop-blur-sm transition-all duration-200 focus:border-accent/50 focus:shadow-[0_0_0_4px_rgba(44,62,126,0.1)] focus:bg-white";
+  const inputCls = "w-full rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-3 text-[13.5px] text-ink outline-none backdrop-blur-sm transition-all duration-200 focus:border-accent/50 focus:shadow-[0_0_0_4px_var(--accent-muted)] focus:bg-surface";
   const labelCls = "mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.1em] text-mute";
 
   return (
     <MotionConfig reducedMotion="user">
-      <div ref={panelRef} onMouseMove={onMove} data-theme="light"
+      <div ref={panelRef} onMouseMove={onMove}
         className="relative flex min-h-screen w-full overflow-hidden font-sans"
-        style={{ background: "linear-gradient(135deg,#E9F0FF 0%,#F1F7FF 38%,#EAF7EF 68%,#FFF3E6 100%)" }}>
+        style={{ background: PAGE_WASH[resolved] }}>
 
         {/* page-wide drifting colour blobs — blue · green · orange */}
         <div className="pointer-events-none absolute inset-0">
@@ -143,11 +216,26 @@ export default function LoginPage() {
 
         {/* ── LEFT — motion scene ── */}
         <div className="relative hidden w-[52%] min-w-[420px] flex-col justify-between p-12 md:flex">
-          {/* floating tile collage */}
+          {/* continuously scrolling collage of creator posts */}
           <div className="pointer-events-none absolute inset-0"
             style={{ maskImage: "radial-gradient(140% 100% at 65% 45%, #000 55%, transparent 92%)", WebkitMaskImage: "radial-gradient(140% 100% at 65% 45%, #000 55%, transparent 92%)" }}>
-            <div className="pointer-events-auto absolute inset-0">
-              {TILES.map((t) => <Tile key={t.handle + t.y} t={t} parallaxX={px} parallaxY={py} reduced={reduced} />)}
+            {/* Kept to a band on the right of the panel so the wordmark and
+                headline on the left stay clear. The track runs taller than the
+                panel so posts are always entering and leaving, never flush. */}
+            <div className="pointer-events-auto absolute right-0 flex gap-5 pr-10"
+              style={{ top: "-12%", bottom: "-12%" }}>
+              {COLUMNS.map((speed, col) => (
+                <PostColumn
+                  key={col}
+                  speed={speed}
+                  depth={1 + col * 0.6}
+                  parallaxX={px}
+                  parallaxY={py}
+                  /* deal the posts out round-robin so neighbouring columns
+                     never show the same image side by side */
+                  posts={POSTS.filter((_, i) => i % COLUMNS.length === col)}
+                />
+              ))}
             </div>
           </div>
 
@@ -166,7 +254,7 @@ export default function LoginPage() {
           </div>
 
           {/* readability scrim on the copy side */}
-          <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(102deg, rgba(238,243,252,0.9) 0%, rgba(238,243,252,0.55) 26%, transparent 55%)" }} />
+          <div className="pointer-events-none absolute inset-0" style={{ background: COPY_SCRIM[resolved] }} />
 
           {/* brand */}
           <motion.div className="relative" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
@@ -180,7 +268,7 @@ export default function LoginPage() {
           <motion.div className="relative max-w-[340px]" initial="hide" animate="show"
             variants={{ show: { transition: { staggerChildren: 0.09, delayChildren: 0.15 } } }}>
             {[
-              <div key="k" className="inline-flex items-center gap-1.5 rounded-full bg-white/75 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent shadow-sm backdrop-blur-sm">
+              <div key="k" className="inline-flex items-center gap-1.5 rounded-full bg-surface/75 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent shadow-sm backdrop-blur-sm">
                 <motion.span className="size-1.5 rounded-full bg-green" animate={reduced ? undefined : { scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }} transition={reduced ? undefined : { duration: 1.6, repeat: Infinity }} /> Live creator feed
               </div>,
               <h2 key="h" className="mt-3 font-serif text-[clamp(30px,3.6vw,40px)] italic font-medium leading-[1.14] text-ink">

@@ -1,0 +1,789 @@
+@import "tailwindcss";
+
+/* Enable dark: utilities driven by <html data-theme="dark"> (set by ThemeContext) */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ==================================================================== */
+/*  5th Avenue — design tokens                                          */
+/*                                                                      */
+/*  This file carries TWO visual identities behind ONE set of Tailwind  */
+/*  utility names:                                                      */
+/*                                                                      */
+/*    · the client portal — warm paper neutrals + indigo-navy accent,   */
+/*      mirroring 5th-internal-front's token set so the client-facing   */
+/*      and staff-facing apps read as one product family;               */
+/*    · the public marketing site — navy-dark, Instrument Sans/Serif,   */
+/*      its own chart palette, tuned against a #00001c ground.          */
+/*                                                                      */
+/*  Raw values live on scope selectors; `@theme inline` maps them to    */
+/*  utilities. So `bg-surface` resolves to the portal's white inside    */
+/*  the app shell and to the marketing navy inside <MarketingLayout/>,  */
+/*  with no component-level branching. Both vocabularies (the portal's  */
+/*  page/sub/mute/well/… and the marketing site's bg/ink-2/ink-3/…) are */
+/*  defined in BOTH scopes, so a component written for either side      */
+/*  renders correctly on the other.                                     */
+/*                                                                      */
+/*  The portal is the document default: overlays that escape their DOM  */
+/*  scope via createPortal land on <body> and inherit portal values.    */
+/*  <MarketingLayout/> sets [data-marketing] to opt its subtree over.   */
+/* ==================================================================== */
+
+/* ── Portal identity — light (also the document default) ───────────── */
+:root,
+[data-theme="light"] {
+  --bg: #f6f4ee; /* warm cream */
+  --surface: #ffffff;
+  --card: #ffffff;
+  --raised: #fcfaf5;
+  --hover: rgb(25 22 17 / 0.035);
+  --border: rgb(25 22 17 / 0.1);
+  --border-strong: rgb(25 22 17 / 0.16);
+  --text: #191611;
+  --text-2: #625d4e;
+  --text-3: #6f6a5a; /* 4.5:1 on white (WCAG AA) */
+  --well: rgb(25 22 17 / 0.055); /* track behind bars & chips */
+  --done: #f0ede5;
+  --donetxt: #a9a28e;
+
+  --accent: #2c3e7e; /* rich indigo-navy */
+  --accent-hover: #24336a;
+  --on-accent: #ffffff;
+  --accent-muted: rgb(44 62 126 / 0.1);
+  --input-bg: #ffffff;
+  --modal-bg: #ffffff;
+
+  --green: #17915a;
+  --amber: #a8720c;
+  --red: #be3a3a;
+  --purple: #6c55ce;
+  --teal: #178e80;
+  --pink: #a2489a;
+  --gold: #96792a;
+
+  --success: #17915a;
+  --success-muted: rgb(23 145 90 / 0.11);
+  --danger: #be3a3a;
+  --danger-muted: rgb(190 58 58 / 0.1);
+  --warning: #a8720c;
+  --warning-muted: rgb(168 114 12 / 0.12);
+
+  /* Chart marks — the portal's brand hues in the shared slot order:
+     blue green pink amber purple orange teal */
+  --viz-blue: #2c3e7e;
+  --viz-green: #17915a;
+  --viz-pink: #a2489a;
+  --viz-amber: #96792a;
+  --viz-purple: #6c55ce;
+  --viz-orange: #a85b1e;
+  --viz-teal: #178e80;
+
+  /* Glass recipes — use these instead of hand-rolled bg-white/70 stacks */
+  --glass: rgb(255 255 255 / 0.68);
+  --glass-strong: rgb(255 255 255 / 0.88);
+  --glass-soft: rgb(255 255 255 / 0.45);
+
+  --focus-ring: rgb(44 62 126 / 0.6);
+  --overlay: rgb(25 22 17 / 0.4);
+  --region-glow: 0 0 0 1px var(--border-strong), 0 14px 30px -10px rgb(25 22 17 / 0.28);
+  --globe: #2c3e7e;
+
+  --sh-card: 0 1px 2px rgb(25 22 17 / 0.05), 0 8px 24px rgb(25 22 17 / 0.07);
+  --sh-float: 0 18px 44px rgb(25 22 17 / 0.1);
+  --sh-pop: 0 8px 24px -8px rgb(25 22 17 / 0.16);
+  --sh-modal: 0 24px 64px rgb(25 22 17 / 0.18);
+
+  --f-sans: "Sora", -apple-system, system-ui, sans-serif;
+  --f-serif: "Newsreader", Georgia, serif;
+  --f-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+  --f-display: "Newsreader", Georgia, serif;
+}
+
+/* ── Portal identity — dark ─────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg: #131217;
+  --surface: #1b1a21;
+  --card: #1b1a21;
+  --raised: #22212a;
+  --hover: rgb(255 255 255 / 0.04);
+  --border: rgb(255 255 255 / 0.11);
+  --border-strong: rgb(255 255 255 / 0.18);
+  --text: #eceae3;
+  --text-2: #aba697;
+  --text-3: #8e897a;
+  --well: rgb(255 255 255 / 0.06);
+  --done: #23222b;
+  --donetxt: #6c6858;
+
+  --accent: #7c93e4; /* lifted indigo — readable as text and as button fill */
+  --accent-hover: #93a7ea;
+  --on-accent: #ffffff;
+  --accent-muted: rgb(124 147 228 / 0.16);
+  --input-bg: #22212a;
+  --modal-bg: #1b1a21;
+
+  --green: #3fb97e;
+  --amber: #d69a38;
+  --red: #e06a6a;
+  --purple: #9a86ec;
+  --teal: #3cb9a9;
+  --pink: #d46bc7;
+  --gold: #c7a452;
+
+  --success: #3fb97e;
+  --success-muted: rgb(63 185 126 / 0.13);
+  --danger: #e06a6a;
+  --danger-muted: rgb(224 106 106 / 0.13);
+  --warning: #d69a38;
+  --warning-muted: rgb(214 154 56 / 0.13);
+
+  --viz-blue: #7c93e4;
+  --viz-green: #3fb97e;
+  --viz-pink: #d46bc7;
+  --viz-amber: #c7a452;
+  --viz-purple: #9a86ec;
+  --viz-orange: #d1854e;
+  --viz-teal: #3cb9a9;
+
+  --glass: rgb(38 37 47 / 0.62);
+  --glass-strong: rgb(42 41 52 / 0.9);
+  --glass-soft: rgb(38 37 47 / 0.42);
+
+  --focus-ring: rgb(124 147 228 / 0.7);
+  --overlay: rgb(10 9 13 / 0.6);
+  --region-glow: 0 0 0 1px var(--accent), 0 12px 34px -12px color-mix(in oklab, var(--accent) 60%, transparent);
+  --globe: #9db0ee;
+
+  --sh-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 10px 28px rgb(0 0 0 / 0.45);
+  --sh-float: 0 20px 48px rgb(0 0 0 / 0.5);
+  --sh-pop: 0 8px 24px -8px rgb(0 0 0 / 0.6);
+  --sh-modal: 0 26px 70px rgb(0 0 0 / 0.6);
+}
+
+/* ── Marketing identity — dark (the site's native look) ─────────────── */
+/* Applies to the <MarketingLayout/> subtree. Set on a descendant element,
+   so it simply overrides the inherited portal values — no specificity
+   contest with the :root blocks above. */
+[data-marketing],
+:root[data-theme="dark"] [data-marketing] {
+  /* Navy-tinted dark ramp (base #00001C) — bg → surface → card → hover. */
+  --bg: #00001c;
+  --surface: #040927;
+  --card: #081139;
+  --raised: #081139;
+  --hover: #101d4c;
+  --border: rgb(255 255 255 / 0.08);
+  --border-strong: rgb(255 255 255 / 0.15);
+  --text: #eef1f6;
+  --text-2: #9aa6bd;
+  --text-3: #5f6b85;
+  --well: rgb(255 255 255 / 0.06);
+  --done: #081139;
+  --donetxt: #5f6b85;
+
+  --accent: #6e96ff;
+  --accent-hover: #84a6ff;
+  --on-accent: #04091a;
+  --accent-muted: rgb(110 150 255 / 0.14);
+  --input-bg: rgb(255 255 255 / 0.05);
+  --modal-bg: #0a1436;
+
+  --success: #57c464;
+  --success-muted: rgb(87 196 100 / 0.13);
+  --danger: #f2555a;
+  --danger-muted: rgb(242 85 90 / 0.13);
+  --warning: #f0b429;
+  --warning-muted: rgb(240 180 41 / 0.13);
+
+  --green: #57c464;
+  --amber: #f0b429;
+  --red: #f2555a;
+  --purple: #9078e6;
+  --teal: #34a695;
+  --pink: #cf6ba0;
+  --gold: #b6883f;
+
+  /* Chart-mark palette — refined & validated (dataviz) for dark surface,
+     softer/muted while passing lightness+chroma+CVD+contrast.
+     Fixed slot order: blue green pink amber purple orange teal */
+  --viz-blue: #5f8ce0;
+  --viz-green: #4fa971;
+  --viz-pink: #cf6ba0;
+  --viz-amber: #b6883f;
+  --viz-purple: #9078e6;
+  --viz-orange: #cd7647;
+  --viz-teal: #34a695;
+
+  --glass: rgb(8 17 57 / 0.62);
+  --glass-strong: rgb(10 20 54 / 0.9);
+  --glass-soft: rgb(8 17 57 / 0.42);
+
+  --focus-ring: rgb(110 150 255 / 0.7);
+  --overlay: rgb(0 0 10 / 0.66);
+  /* Bright halo for a selected card (dark theme). */
+  --region-glow: 0 0 0 1px var(--accent), 0 12px 34px -12px color-mix(in oklab, var(--accent) 60%, transparent);
+  /* Globe wireframe ink — bright over the dark surface. */
+  --globe: #8fb0ff;
+
+  --sh-card: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --sh-float: 0 20px 48px rgb(0 0 0 / 0.5);
+  --sh-pop: 0 8px 24px -8px rgb(0 0 0 / 0.6);
+  --sh-modal: 0 24px 64px -16px rgb(0 0 0 / 0.55);
+
+  --f-sans: "Instrument Sans Variable", system-ui, -apple-system, sans-serif;
+  --f-serif: "Instrument Serif", Georgia, serif;
+  --f-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+  --f-display: "Jost Variable", "Century Gothic", system-ui, sans-serif;
+}
+
+/* ── Marketing identity — light ─────────────────────────────────────── */
+:root[data-theme="light"] [data-marketing] {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --raised: #ffffff;
+  --hover: #f1f3f6;
+  --border: rgb(17 19 24 / 0.08);
+  --border-strong: rgb(17 19 24 / 0.16);
+  --text: #0d1a3d; /* very dark blue (main text) */
+  --text-2: #4a5468;
+  --text-3: #929aa9;
+  --well: rgb(17 19 24 / 0.05);
+  --done: #f1f3f6;
+  --donetxt: #929aa9;
+
+  /* Light mode = deep navy accent (buttons, links, active states). Dark mode
+     keeps its sky blue above. */
+  --accent: #1e3a8a;
+  --accent-hover: #183072;
+  --on-accent: #ffffff;
+  --accent-muted: rgb(30 58 138 / 0.1);
+  --input-bg: #ffffff;
+  --modal-bg: #ffffff;
+
+  --success: #46a758;
+  --success-muted: rgb(70 167 88 / 0.11);
+  --danger: #e5484d;
+  --danger-muted: rgb(229 72 77 / 0.1);
+  --warning: #d9a035;
+  --warning-muted: rgb(217 160 53 / 0.12);
+
+  --green: #46a758;
+  --amber: #d9a035;
+  --red: #e5484d;
+  --purple: #7565c9;
+  --teal: #2c9e8e;
+  --pink: #c24c86;
+  --gold: #c99a48;
+
+  /* Chart-mark palette — refined & validated (dataviz) for white surface,
+     dustier/muted; amber leans on direct labels (contrast WARN, legal). */
+  --viz-blue: #4b6fd1;
+  --viz-green: #4e9e63;
+  --viz-pink: #c24c86;
+  --viz-amber: #c99a48;
+  --viz-purple: #7565c9;
+  --viz-orange: #cf7748;
+  --viz-teal: #2c9e8e;
+
+  --glass: rgb(255 255 255 / 0.68);
+  --glass-strong: rgb(255 255 255 / 0.88);
+  --glass-soft: rgb(255 255 255 / 0.45);
+
+  --focus-ring: rgb(30 58 138 / 0.6);
+  --overlay: rgb(16 18 23 / 0.4);
+  /* Dark drop shadow for a selected card (light theme). */
+  --region-glow: 0 0 0 1px var(--border-strong), 0 14px 30px -10px rgb(16 18 23 / 0.28);
+  /* Globe wireframe ink — a deep navy so it reads on the light surface. */
+  --globe: #14245c;
+
+  --sh-card: 0 1px 2px rgb(16 18 23 / 0.04), 0 1px 3px rgb(16 18 23 / 0.06);
+  --sh-float: 0 18px 44px rgb(16 18 23 / 0.14);
+  --sh-pop: 0 8px 24px -8px rgb(16 18 23 / 0.16);
+  --sh-modal: 0 24px 64px -16px rgb(16 18 23 / 0.28);
+}
+
+/* ==================================================================== */
+/*  Utility mapping — one vocabulary over both identities.              */
+/*  `inline` means Tailwind emits var(--raw) rather than a copy of the  */
+/*  value, which is what lets a scope override retarget the utility.    */
+/* ==================================================================== */
+
+@theme inline {
+  /* Drop Tailwind's stock palette — neither app uses bg-slate-500 & co,
+     and removing it keeps the token set the only way to spend colour. */
+  --color-*: initial;
+
+  /* Surfaces. `page` and `bg` are the same token under both vocabularies. */
+  --color-page: var(--bg);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-wash: var(--hover);
+  --color-well: var(--well);
+  --color-done: var(--done);
+  --color-donetxt: var(--donetxt);
+
+  /* Text. ink-2/sub and ink-3/mute are aliases of one another. */
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-sub: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-mute: var(--text-3);
+
+  /* Borders. line-strong/line-mid are aliases. */
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-line-mid: var(--border-strong);
+
+  /* Accent + form/overlay surfaces */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-muted: var(--accent-muted);
+  --color-input: var(--input-bg);
+  --color-modal: var(--modal-bg);
+
+  /* Status — semantic names and the portal's hue names both resolve here */
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+  --color-purple: var(--purple);
+  --color-teal: var(--teal);
+  --color-pink: var(--pink);
+  --color-gold: var(--gold);
+
+  /* Chart marks */
+  --color-viz-blue: var(--viz-blue);
+  --color-viz-green: var(--viz-green);
+  --color-viz-pink: var(--viz-pink);
+  --color-viz-amber: var(--viz-amber);
+  --color-viz-purple: var(--viz-purple);
+  --color-viz-orange: var(--viz-orange);
+  --color-viz-teal: var(--viz-teal);
+
+  /* Glass recipes */
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-glass-soft: var(--glass-soft);
+
+  /* Re-add the two absolutes the palette reset removed */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --font-sans: var(--f-sans);
+  --font-serif: var(--f-serif);
+  --font-mono: var(--f-mono);
+  --font-display: var(--f-display);
+
+  /* Radii. Not reset — 2xl/3xl/none keep Tailwind's defaults, and 2xl is
+     pinned to its stock 16px so the portal's floating navbar is unchanged. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 16px;
+
+  /* Shadows. Also not reset: the portal leans on Tailwind's shadow-sm (73
+     uses) and shadow-md, so only the named recipes are added on top. */
+  --shadow-card: var(--sh-card);
+  --shadow-float: var(--sh-float);
+  --shadow-pop: var(--sh-pop);
+  --shadow-modal: var(--sh-modal);
+
+  /* Marketing type scale */
+  --text-eyebrow: 11px;
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.12em;
+  --text-caption: 12px;
+  --text-caption--line-height: 1.35;
+  --text-label: 13px;
+  --text-label--line-height: 1.4;
+  --text-body: 14px;
+  --text-body--line-height: 1.55;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 1.6;
+  --text-title: 20px;
+  --text-title--line-height: 1.25;
+  --text-title--letter-spacing: -0.015em;
+  --text-title-lg: 28px;
+  --text-title-lg--line-height: 1.15;
+  --text-title-lg--letter-spacing: 0em;
+  --text-kpi: 30px;
+  --text-kpi--line-height: 1.1;
+  --text-kpi--letter-spacing: -0.02em;
+  --text-display-lg: clamp(36px, 5vw, 64px);
+  --text-display-lg--line-height: 1.04;
+  --text-display-lg--letter-spacing: 0.005em;
+  --text-display-2xl: clamp(52px, 7.5vw, 104px);
+  --text-display-2xl--line-height: 0.98;
+  --text-display-2xl--letter-spacing: -0.02em;
+
+  --ease-out-3: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-inout-3: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-au: au 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  --animate-fi: fi 0.2s ease both;
+  --animate-slide-in: slide-in 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  --animate-pulse-dot: pulse-dot 1.2s ease-in-out infinite;
+  --animate-bounce-soft: bounce-soft 1.4s ease-in-out infinite;
+
+  @keyframes au { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fi { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slide-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes pulse-dot { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
+  @keyframes bounce-soft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+}
+
+/* ==================================================================== */
+/*  Base                                                                */
+/* ==================================================================== */
+
+@layer base {
+  html, body, #root { height: 100%; }
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  html[data-theme="dark"] { color-scheme: dark; }
+
+  body {
+    @apply bg-page text-ink font-sans antialiased;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.55;
+    transition: background-color 0.35s ease, color 0.35s ease;
+  }
+
+  ::selection {
+    background: var(--accent-muted);
+    color: var(--text);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  button { cursor: pointer; font-family: inherit; }
+  input::placeholder, textarea::placeholder { color: var(--text-3); }
+
+  /* Thin, theme-aware scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3e%3cpath fill='%236E6A5C' d='M4 6L0 2h8z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 7px center;
+    padding-right: 22px !important;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+}
+
+@layer components {
+  /* Micro uppercase label used across cards */
+  .microlabel { @apply text-[10px] font-semibold uppercase tracking-[0.1em] text-mute; }
+  /* Standard card shell */
+  .card { @apply rounded-xl border border-line bg-surface; }
+  /* Glassmorphism recipes — use instead of hand-rolled bg-white/70 stacks */
+  .glass-card { @apply rounded-[20px] border border-line shadow-card backdrop-blur-xl; background: var(--glass); }
+  .glass-panel { @apply border border-line backdrop-blur-2xl; background: var(--glass-strong); box-shadow: var(--sh-modal); }
+}
+
+/* Tabular numerals — keeps changing figures from jittering */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Serif display helper — Instrument Serif only ships 400 */
+[data-marketing] .font-serif {
+  font-weight: 400;
+}
+
+/* Hairline rule helper */
+.rule {
+  border-top: 1px solid var(--border);
+}
+
+/* Hide scrollbar for horizontal chip rows */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ==================================================================== */
+/*  Portal animations                                                   */
+/* ==================================================================== */
+
+/* Legacy animation class names kept so animationDelay-driven lists keep working */
+.au, .anim-up { animation: au 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.fi, .fade-in { animation: fi 0.2s ease both; }
+.slide-in { animation: slide-in 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.pulse { animation: pulse-dot 1.2s ease-in-out infinite; }
+.bounce-1 { animation: bounce-soft 1.4s ease-in-out infinite; }
+
+/* Login collage — a column of post cards scrolling forever. The card list is
+   rendered twice and the track travels exactly half its height, so the second
+   copy arrives where the first started and the seam is invisible. Duration is
+   set per column with --marquee-duration; `animation-direction: reverse`
+   sends a column the other way. */
+@keyframes login-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(0, -50%, 0); }
+}
+.login-marquee {
+  animation: login-marquee var(--marquee-duration, 40s) linear infinite;
+  will-change: transform;
+}
+
+/* Ambient background blobs — slow, GPU-friendly drift */
+.ambient-blob { animation: ambient-drift 26s ease-in-out infinite alternate; will-change: transform; }
+@keyframes ambient-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(30px, -24px, 0) scale(1.06); }
+  to   { transform: translate3d(-24px, 20px, 0) scale(0.97); }
+}
+
+/* ==================================================================== */
+/*  Marketing-site animations (fa-* namespace)                          */
+/* ==================================================================== */
+
+/* Film-grain overlay — fixed, non-interactive, very subtle (AWWWARDS texture) */
+.fa-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-theme="light"] .fa-grain {
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+}
+
+/* Range slider thumb */
+.fa-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent);
+  box-shadow: var(--sh-pop);
+  cursor: pointer;
+}
+.fa-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent);
+  cursor: pointer;
+}
+
+/* Hero scroll cue — gentle pulse down */
+@keyframes fa-scroll-cue {
+  0%, 100% { transform: scaleY(0.6); transform-origin: top; opacity: 0.5; }
+  50% { transform: scaleY(1); transform-origin: top; opacity: 1; }
+}
+.fa-scroll-cue {
+  animation: fa-scroll-cue 2s ease-in-out infinite;
+}
+
+/* Slow ambient drift for CTA band */
+@keyframes fa-drift {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-46%, -54%) scale(1.08); }
+}
+.fa-drift {
+  animation: fa-drift 14s ease-in-out infinite;
+}
+
+/* Map state reveal */
+@keyframes fa-map-in {
+  from { fill-opacity: 0; }
+}
+.fa-map-state {
+  animation: fa-map-in 0.5s ease-out both;
+}
+
+/* International globe — pulsing market pins + flowing connection arcs */
+@keyframes fa-pin-pulse {
+  0% { transform: scale(0.6); opacity: 0.5; transform-box: fill-box; transform-origin: center; }
+  70% { transform: scale(2.1); opacity: 0; transform-box: fill-box; transform-origin: center; }
+  100% { opacity: 0; }
+}
+.fa-pin-pulse {
+  animation: fa-pin-pulse 2.6s ease-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes fa-arc-flow {
+  to { stroke-dashoffset: -200; }
+}
+.fa-arc {
+  animation: fa-arc-flow 6s linear infinite;
+}
+
+/* International — animated satellite marker + typing caret */
+@keyframes fa-sat-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.fa-sat {
+  animation: fa-sat-float 4.5s ease-in-out infinite;
+}
+@keyframes fa-sat-ping {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(1.75); opacity: 0; }
+}
+.fa-sat-ping {
+  animation: fa-sat-ping 2.6s ease-out infinite;
+}
+@keyframes fa-caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.fa-caret {
+  animation: fa-caret-blink 0.9s steps(1) infinite;
+}
+
+/* Passcode error shake */
+@keyframes fa-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.fa-shake {
+  animation: fa-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* Toast entrance */
+@keyframes fa-toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.fa-toast {
+  animation: fa-toast-in 0.25s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+/* ── Creatives page ─────────────────────────────────────────────────────
+   A spinning ring keeps its cards upright by counter-spinning each card at
+   the same period (fa-spin on the ring, fa-spin-rev on the card, or vice
+   versa). Duration is set per-element with --spin-dur. */
+@keyframes fa-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes fa-spin-rev {
+  to { transform: rotate(-360deg); }
+}
+.fa-spin {
+  animation: fa-spin var(--spin-dur, 52s) linear infinite;
+}
+.fa-spin-rev {
+  animation: fa-spin-rev var(--spin-dur, 52s) linear infinite;
+}
+
+/* Gentle vertical bob (center medallion, idle chips). */
+@keyframes fa-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+.fa-bob {
+  animation: fa-bob 5.5s ease-in-out infinite;
+}
+
+/* Crayon cursor for the Creatives page — the native cursor is hidden and
+   <CrayonCursor/> renders a DOM crayon with its tip anchored exactly at the
+   pointer, so the drawn stroke starts at the tip. Touch keeps the normal
+   cursor. */
+.fa-crayon,
+.fa-crayon * {
+  cursor: none;
+}
+@media (pointer: coarse) {
+  .fa-crayon,
+  .fa-crayon * {
+    cursor: auto;
+  }
+}
+
+/* Glyph-shaped logo shadow at the spiral's centre — a light glow behind the
+   white logo on the dark theme, a soft dark shadow behind the navy logo on
+   the light theme. drop-shadow follows the glyph's alpha, so the shadow has
+   the logo's own shape. */
+:root:not([data-theme="light"]) .fa-logo-shadow {
+  filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.4)) drop-shadow(0 10px 30px rgba(255, 255, 255, 0.18));
+}
+:root[data-theme="light"] .fa-logo-shadow {
+  filter: drop-shadow(0 4px 10px rgba(4, 4, 40, 0.26)) drop-shadow(0 16px 30px rgba(4, 4, 40, 0.2));
+}
+
+/* JoinBox cube — each face fakes a playing video: a slowly panning gradient
+   plus a looping progress bar. */
+@keyframes fa-video-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.fa-video-face {
+  animation: fa-video-pan 7s ease-in-out infinite;
+}
+@keyframes fa-video-bar {
+  from { width: 0; }
+  to { width: 100%; }
+}
+.fa-video-bar {
+  animation: fa-video-bar 6s linear infinite;
+}
+
+/* ==================================================================== */
+/*  Reduced motion                                                      */
+/* ==================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  /* motion/react handles its own via MotionConfig; this covers CSS animation */
+  .au, .anim-up, .fi, .fade-in, .slide-in, .pulse, .bounce-1, .ambient-blob { animation: none !important; }
+  /* hold the login collage still rather than snapping it to the loop's end */
+  .login-marquee { animation: none !important; }
+  .fa-toast { animation: none; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -26,6 +26,12 @@ export const fmtNum = (n) => {
   return String(Math.round(n));
 };
 
+// Lakhs in, not rupees — the marketing site's headline figures are authored in
+// lakhs (see lib/marketing/data/landing-copy.ts), so they need their own
+// formatter rather than fmtINR's rupee scale.
+export const fmtL = (n) =>
+  n >= 100 ? `₹${(n / 100).toFixed(1)}Cr` : `₹${n.toFixed(n < 10 ? 1 : 0)}L`;
+
 export const fmtINR = (n) => {
   if (n == null || isNaN(n)) return "—";
   if (n >= 1e7) return `₹${(n/1e7).toFixed(1)}Cr`;

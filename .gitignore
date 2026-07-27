@@ -71,3 +71,5 @@ temp/
 *.pid
 *.seed
 *.pid.lock
+
+/scrap
