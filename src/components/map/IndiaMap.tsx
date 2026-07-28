@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MAP_PATHS } from "../../lib/marketing/data/map-paths";
+import { PATHS } from "../../lib/indiaPaths";
 import { STATES_META, STATE_DATA, centroid } from "../../lib/marketing/data/map-data";
 import { cx } from "../../lib/cx";
 
@@ -46,11 +46,11 @@ export function IndiaMap({
 
   const centroids = useMemo(() => {
     const out: Record<string, [number, number]> = {};
-    for (const id of Object.keys(MAP_PATHS)) out[id] = centroid(MAP_PATHS[id]);
+    for (const id of Object.keys(PATHS)) out[id] = centroid(PATHS[id]);
     return out;
   }, []);
 
-  const ids = Object.keys(MAP_PATHS);
+  const ids = Object.keys(PATHS);
   const maxCr = Math.max(...ids.map((id) => STATE_DATA[id]?.cr ?? 0), 1);
 
   const setH = (id: string | null) => {
@@ -85,7 +85,7 @@ export function IndiaMap({
         return (
           <path
             key={id}
-            d={MAP_PATHS[id]}
+            d={PATHS[id]}
             fill={fill}
             fillOpacity={opacity}
             stroke={outline}

@@ -46,7 +46,7 @@ export function Footer() {
       <div className="mx-auto max-w-[1200px] px-6 py-16 md:px-10">
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(4,1fr)]">
           <div>
-            <Link to="/" className="font-display text-[15px] font-light uppercase tracking-[0.3em] text-ink">
+            <Link to="/" className="font-sans text-[15px] font-light uppercase tracking-[0.3em] text-ink">
               Fifth Avenue
             </Link>
             <p className="mt-3 max-w-xs text-caption text-ink-3">
@@ -88,10 +88,10 @@ export function Footer() {
         </div>
         <div
           aria-hidden
-          className="select-none whitespace-nowrap px-6 pb-2 font-serif text-[clamp(48px,18vw,240px)] leading-none text-ink"
+          className="select-none whitespace-nowrap px-6 pb-2 font-sans font-light uppercase tracking-[0.02em] text-[clamp(48px,18vw,240px)] leading-none text-ink"
           style={{ opacity: 0.04 }}
         >
-          5th Avenue
+          Fifth Avenue
         </div>
       </div>
     </footer>

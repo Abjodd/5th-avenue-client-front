@@ -1,6 +1,9 @@
 // Indian state metadata shared by the Regional Map and creator rows.
 // Keys are the state codes stored on creators in the DB (creator.state)
-// and used by the map's SVG paths.
+// and used by the map's SVG paths (lib/indiaPaths.ts). Every code with a path
+// needs an entry here — the map only renders paths it can find metadata for,
+// so a missing entry leaves a hole in the country rather than an unlabelled
+// state.
 
 // Region hues drawn from the portal theme (context.js) so the map reads as
 // part of the same system: accent / green / pink / amber / purple / teal.
@@ -13,7 +16,8 @@ export const STATES_META = {
   jk:{name:"Jammu & Kashmir",region:"north",lang:"Kashmiri"},pb:{name:"Punjab",region:"north",lang:"Punjabi"},
   rj:{name:"Rajasthan",region:"north",lang:"Hindi"},up:{name:"Uttar Pradesh",region:"north",lang:"Hindi"},
   ut:{name:"Uttarakhand",region:"north",lang:"Hindi"},
-  ap:{name:"Andhra Pradesh",region:"south",lang:"Telugu"},ka:{name:"Karnataka",region:"south",lang:"Kannada"},
+  ap:{name:"Andhra Pradesh",region:"south",lang:"Telugu"},tg:{name:"Telangana",region:"south",lang:"Telugu"},
+  ka:{name:"Karnataka",region:"south",lang:"Kannada"},
   kl:{name:"Kerala",region:"south",lang:"Malayalam"},tn:{name:"Tamil Nadu",region:"south",lang:"Tamil"},
   gj:{name:"Gujarat",region:"west",lang:"Gujarati"},mh:{name:"Maharashtra",region:"west",lang:"Marathi"},
   ga:{name:"Goa",region:"west",lang:"Konkani"},

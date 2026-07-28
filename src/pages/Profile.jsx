@@ -79,7 +79,7 @@ export default function Profile() {
         <Reveal className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl">
           <div>
             <h2 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">Appearance</h2>
-            <p className="text-[12.5px] text-sub">Default follows your device (system setting). Tap to switch light / dark.</p>
+            <p className="text-[12.5px] text-sub">Auto follows your device's system setting. Pick Light or Dark to override it.</p>
           </div>
           <ThemeToggle showLabel />
         </Reveal>

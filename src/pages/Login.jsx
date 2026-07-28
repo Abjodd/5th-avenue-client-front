@@ -258,7 +258,7 @@ export default function LoginPage() {
 
           {/* brand */}
           <motion.div className="relative" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-            <div className="font-serif text-[26px] italic font-semibold tracking-[-0.02em] text-accent">5th Avenue</div>
+            <div className="font-sans text-[18px] font-light uppercase tracking-[0.26em] text-accent">Fifth Avenue</div>
             <div className="mt-2 flex items-center gap-2 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-accent/55">
               <span className="h-px w-6 bg-accent/30" /> Client Portal
             </div>
@@ -309,12 +309,8 @@ export default function LoginPage() {
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
             className="relative w-full max-w-[380px] rounded-[28px] border border-line bg-[--color-glass] p-9 shadow-[0_30px_80px_rgba(25,22,17,0.12)] backdrop-blur-2xl"
           >
-            <div className="mb-4 font-serif text-[20px] italic font-semibold text-accent md:hidden">5th Avenue</div>
+            <div className="mb-4 font-sans text-[15px] font-light uppercase tracking-[0.22em] text-accent md:hidden">Fifth Avenue</div>
 
-            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-accent/15 bg-accent/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent">
-              <motion.span className="size-1.5 rounded-full bg-accent" animate={reduced ? undefined : { opacity: [1, 0.4, 1] }} transition={reduced ? undefined : { duration: 1.8, repeat: Infinity }} />
-              Secure sign in
-            </div>
             <h1 className="mt-3 font-serif text-[30px] italic font-semibold leading-tight text-ink">Sign in</h1>
             <p className="mb-7 mt-1.5 text-[12.5px] text-sub">Use the credentials issued to your brand by 5th Avenue.</p>
 

@@ -46,7 +46,10 @@ function aggregate(campaigns) {
         name: cr.name || "—", niche: cr.niche || "—",
         followers: parseFollowers(cr.followers), er: Number(cr.avgER) || 0, code,
       });
-      const lang = cr.language || STATES_META[code].lang;
+      // The creator's own answer (from their application) when we have it;
+      // otherwise the primary language of their state, which is a reasonable
+      // guess but only a guess.
+      const lang = cr.languages?.[0] || cr.language || STATES_META[code].lang;
       if (!langs[lang]) langs[lang] = { camps:new Set(), creators:0 };
       langs[lang].camps.add(c.id);
       langs[lang].creators++;
@@ -82,7 +85,9 @@ function aggregate(campaigns) {
 function centroid(path){const nums=path.replace(/[MLZHVCSQTA]/gi," ").trim().split(/[\s,]+/).map(Number).filter(n=>!isNaN(n));let cx=0,cy=0,n=0;for(let i=0;i<nums.length;i+=2){cx+=nums[i];cy+=nums[i+1];n++;}return n?[cx/n,cy/n]:[0,0];}
 
 /* Precomputed once at module load — centroid() parses hundreds of coordinates
-   per state, so doing it per-render made every hover re-render expensive. */
+   per state, so doing it per-render made every hover re-render expensive.
+   The length floor drops the offshore-island stubs (ld, dd) whose paths are
+   zero-area placeholders that would render as invisible, unhoverable slivers. */
 const STATE_IDS = Object.keys(PATHS).filter(id => STATES_META[id] && PATHS[id] && PATHS[id].length >= 20);
 const CENTROIDS = Object.fromEntries(STATE_IDS.map(id => [id, centroid(PATHS[id])]));
 /* All states merged into one path string — the extruded slab + base render as
@@ -225,7 +230,7 @@ function IndiaMap({mode,stateData,selectedId,onSelect,P}){
             const dimmed=selectedId&&!isSel;                      // zoomed: non-selected states recede
             const fillOp=isSel?0.78:(isHov?Math.max(intensity,0.5):dimmed?intensity*0.4:intensity);
             const [cx,cy]=CENTROIDS[id];
-            const showLabel=isSel||isHov||["rj","up","mp","mh","gj","ka","tn","ap","wb","or","as","jk","ct","br","jh","kl","hr","pb"].includes(id);
+            const showLabel=isSel||isHov||["rj","up","mp","mh","gj","ka","tn","ap","tg","wb","or","as","jk","ct","br","jh","kl","hr","pb"].includes(id);
             // Once zoomed into a state/region, other states stop being directly
             // clickable — you have to back out (Back button, or the empty-map
             // click-through above) before picking a new one. Cursor reflects it.
