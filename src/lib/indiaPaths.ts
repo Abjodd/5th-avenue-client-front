@@ -1,7 +1,20 @@
-// India map SVG paths. viewBox: 0 0 480 560.
-// Higher-detail full-India trace supplied by the client (replaces the earlier ported set).
+// Canonical India map geometry — SVG paths in an equirectangular projection,
+// viewBox "0 0 480 560". Keys are the state codes used by STATES_META in
+// lib/geo.js (portal) and lib/marketing/data/map-data.ts (landing), and are the
+// same codes creators carry in `creator.state`.
+//
+// One file, both maps: the landing NetworkMap and the portal RegionalMap render
+// from this set via components/map/IndiaMap.tsx. There used to be a second,
+// lower-detail copy in lib/indiaPaths.js that only the portal read — it traced
+// Jammu & Kashmir with 82 points ending at the Line of Control, so the portal
+// map was missing PoK/Gilgit-Baltistan and Aksai Chin while the landing map
+// (already on this set) showed them. Keeping two traces of the same country is
+// how that drift happened, so there is now only this one.
+//
+// `jk` is the full Indian claim line. `tg` (Telangana) is traced separately
+// from `ap`, so both are independently selectable.
 
-export const MAP_PATHS: Record<string, string> = {
+export const PATHS: Record<string, string> = {
   ch: "M152,126.2 L152.2,128.1 L150.2,126.3 L152,126.2Z",
   dl: "M158,159.7 L159.6,162.4 L159.9,165.9 L157.8,167.4 L155.9,165.7 L152.9,165.9 L152.3,165 L154,162.8 L153.9,160.8 L155.9,159.6 L158,159.7Z",
   hp: "M176.2,95.8 L177.3,97.5 L177.4,101 L178.3,101.3 L181.8,106 L180.7,109 L183,111.9 L181.1,113.6 L181.8,116.6 L183.9,117.2 L185.7,120.2 L183.8,120.4 L182.6,118.9 L178.1,118.7 L174.7,117.4 L171,119.5 L169.4,119.5 L167.2,121.8 L165.8,126.1 L167.4,130.9 L164.1,132.3 L163.9,133.3 L160.7,132.5 L157.1,130.6 L157.2,128.1 L153.4,124.2 L151.2,124.1 L149.3,122.5 L148.2,117.6 L146.2,117.2 L144.9,115 L143.7,117 L141.8,116.6 L140.5,112.6 L138.2,108.4 L137.5,105.5 L132.9,103.4 L134.9,100.1 L138,97.7 L137,96 L138.2,94.2 L138,91.5 L136.7,88.6 L138.9,89.1 L142.7,86.6 L143.9,84.9 L148,83.4 L150.8,84 L153.9,86.9 L156.9,88.8 L160.2,89.8 L166,87.3 L168.1,89.7 L170.5,94.3 L176.1,91.8 L176.1,93.6 L174.6,95.9 L176.2,95.8Z",

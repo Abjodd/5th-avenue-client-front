@@ -45,10 +45,10 @@
   --done: #f0ede5;
   --donetxt: #a9a28e;
 
-  --accent: #2c3e7e; /* rich indigo-navy */
-  --accent-hover: #24336a;
+  --accent: #1b2a5c; /* rich indigo-navy, darkened */
+  --accent-hover: #142047;
   --on-accent: #ffffff;
-  --accent-muted: rgb(44 62 126 / 0.1);
+  --accent-muted: rgb(27 42 92 / 0.1);
   --input-bg: #ffffff;
   --modal-bg: #ffffff;
 

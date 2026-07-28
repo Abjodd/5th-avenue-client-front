@@ -44,8 +44,8 @@ export default function AppShell({ children }) {
         >
           {/* Wordmark */}
           <div className="flex items-center border-r border-line pr-7">
-            <span className="font-serif text-[21px] italic font-semibold tracking-[-0.01em] text-ink">
-              5th <span className="text-accent">Avenue</span>
+            <span className="font-sans text-[15px] font-light uppercase tracking-[0.28em] text-ink">
+              Fifth <span className="text-accent">Avenue</span>
             </span>
           </div>
 

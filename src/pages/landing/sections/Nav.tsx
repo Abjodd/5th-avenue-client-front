@@ -41,7 +41,7 @@ export function Nav() {
         <Link
           to="/"
           aria-label="Fifth Avenue — home"
-          className="font-display text-[15px] font-light uppercase leading-none tracking-[0.32em] text-ink transition-opacity hover:opacity-70"
+          className="font-sans text-[15px] font-light uppercase leading-none tracking-[0.32em] text-ink transition-opacity hover:opacity-70"
         >
           Fifth Avenue
         </Link>

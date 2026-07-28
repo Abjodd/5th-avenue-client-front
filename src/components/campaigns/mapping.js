@@ -68,7 +68,7 @@ export function toViewCreator(cr) {
     niche: cr.niche || "—",
     size: sizeOf(followers),
     region: STATES_META[stateCode(cr.state)]?.name || cr.state || "—",
-    language: cr.language || "—",
+    language: cr.languages?.length ? cr.languages.join(", ") : cr.language || "—",
     avatar: initials(cr.name),
     briefDoc: cr.concept?.fileLink ? { name: "Concept file", url: cr.concept.fileLink } : null,
     videoDoc: cr.demo?.fileLink ? { name: "Demo video", url: cr.demo.fileLink } : null,
