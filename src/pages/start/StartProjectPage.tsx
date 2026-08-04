@@ -23,6 +23,7 @@ export default function StartProjectPage() {
   const [contact, setContact] = useState("");
   const [org, setOrg] = useState("");
   const [hq, setHq] = useState("");
+  const [goal, setGoal] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +96,7 @@ export default function StartProjectPage() {
                   contact,
                   organisation: org,
                   headquarters: hq,
+                  goal,
                 });
                 setSubmitting(false);
                 if (res.ok) setSubmitted(true);
@@ -115,6 +117,20 @@ export default function StartProjectPage() {
               </Field>
               <Field label="Headquarters" hint="city / base of operations">
                 <Input value={hq} onChange={(e) => setHq(e.target.value)} placeholder="Mumbai, India" />
+              </Field>
+              <Field label="What's the goal?" hint="optional">
+                <textarea
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  placeholder="Launch, growth, a specific campaign — whatever you're solving for."
+                  rows={3}
+                  className={cx(
+                    "w-full resize-none rounded-md border bg-input px-3 py-2 text-body text-ink placeholder:text-ink-3",
+                    "transition-colors duration-150 focus:border-accent/50 focus:outline-none",
+                    "focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-[var(--focus-ring)]",
+                    "border-line hover:border-line-strong",
+                  )}
+                />
               </Field>
 
               {error && (
