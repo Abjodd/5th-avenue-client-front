@@ -7,7 +7,7 @@
  * collection (see context/AuthContext); login scopes every page to clientName.
  */
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, useSpring, useTransform, useReducedMotion, MotionConfig } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -258,7 +258,7 @@ export default function LoginPage() {
 
           {/* brand */}
           <motion.div className="relative" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-            <div className="font-sans text-[18px] font-light uppercase tracking-[0.26em] text-accent">Fifth Avenue</div>
+            <Link to="/" className="inline-block font-sans text-[18px] font-light uppercase tracking-[0.26em] text-accent transition-opacity hover:opacity-70">Fifth Avenue</Link>
             <div className="mt-2 flex items-center gap-2 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-accent/55">
               <span className="h-px w-6 bg-accent/30" /> Client Portal
             </div>
@@ -309,7 +309,7 @@ export default function LoginPage() {
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
             className="relative w-full max-w-[380px] rounded-[28px] border border-line bg-[--color-glass] p-9 shadow-[0_30px_80px_rgba(25,22,17,0.12)] backdrop-blur-2xl"
           >
-            <div className="mb-4 font-sans text-[15px] font-light uppercase tracking-[0.22em] text-accent md:hidden">Fifth Avenue</div>
+            <Link to="/" className="mb-4 inline-block font-sans text-[15px] font-light uppercase tracking-[0.22em] text-accent md:hidden">Fifth Avenue</Link>
 
             <h1 className="mt-3 font-serif text-[30px] italic font-semibold leading-tight text-ink">Sign in</h1>
             <p className="mb-7 mt-1.5 text-[12.5px] text-sub">Use the credentials issued to your brand by 5th Avenue.</p>

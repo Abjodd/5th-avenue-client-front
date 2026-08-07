@@ -297,7 +297,13 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-medium text-ink">{cr.name}</span>
-            <a href={cr.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[12px] text-accent no-underline hover:underline">{cr.handle}</a>
+            {/* Only an anchor when a profile URL could actually be derived. An
+                <a> with no href still renders accent-coloured with a hover
+                underline, so it reads as a link and does nothing — worse than
+                plain text. */}
+            {cr.url
+              ? <a href={cr.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[12px] text-accent no-underline hover:underline">{cr.handle}</a>
+              : <span className="text-[12px] text-sub">{cr.handle}</span>}
           </div>
           <div className="mt-0.5 flex flex-wrap gap-2 text-[12px] text-sub">
             <span>{cr.followers}</span><span>{cr.platform}</span><span>{cr.deliverables}</span>
@@ -455,9 +461,11 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                   <SentimentStrip avgPositivity={c.avgPositivity} creators={creators}/>
                   <div className="mb-2 grid grid-cols-3 gap-2">
                     <BudgetCard value={c.budget} creators={creators}/>
-                    <MetricCard label="Reach" value={c.reach} breakdowns={bd}/>
+                    {/* Reach and Impressions are gone: nothing measures either
+                        one. Both were hardcoded "—" cards that could never
+                        fill in, so a third of the brand's headline metrics
+                        were permanently blank. Views is measured, so it stays. */}
                     <MetricCard label="Views" value={c.views} breakdowns={bd}/>
-                    <MetricCard label="Impressions" value={c.impressions} breakdowns={bd}/>
                     <MetricCard label="Creators" value={`${numCr}`}/>
                     <MetricCard label="Deliverables" value={`${numDel}`}/>
                   </div>

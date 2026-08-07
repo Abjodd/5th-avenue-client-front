@@ -32,12 +32,18 @@ export const fmtNum = (n) => {
 export const fmtL = (n) =>
   n >= 100 ? `₹${(n / 100).toFixed(1)}Cr` : `₹${n.toFixed(n < 10 ? 1 : 0)}L`;
 
+// Money, on the Indian scale: 75000 → "₹75,000", 750000 → "₹7.5L",
+// 12000000 → "₹1.2Cr". No "K" tier — a media budget is quoted in lakhs and
+// crores here, and "₹75K" next to "₹7.5L" reads as two unrelated scales.
+// Below a lakh the full grouped number is short enough to print, and it's
+// exact: the K tier rounded ₹75,400 and ₹75,600 to the same "₹75K".
+// Mirrors fmtINR in the internal app (5th-internal-front src/lib/format.js).
 export const fmtINR = (n) => {
-  if (n == null || isNaN(n)) return "—";
-  if (n >= 1e7) return `₹${(n/1e7).toFixed(1)}Cr`;
-  if (n >= 1e5) return `₹${(n/1e5).toFixed(1)}L`;
-  if (n >= 1e3) return `₹${(n/1e3).toFixed(0)}K`;
-  return `₹${n}`;
+  if (n == null || n === "" || !Number.isFinite(Number(n))) return "—";
+  const v = Number(n), a = Math.abs(v), sign = v < 0 ? "-" : "";
+  if (a >= 1e7) return `${sign}₹${+(a/1e7).toFixed(1)}Cr`;
+  if (a >= 1e5) return `${sign}₹${+(a/1e5).toFixed(1)}L`;
+  return `${sign}₹${a.toLocaleString("en-IN")}`;
 };
 
 export const initials = (name) =>

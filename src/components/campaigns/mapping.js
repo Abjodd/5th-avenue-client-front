@@ -27,6 +27,35 @@ export const inputCls = "w-full rounded-[10px] border border-line bg-white/70 px
 export const labelCls = "mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute";
 export const closeBtnCls = "flex size-7 items-center justify-center rounded-full border border-line bg-well/70 text-[13px] text-sub transition-all duration-200 hover:bg-red/[0.08] hover:text-red";
 
+/* Public profile link for a creator's handle, or null when one can't be built.
+   Returning null is what lets the caller render plain text: `url` used to be
+   just `cr.igUrl`, which is only set when someone used the internal Add Creator
+   "Fetch" button — so every hand-added creator arrived with url:null and their
+   handle still rendered inside an <a>, as accent-coloured text that looks like
+   a link and does nothing.
+
+   Mirrors profileUrl() in the internal app (5th-internal-front
+   src/lib/campaign.js). Duplicated rather than imported because the two apps
+   are separate deployments with no shared package — keep the two in step. */
+const PROFILE_URL = {
+  "Instagram":   h => `https://www.instagram.com/${h}/`,
+  "YouTube":     h => `https://www.youtube.com/@${h}`,
+  "Twitter / X": h => `https://x.com/${h}`,
+  "Snapchat":    h => `https://www.snapchat.com/add/${h}`,
+};
+const HANDLE_RE = /^[A-Za-z0-9._-]{1,50}$/;
+
+export function profileUrl(cr) {
+  const abs = u => { const t = String(u).trim(); return /^https?:\/\//i.test(t) ? t : `https://${t}`; };
+  if (cr?.igUrl) return abs(cr.igUrl);
+  const raw = String(cr?.handle || "").trim();
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;   // already a full link
+  const h = raw.replace(/^@+/, "");
+  if (!HANDLE_RE.test(h)) return null;         // spaces, emoji, junk
+  return PROFILE_URL[cr?.platform]?.(h) || null;
+}
+
 // A creator's display status: prefer the furthest workflow signal we have.
 export function creatorStatus(cr) {
   if (cr.live?.postUrl) return "posted";
@@ -41,6 +70,33 @@ export function creatorStatus(cr) {
 
 /* Numeric-or-null: never invents a value for missing tracking data */
 const numOrNull = (v) => (v == null || v === "" ? null : Number(v) || null);
+
+/* ── ENGAGEMENT RATE ────────────────────────────────────────────────────────
+   ER% = reactions the audience left ON the post ÷ views. Forwards are excluded
+   deliberately — they're distribution, not engagement, and only Instagram
+   reports them, so including them made IG creators look better than YouTube
+   ones for identical performance. Same formula the internal app's Deliverables
+   tab shows, so the two apps never quote the brand different numbers.
+
+   MEASURED data wins. `avgER` is the creator's PROFILE rate — what their
+   account averages, captured when their handle was looked up — so it's a
+   forecast, and for a roster typed in by hand it was never captured at all.
+   That's why campaigns like Pronto showed "—" here permanently and never
+   refreshed: nothing recomputed it, because it wasn't derived from anything.
+   Now it is: every nightly post-metrics refresh moves this number.
+
+   Profile ER stays as the fallback for the window before anything is live,
+   which is the only time it's the best estimate available.
+
+   Returns null (not 0) when it can't be computed — "we didn't measure the
+   reactions" and "nobody engaged" are different answers, and only one of them
+   belongs in front of a brand. Matches engagementRate() in the backend's
+   engagement.js. */
+export const erOf = (likes, comments, views) =>
+  views > 0 && (likes != null || comments != null)
+    ? (((likes || 0) + (comments || 0)) / views) * 100
+    : null;
+const fmtER = (v) => (v == null ? "—" : `${v.toFixed(1)}%`);
 
 export function toViewCreator(cr) {
   const followers = parseFollowers(cr.followers);
@@ -57,13 +113,15 @@ export function toViewCreator(cr) {
   return {
     name: cr.name || "—",
     handle: cr.handle ? (cr.handle.startsWith("@") ? cr.handle : `@${cr.handle}`) : "",
-    url: cr.igUrl || null,
+    url: profileUrl(cr),
     followers: fmtNum(followers),
     platform: cr.platform || "—",
     status: creatorStatus(cr),
     rawStatus: cr.status || null,
     deliverables: "—", // not tracked per-creator in the DB yet
-    engRate: cr.avgER != null && cr.avgER !== "" ? `${cr.avgER}%` : "—",
+    engRate: fmtER(
+      (tracking && erOf(tracking.likes, tracking.comments, tracking.views)) ?? numOrNull(cr.avgER)
+    ),
     avgLikes: numOrNull(cr.avgLikes),
     niche: cr.niche || "—",
     size: sizeOf(followers),
@@ -81,9 +139,6 @@ export function toViewCreator(cr) {
 export function toViewCampaign(c) {
   const phase = phaseOf(c.stage);
   const creators = (c.creators || []).map(toViewCreator);
-  const ers = (c.creators || []).map(cr => Number(cr.avgER)).filter(v => v > 0);
-  const avgER = ers.length ? `${(ers.reduce((a, b) => a + b, 0) / ers.length).toFixed(1)}%` : "—";
-  const views = (c.creators || []).reduce((s, cr) => s + (Number(cr.tracking?.views) || 0), 0);
   const brief = c.brief && typeof c.brief === "object" ? c.brief : null;
   const briefLocked = c.briefStatus === "locked";
   const briefView = brief ? {
@@ -98,6 +153,17 @@ export function toViewCampaign(c) {
   const sumTrack = (key) => creators.reduce((s, cr) => s + (cr.tracking?.[key] || 0), 0);
   const trackTotals = { views: sumTrack("views"), likes: sumTrack("likes"), comments: sumTrack("comments"), forwards: sumTrack("forwards") };
   const hasTrackTotals = Object.values(trackTotals).some(v => v > 0);
+  const views = trackTotals.views;
+
+  /* Campaign ER off the campaign's own totals once anything is live — NOT the
+     mean of the per-creator rates, which weights a creator with 2k views the
+     same as one with 2m. Before the first post, the roster's profile rates are
+     the only estimate there is, and there the plain mean is the honest one. */
+  const profileERs = (c.creators || []).map(cr => Number(cr.avgER)).filter(v => v > 0);
+  const avgER = fmtER(
+    erOf(trackTotals.likes, trackTotals.comments, trackTotals.views)
+    ?? (profileERs.length ? profileERs.reduce((a, b) => a + b, 0) / profileERs.length : null)
+  );
   const positivities = creators.map(cr => cr.tracking?.positivityScore).filter(v => v != null);
   const avgPositivity = positivities.length ? positivities.reduce((a, b) => a + b, 0) / positivities.length : null;
   const lastFetched = creators.map(cr => cr.tracking?.lastFetched).filter(Boolean).sort().pop() || null;
@@ -109,9 +175,7 @@ export function toViewCampaign(c) {
     region: c.region || "—",
     phase,
     progress: Number(c.progress) || Math.round((PHASES.findIndex(p => p.id === phase) / (PHASES.length - 1)) * 100),
-    reach: "—", // no reach tracking in the DB yet
     engagement: avgER,
-    impressions: "—",
     engRate: avgER,
     views: views ? fmtNum(views) : "—",
     start: c.start || "—",

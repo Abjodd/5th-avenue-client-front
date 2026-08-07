@@ -7,9 +7,10 @@ interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /** Selectable filter chip. Selection = accent-muted fill + accent text. */
-export function Chip({ selected, count, className, children, ...rest }: ChipProps) {
+export function Chip({ selected, count, className, children, type = "button", ...rest }: ChipProps) {
   return (
     <button
+      type={type}
       aria-pressed={selected}
       className={cx(
         "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-3 text-caption font-medium",

@@ -45,7 +45,7 @@ export default function CampaignsPage() {
   const handleSubmit = (form) => {
     setCampaigns(p => [{
       id: `req_${Date.now()}`, name: form.description?.slice(0, 35) || `${form.svc} Campaign`, service: form.svc, region: "—",
-      phase: "brief", progress: 0, reach: "—", engagement: "—", impressions: "—", engRate: "—", views: "—",
+      phase: "brief", progress: 0, engagement: "—", engRate: "—", views: "—",
       start: "—", end: "—", budget: `₹${form.budget}L`, budgetNum: form.budget * 100000,
       numReq: null, lockedCount: 0, liveCount: 0, waiting: 0, trackTotals: null, avgPositivity: null, lastFetched: null,
       brief: form.description || "", lockedBrief: null, status: "pending", creators: [], topAssets: [],
