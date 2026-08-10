@@ -49,7 +49,7 @@ export function BarList({ items, avg, max, className }: BarListProps) {
                 {it.sub && <span className="ml-1 text-ink-3">{it.sub}</span>}
               </span>
             </div>
-            <div className="relative h-2 overflow-visible rounded-full bg-input">
+            <div className="relative h-2 overflow-visible rounded-full bg-well">
               <div
                 className="h-full rounded-full transition-[width] duration-500 ease-out"
                 style={{ width: `${pct}%`, background: it.color ?? "var(--accent)" }}

@@ -18,7 +18,7 @@ export function StackedBar({ segments, height = 12, showLegend = true }: Stacked
   return (
     <div>
       <div
-        className="flex w-full overflow-hidden rounded-full bg-input"
+        className="flex w-full overflow-hidden rounded-full bg-well"
         style={{ height, gap: 2 }}
       >
         {segments.map((s) => (

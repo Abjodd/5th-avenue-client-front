@@ -1,0 +1,389 @@
+/**
+ * Unit tests for lib/portalMetrics.js — `npm test` (node:test, no runner dep).
+ *
+ * The fixture below is deliberately shaped like a REAL portal payload, not a
+ * convenient one: followers arrive as "820K" / 95000 / undefined, one creator
+ * has no state, one campaign has no creators at all, and only one post is live
+ * with tracking. Those are the cases that produced the wrong numbers before
+ * this module existed, so they're the ones worth pinning.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  flattenCreators, filterOptions, applyFilters, summarise, healthScore,
+  pipeline, signals, groupBy, availableMetrics, flagOutliers, serviceGroups,
+  rankCampaigns, platformPerformance, livePosts, activityFeed, needsYou,
+  regionalRollup, erOf, creatorStatus, greeting, heroSummary,
+  isLocked, perCreatorDeliverables, deliverableTarget, deliverablesPosted,
+  totalDeliverables, postedDeliverables,
+} from "./portalMetrics.js";
+
+/* ── Fixture ─────────────────────────────────────────────────────────────── */
+
+const CAMPAIGNS = [
+  {
+    id: "c1", name: "Diwali Festive Push", client: "FreshBite Foods",
+    service: "Influencer Marketing", region: "South India",
+    stage: "execution", progress: 62, budget: 1250000, start: "2026-03-01", end: "2026-04-30",
+    creators: [
+      { // live + tracked → measured ER wins over the profile avgER
+        name: "Anjali Kitchen", handle: "@anjalikitchen", platform: "Instagram",
+        niche: "Cooking", followers: "820K", avgER: 4.2, state: "Karnataka",
+        languages: ["Kannada"], status: "locked",
+        concept: { status: "approved" }, demo: { status: "locked" },
+        live: { postUrl: "https://instagram.com/p/abc1", postedDate: "2026-04-12" },
+        tracking: { views: 480000, likes: 21000, comments: 980, positivityScore: 88, lastFetched: "2026-05-02" },
+      },
+      { // concept in → waiting on the brand
+        name: "South Foodie", handle: "@southfoodie", platform: "YouTube",
+        niche: "Food", followers: "1.2M", avgER: 5.1, state: "Tamil Nadu",
+        languages: ["Tamil"], status: "negotiating",
+        concept: { status: "received" }, demo: { status: "yet_to_receive" },
+        live: { postUrl: null }, tracking: {},
+      },
+      { // no state on file → must not be placed on the map
+        name: "Nomad Eats", handle: "@nomadeats", platform: "Instagram",
+        niche: "Food", followers: 95000, avgER: 7.2, status: "shortlisted",
+        concept: {}, demo: {}, live: {}, tracking: {},
+      },
+    ],
+  },
+  {
+    id: "c2", name: "Summer Launch Teaser", client: "FreshBite Foods",
+    service: "Influencer Marketing", region: "North India",
+    stage: "draft", progress: 8, budget: 800000, start: "2026-04-20", end: "2026-06-15",
+    creators: [],
+  },
+  {
+    id: "c3", name: "Snack Box — Paid Ads", client: "FreshBite Foods",
+    service: "Performance Ads", region: "Pan-India",
+    stage: "completed", progress: 100, budget: 400000, start: "2026-01-10", end: "2026-02-28",
+    creators: [
+      { // demo uploaded → an upload to review
+        name: "Delhi Diaries", handle: "@delhidiaries", platform: "Instagram",
+        niche: "Lifestyle", followers: "78K", avgER: 6.8, state: "Delhi",
+        languages: ["Hindi"], status: "briefed",
+        concept: { status: "approved" }, demo: { status: "received" },
+        live: {}, tracking: {},
+      },
+    ],
+  },
+];
+
+const rows = flattenCreators(CAMPAIGNS);
+
+/* ── erOf / creatorStatus ────────────────────────────────────────────────── */
+
+test("erOf returns null rather than 0 when nothing was measured", () => {
+  assert.equal(erOf(null, null, 0), null);
+  assert.equal(erOf(null, null, 1000), null);
+  assert.equal(erOf(100, 0, 0), null);
+  assert.equal(erOf(90, 10, 1000), 10);
+});
+
+test("creatorStatus reports the furthest signal, not the stored status", () => {
+  assert.equal(creatorStatus({ status: "briefed", live: { postUrl: "x" } }), "posted");
+  assert.equal(creatorStatus({ status: "briefed", demo: { status: "received" } }), "video_received");
+  assert.equal(creatorStatus({ status: "negotiating" }), "in_negotiation");
+  assert.equal(creatorStatus({ status: "not_a_real_status" }), "yet_to_pick");
+});
+
+/* ── flattenCreators ─────────────────────────────────────────────────────── */
+
+test("flattenCreators normalises followers from every stored form", () => {
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows.map((r) => r.followers), [820_000, 1_200_000, 95_000, 78_000]);
+  assert.deepEqual(rows.map((r) => r.size), ["Macro", "Mega", "Micro", "Micro"]);
+});
+
+test("flattenCreators reads language from languages[] — the field the API sends", () => {
+  // Regression: the Overview filtered on `cr.language`, which the backend's
+  // CREATOR_PUBLIC allowlist does not include, so the dropdown was always empty.
+  assert.deepEqual(rows.map((r) => r.language), ["Kannada", "Tamil", null, "Hindi"]);
+});
+
+test("flattenCreators prefers measured ER over the profile forecast", () => {
+  const anjali = rows[0];
+  assert.equal(anjali.erMeasured, true);
+  assert.equal(Number(anjali.er.toFixed(4)), Number((((21000 + 980) / 480000) * 100).toFixed(4)));
+  // No tracking → falls back to the profile rate, and says so.
+  assert.equal(rows[1].erMeasured, false);
+  assert.equal(rows[1].er, 5.1);
+});
+
+test("flattenCreators resolves state names to map codes and tolerates none", () => {
+  assert.deepEqual(rows.map((r) => r.stateCode), ["ka", "tn", null, "dl"]);
+  assert.deepEqual(rows.map((r) => r.region), ["south", "south", null, "north"]);
+});
+
+test("flattenCreators marks only the creators sitting in the brand's court", () => {
+  assert.deepEqual(rows.map((r) => r.waiting), [false, true, false, true]);
+});
+
+/* ── filters ─────────────────────────────────────────────────────────────── */
+
+test("filterOptions offers only values that occur, with readable labels", () => {
+  const opts = filterOptions(rows);
+  assert.deepEqual(opts.language.map((o) => o.value), ["Hindi", "Kannada", "Tamil"]);
+  assert.deepEqual(opts.region.map((o) => o.label), ["North", "South"]);
+  // Statuses show their client-facing label, not the raw DB enum.
+  assert.ok(opts.status.every((o) => !o.label.includes("_")));
+});
+
+test("applyFilters intersects across groups and ignores empty ones", () => {
+  assert.equal(applyFilters(rows, { niche: [], size: [] }).length, 4);
+  assert.equal(applyFilters(rows, { niche: ["Food"] }).length, 2);
+  assert.equal(applyFilters(rows, { niche: ["Food"], size: ["Mega"] }).length, 1);
+  assert.equal(applyFilters(rows, { niche: ["Food"], size: ["Nano"] }).length, 0);
+});
+
+/* ── headline numbers ────────────────────────────────────────────────────── */
+
+test("summarise counts campaigns from the account and audience from the filter", () => {
+  const all = summarise(CAMPAIGNS, rows);
+  assert.equal(all.campaigns, 3);
+  assert.equal(all.active, 2);          // c3 is completed
+  assert.equal(all.completed, 1);
+  assert.equal(all.creators, 4);
+  assert.equal(all.live, 1);
+  assert.equal(all.followers, 2_193_000);
+  assert.equal(all.budget, 2_450_000);
+  assert.equal(all.waiting, 2);
+  assert.equal(all.states, 3);
+
+  // Filtering the roster must not shrink the budget or the campaign count.
+  const filtered = summarise(CAMPAIGNS, applyFilters(rows, { size: ["Mega"] }));
+  assert.equal(filtered.budget, 2_450_000);
+  assert.equal(filtered.campaigns, 3);
+  assert.equal(filtered.creators, 1);
+});
+
+test("summarise leaves avgER null when no creator has a rate", () => {
+  assert.equal(summarise(CAMPAIGNS, []).avgER, null);
+});
+
+test("healthScore averages progress over live campaigns only", () => {
+  assert.deepEqual(healthScore(CAMPAIGNS), { value: 35, of: 2 }); // (62 + 8) / 2
+  assert.equal(healthScore([]), null);
+  assert.equal(healthScore([{ stage: "completed", progress: 100 }]), null);
+});
+
+test("pipeline returns all five phases in order, zeros included", () => {
+  const p = pipeline(CAMPAIGNS);
+  assert.deepEqual(p.map((x) => x.id), ["brief", "shortlist", "production", "live", "completed"]);
+  assert.deepEqual(p.map((x) => x.count), [1, 0, 1, 0, 1]);
+});
+
+/* ── signals ─────────────────────────────────────────────────────────────── */
+
+test("signals surface each real queue and route somewhere", () => {
+  const s = signals(CAMPAIGNS, rows);
+  const byId = Object.fromEntries(s.map((x) => [x.id, x]));
+
+  assert.equal(byId.approvals.count, 1);          // South Foodie (concept in)
+  assert.equal(byId.approvals.page, "campaigns");
+  assert.equal(byId.approvals.params.campaignId, "c1");
+
+  assert.equal(byId.uploads.count, 2);            // concept received + demo received
+  assert.equal(byId.brief.page, "campaigns");     // c2 is the only brief-phase campaign
+  assert.equal(byId.brief.params.campaignId, "c2");
+  assert.equal(byId.regional.page, "regional");
+  assert.ok(s.every((x) => x.page || x.anchor));
+});
+
+test("signals stay silent when there is nothing to act on", () => {
+  const quiet = signals([CAMPAIGNS[2]], []);
+  assert.deepEqual(quiet, []);
+});
+
+/* ── grouping ────────────────────────────────────────────────────────────── */
+
+test("groupBy skips creators missing the field and orders tiers naturally", () => {
+  const byNiche = groupBy(rows, "niche");
+  assert.deepEqual(byNiche.map((g) => g.label), ["Food", "Cooking", "Lifestyle"]);
+  assert.equal(byNiche[0].count, 2);
+
+  assert.deepEqual(groupBy(rows, "size").map((g) => g.label), ["Micro", "Macro", "Mega"]);
+  // The creator with no language is left out rather than bucketed as "Unknown".
+  assert.equal(groupBy(rows, "language").reduce((s, g) => s + g.count, 0), 3);
+});
+
+test("availableMetrics hides a metric the data can't answer", () => {
+  const noTracking = groupBy(rows.filter((r) => !r.live), "size");
+  assert.ok(!availableMetrics(noTracking).some((m) => m.id === "views"));
+  assert.ok(availableMetrics(groupBy(rows, "size")).some((m) => m.id === "views"));
+});
+
+test("flagOutliers needs a real spread before it calls anything an outlier", () => {
+  assert.deepEqual(flagOutliers([{ v: 1 }, { v: 9 }], (r) => r.v), [null, null]); // too few
+  assert.deepEqual(flagOutliers([{ v: 5 }, { v: 5 }, { v: 5 }], (r) => r.v), [null, null, null]);
+  const flags = flagOutliers([{ v: 1 }, { v: 1 }, { v: 1 }, { v: 1 }, { v: 20 }], (r) => r.v);
+  assert.equal(flags[4], "high");
+});
+
+/* ── campaigns ───────────────────────────────────────────────────────────── */
+
+test("serviceGroups weights progress by budget", () => {
+  const g = serviceGroups(CAMPAIGNS, rows);
+  const im = g.find((x) => x.service === "Influencer Marketing");
+  // (62×1_250_000 + 8×800_000) / 2_050_000 = 40.9 → 41
+  assert.equal(im.progress, 41);
+  assert.equal(im.campaigns, 2);
+  assert.equal(im.active, 2);
+  assert.equal(im.budget, 2_050_000);
+  assert.equal(im.reach, 2_115_000);
+  assert.deepEqual(im.regions, ["South India", "North India"]);
+  assert.equal(im.from, "2026-03-01");
+  assert.equal(im.to, "2026-06-15");
+});
+
+test("rankCampaigns drops campaigns with no reach to rank", () => {
+  const r = rankCampaigns(CAMPAIGNS, rows);
+  assert.deepEqual(r.map((c) => c.id), ["c1", "c3"]); // c2 has no creators
+  assert.equal(r[0].reach, 2_115_000);
+});
+
+/* ── content + activity ──────────────────────────────────────────────────── */
+
+test("platformPerformance only includes live, measured posts", () => {
+  const p = platformPerformance(rows);
+  assert.equal(p.length, 1);
+  assert.equal(p[0].label, "Instagram");
+  assert.equal(p[0].avgViews, 480000);
+});
+
+test("livePosts ranks by measured ER and reports null where unmeasured", () => {
+  const posts = livePosts(rows);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].name, "Anjali Kitchen");
+  assert.ok(posts[0].er > 4);
+});
+
+test("activityFeed is newest-first and never includes a future date", () => {
+  const feed = activityFeed(CAMPAIGNS, rows, 10);
+  const ts = feed.map((f) => f.ts);
+  assert.deepEqual(ts, [...ts].sort((a, b) => b - a));
+  assert.ok(feed.every((f) => f.ts <= Date.now()));
+  assert.ok(feed.every((f) => f.campaignId));
+});
+
+test("activityFeed respects its limit", () => {
+  assert.ok(activityFeed(CAMPAIGNS, rows, 2).length <= 2);
+});
+
+test("needsYou groups the queue per campaign, biggest first", () => {
+  const q = needsYou(CAMPAIGNS, rows);
+  assert.deepEqual(q.map((x) => x.campaignId), ["c1", "c3"]);
+  assert.equal(q[0].count, 1);
+  assert.equal(q[0].campaignName, "Diwali Festive Push");
+});
+
+/* ── regional ────────────────────────────────────────────────────────────── */
+
+test("regionalRollup places creators by state and counts the unplaced", () => {
+  const r = regionalRollup(CAMPAIGNS, rows);
+  assert.equal(r.unplaced, 1);
+  assert.equal(r.stateData.ka.creators, 1);
+  assert.equal(r.stateData.ka.followers, 820_000);
+  assert.equal(r.stateData.mh.creators, 0);          // every state gets an entry
+  assert.equal(r.regionData.south.creators, 2);
+  assert.equal(r.regionData.north.creators, 1);
+  assert.equal(r.langData.Kannada.creators, 1);
+});
+
+test("regionalRollup totals exclude unplaced creators but not budget", () => {
+  const { totals } = regionalRollup(CAMPAIGNS, rows);
+  assert.equal(totals.creators, 3);                  // the stateless one is out
+  assert.equal(totals.followers, 2_098_000);
+  assert.equal(totals.budget, 2_450_000);            // all campaigns count
+  assert.equal(totals.states, 3);
+  assert.equal(totals.regions, 2);
+  assert.equal(totals.campaigns, 2);                 // c2 has nobody placed
+});
+
+test("regionalRollup keeps each campaign's creators scoped to where they are", () => {
+  const r = regionalRollup(CAMPAIGNS, rows);
+  const c1 = r.campaigns.find((c) => c.id === "c1");
+  assert.deepEqual([...c1.states].sort(), ["ka", "tn"]);
+  assert.equal(c1.creators.length, 2);                // the stateless one is excluded
+});
+
+test("regionalRollup handles a client with no data at all", () => {
+  const r = regionalRollup([], []);
+  assert.equal(r.totals.creators, 0);
+  assert.equal(r.totals.states, 0);
+  assert.deepEqual(r.campaigns, []);
+});
+
+/* ── deliverables ────────────────────────────────────────────────────────────
+   These must agree with lib/campaign.js in 5th-internal-front — the two apps
+   quoting a brand different post counts is the bug this mirrors away. */
+
+const DELIV_CAMPAIGN = {
+  id: "d1", numReq: 4, deliverablesPerCreator: 2,
+  creators: [
+    { name: "A", status: "locked", live: { postUrls: ["u1", "u2"], postUrl: "u1" } },          // owes 2, posted 2
+    { name: "B", status: "locked", numDeliverables: 3, live: { postUrls: ["u3"], postUrl: "u3" } }, // override: owes 3, posted 1
+    { name: "C", status: "shortlisted", live: {} },                                             // not locked → owes nothing yet
+  ],
+};
+
+test("deliverableTarget prefers the creator override, else the campaign plan", () => {
+  const [a, b] = DELIV_CAMPAIGN.creators;
+  assert.equal(perCreatorDeliverables(DELIV_CAMPAIGN), 2);
+  assert.equal(deliverableTarget(DELIV_CAMPAIGN, a), 2);   // no override → plan
+  assert.equal(deliverableTarget(DELIV_CAMPAIGN, b), 3);   // override wins
+  assert.equal(deliverableTarget({}, {}), 1);              // no plan at all → 1
+});
+
+test("deliverablesPosted counts the postUrls array, falling back to postUrl", () => {
+  assert.equal(deliverablesPosted({ live: { postUrls: ["a", "b", "c"] } }), 3);
+  assert.equal(deliverablesPosted({ live: { postUrl: "a" } }), 1);   // legacy single-link shape
+  assert.equal(deliverablesPosted({ live: {} }), 0);
+  assert.equal(deliverablesPosted({}), 0);
+});
+
+test("isLocked reads the negotiation status, which survives concept/demo progress", () => {
+  assert.equal(isLocked({ status: "locked", demo: { status: "received" } }), true);
+  assert.equal(isLocked({ status: "shortlisted" }), false);
+});
+
+test("totalDeliverables = locked creators' real targets + unfilled slots at plan", () => {
+  // locked: 2 + 3 = 5 committed. numReq 4 − 2 locked = 2 unfilled × plan 2 = 4.
+  assert.equal(totalDeliverables(DELIV_CAMPAIGN), 9);
+  assert.equal(postedDeliverables(DELIV_CAMPAIGN), 3); // 2 + 1; the unlocked creator contributes nothing
+});
+
+test("totalDeliverables never drops below what the locked creators already owe", () => {
+  // Over-locked: 3 locked against numReq 2. The campaign still owes all three.
+  const over = {
+    numReq: 2, deliverablesPerCreator: 1,
+    creators: [{ status: "locked" }, { status: "locked" }, { status: "locked" }],
+  };
+  assert.equal(totalDeliverables(over), 3);
+});
+
+test("totalDeliverables is meaningful before anyone is locked", () => {
+  assert.equal(totalDeliverables({ numReq: 5, deliverablesPerCreator: 2, creators: [] }), 10);
+  assert.equal(totalDeliverables({ creators: [] }), 0); // no plan, no roster → nothing claimed
+});
+
+/* ── copy ────────────────────────────────────────────────────────────────── */
+
+test("greeting follows the clock", () => {
+  assert.equal(greeting(new Date(2026, 7, 9, 8)), "Good morning");
+  assert.equal(greeting(new Date(2026, 7, 9, 14)), "Good afternoon");
+  assert.equal(greeting(new Date(2026, 7, 9, 20)), "Good evening");
+});
+
+test("heroSummary only claims what the data supports", () => {
+  const kpis = summarise(CAMPAIGNS, rows);
+  const text = heroSummary({ kpis, health: healthScore(CAMPAIGNS), signalRows: signals(CAMPAIGNS, rows) });
+  assert.match(text, /Campaign health is at 35%/);
+  assert.match(text, /signals need a decision today/);
+
+  const quiet = heroSummary({ kpis: summarise([], []), health: null, signalRows: [] });
+  assert.match(quiet, /Nothing is waiting on you right now\./);
+  assert.doesNotMatch(quiet, /Campaign health/);
+});

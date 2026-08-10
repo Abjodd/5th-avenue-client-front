@@ -36,6 +36,7 @@ Everything talks to the shared `5th-internal-back` (Express + Mongoose/Atlas) vi
 | Surface | Endpoint | Effect |
 |---|---|---|
 | Portal pages | `GET /api/portal/campaigns?client=…` | campaigns + embedded creators |
+| Settings → Company | `GET /api/portal/client?client=…` | the brand's own company record (allowlisted) |
 | Overview → Performance | `GET /api/portal/analytics` | period-bucketed timeseries + spend split |
 | `/start` (Start a project) | `POST /api/client-requests` | saves a `ClientRequest`, emails the founder |
 | `/apply` (Apply as a creator) | `POST /api/creator-requests` | saves a `CreatorRequest`, emails the founder |
@@ -54,6 +55,8 @@ npm run dev     # http://localhost:3000
 
 Requires `5th-internal-back` running (default `http://localhost:4000`; override with `VITE_API_URL`). `npm run build` deliberately does not type-check — run `npm run typecheck` separately.
 
+`npm test` runs the portal's metrics suite (`src/lib/portalMetrics.test.js`) on Node's built-in test runner — no framework, no bundler. Everything the portal computes from a payload lives in `src/lib/portalMetrics.js` as pure functions precisely so it can be tested that way; see `scrap/CODEBASE_DOCUMENTATION_CLIENT.md` for the rules that module enforces.
+
 ## Structure
 
 ```
@@ -70,17 +73,19 @@ src/
 ├── motion/               # GSAP setup, useReveal, tokens, reducedMotion
 ├── components/
 │   ├── primitives/       # Button, Card, Input, Modal, Sheet, Toast, … (shared)
-│   ├── charts/           # Sparkline, LineChart, DonutChart, Funnel, …
+│   ├── charts/           # Sparkline, LineChart, DonutChart, Funnel, BarList, … (shared)
+│   ├── portal/Shell.jsx  # portal layout vocabulary: Panel, Section, KPI, MetricSwitch
 │   ├── map/IndiaMap.tsx
 │   └── …                 # portal-specific: PageStates, PerformanceSection, campaigns/
 ├── lib/
-│   ├── api.js            # portal fetch wrapper + stage→phase
+│   ├── api.js            # portal fetch wrapper
+│   ├── portalMetrics.js  # every derived portal figure, pure + unit-tested
 │   ├── clientRequests.ts # the two lead forms → backend
 │   ├── submitForm.ts     # careers form → edge function
 │   └── marketing/data/   # landing copy, services, careers, map data
 └── pages/
     ├── landing/ marketing/ legal/ careers/ apply/ start/   # public (.tsx)
-    └── Login Overview Campaigns RegionalMap Profile        # portal (.jsx)
+    └── Login Overview Campaigns RegionalMap Profile        # portal (.jsx; Profile = Settings)
 ```
 
 ### Legacy portal URLs

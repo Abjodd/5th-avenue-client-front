@@ -200,11 +200,18 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
   const totalSpend = donutSlices.reduce((s, d) => s + d.value, 0);
 
+  /* Funnel order follows the backend's own definitions (server.js
+     /api/portal/analytics): reach = the creators' combined follower count,
+     impressions ≈ 12% of that — an estimate of how many of those followers
+     actually see a post. So reach is the TOP of the funnel and impressions the
+     step below it. Listing impressions first, as this did, put the smaller
+     number above the larger one and rendered a "-733% drop" on a funnel that
+     was simply upside down. */
   const funnelRows = useMemo(() => {
-    const top = totals.imp || totals.reach || 1;
+    const top = totals.reach || totals.imp || 1;
     const rows = [
-      { label: "Impressions", value: totals.imp,    color: P.accent },
       { label: "Reach",       value: totals.reach,  color: P.pink   },
+      { label: "Impressions", value: totals.imp,    color: P.accent },
       { label: "Engagements", value: totals.eng,    color: P.amber  },
       { label: "Clicks",      value: totals.clicks, color: P.green  },
     ];
@@ -318,7 +325,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
           <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Funnel</div>
-            <p className="mb-4 text-[10.5px] text-mute">Exposure → Engagement → Click · based on campaign reach</p>
+            <p className="mb-4 text-[10.5px] text-mute">Audience → Exposure → Engagement → Click · based on campaign reach</p>
             {isLoading ? (
               <div className="flex h-[140px] items-center justify-center text-[12px] text-mute">Loading…</div>
             ) : (

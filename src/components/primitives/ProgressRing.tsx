@@ -32,11 +32,21 @@ export function ProgressRing({
   className,
 }: ProgressRingProps) {
   const target = Math.min(100, Math.max(0, value));
-  const [shown, setShown] = useState(animate && !prefersReducedMotion() ? 0 : target);
+  // The draw-on is decoration; the arc's length is data. Browsers pause
+  // requestAnimationFrame in a background tab, so the deferred frame that
+  // starts the transition never arrives there and the ring would sit at 0 —
+  // reading as "0% complete" rather than "not animated yet". Skip straight to
+  // the target whenever the animation can't actually run.
+  const canAnimate = () =>
+    animate && !prefersReducedMotion() &&
+    (typeof document === "undefined" || document.visibilityState !== "hidden");
+
+  const [shown, setShown] = useState(canAnimate() ? 0 : target);
   useEffect(() => {
-    if (!animate || prefersReducedMotion()) { setShown(target); return; }
+    if (!canAnimate()) { setShown(target); return; }
     const id = requestAnimationFrame(() => setShown(target));
     return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, animate]);
 
   const r = (size - stroke) / 2;

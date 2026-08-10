@@ -1,147 +1,235 @@
+/**
+ * src/pages/Overview.jsx — the brand's front page.
+ *
+ * Reads as a briefing rather than a wall of tiles: a greeting that names the
+ * day and what needs a decision, then five sections that each answer one
+ * question — what the numbers say, where the plan is working, who moves the
+ * needle, what lands, and what happened lately.
+ *
+ * Every figure is derived in lib/portalMetrics.js from GET /api/portal/campaigns
+ * (plus GET /api/portal/analytics inside PerformanceSection). Nothing on this
+ * page is authored: where the DB has no answer the panel says so instead of
+ * drawing an empty chart at zero.
+ */
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import {
+  UserCheck, Clapperboard, Rocket, MapPin, Sparkles, ArrowRight,
+  Radio, TrendingUp, Calendar, ExternalLink, SlidersHorizontal,
+} from "lucide-react";
+
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
-import { phaseOf } from "../lib/api";
 import { usePortalCampaigns } from "../lib/usePortalData";
-import { parseFollowers, sizeOf, fmtNum, fmtINR } from "../lib/format";
-import { PHASES, phaseColors as phaseColorsFor } from "../lib/phases";
+import { fmtNum, fmtINR, prettyDate, initials } from "../lib/format";
+import { phaseColors as phaseColorsFor } from "../lib/phases";
+import { INTRO_KEY } from "../lib/session";
+import { EASE, fadeUp } from "../lib/motion";
+import {
+  flattenCreators, filterOptions, applyFilters, FILTER_GROUPS,
+  summarise, healthScore, pipeline, signals, groupBy, availableMetrics,
+  GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
+  platformPerformance, livePosts, activityFeed, needsYou,
+  greeting, heroSummary,
+} from "../lib/portalMetrics";
+
 import { Dot } from "../components/Dot";
 import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import PerformanceSection from "../components/PerformanceSection";
-import AnimatedNumber from "../components/AnimatedNumber";
-import { Stagger, StaggerItem, Reveal, AmbientBackground } from "../components/motion/Motion";
-import { EASE, fadeUp, scaleIn } from "../lib/motion";
-import { INTRO_KEY } from "../lib/session";
+import { Stagger, AmbientBackground } from "../components/motion/Motion";
+import { Panel, Subpanel, Section, PanelTitle, KPI, MetricSwitch, PanelEmpty } from "../components/portal/Shell";
+import { ProgressRing } from "../components/primitives/ProgressRing";
+import { BarList, ColumnChart, Podium, ScatterPlot } from "../components/charts";
 
 /* Brand-story intro is its own chunk — most sessions load it once per login */
 const BrandIntro = lazy(() => import("../components/intro/BrandIntro"));
 
-/* A creator is "waiting on the client" when something needs their review */
-const needsInput = cr =>
-  cr.status === "pending_brand" || cr.concept?.status === "received" ||
-  cr.demo?.status === "received" || cr.demo?.status === "rework";
+/* Signal id → icon. Kept beside the signals() producer's ids so adding a
+   signal is one entry in each place and never a silently missing glyph. */
+const SIGNAL_ICONS = {
+  approvals: UserCheck, uploads: Clapperboard, brief: Rocket,
+  regional: MapPin, insight: Sparkles,
+};
 
-// Creator filters are built from the data itself (only options that actually
-// occur in this client's creators are offered). Age/gender aren't stored in
-// the DB, so unlike the reference design they are not offered here.
-const FILTER_GROUPS = [
-  { id:"niche",    label:"Niche" },
-  { id:"size",     label:"Size" },
-  { id:"language", label:"Language" },
-  { id:"status",   label:"Status" },
-];
+/* ═══════════════════════════════════════════════════════════════════════════
+   HERO
+   ═════════════════════════════════════════════════════════════════════════ */
 
-function stats(values) {
-  if (!values.length) return { avg:0, sum:0, stdDev:0 };
-  const sum = values.reduce((s, v) => s + v, 0);
-  const avg = sum / values.length;
-  const variance = values.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / values.length;
-  return { avg, sum, stdDev: Math.sqrt(variance) };
-}
-function isOutlier(value, avg, stdDev) {
-  if (stdDev === 0) return null;
-  const z = (value - avg) / stdDev;
-  return z > 1.3 ? "high" : z < -1.3 ? "low" : null;
-}
-
-function KPICard({ label, value, format, sublabel, color }) {
+/** One "needs a decision" row. Clicking it goes where the decision is made. */
+function SignalRow({ signal, tone, onGo }) {
+  const Icon = SIGNAL_ICONS[signal.icon] || Sparkles;
   return (
-    <StaggerItem className="group relative overflow-hidden rounded-[20px] border border-line bg-[--color-glass] px-5 py-[18px] shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(25,22,17,0.08)]">
-      {/* faint color wash keyed to the card's accent */}
-      <div
-        className="pointer-events-none absolute inset-0 rounded-[20px] opacity-[0.05]"
-        style={{ background: `radial-gradient(120% 90% at 100% 0%, ${color}, transparent 60%)` }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0 rounded-[20px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{ boxShadow: `inset 0 0 0 1px ${color}30` }}
-      />
-      <div className="microlabel mb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-mute">{label}</div>
-      <div className="text-[30px] font-bold leading-none tracking-tight transition-transform duration-300 group-hover:scale-[1.02]" style={{ color }}>
-        <AnimatedNumber value={value} format={format} duration={1000} />
-      </div>
-      {sublabel && <div className="mt-2 text-[11.5px] text-mute">{sublabel}</div>}
-    </StaggerItem>
+    <button
+      onClick={onGo}
+      className="group flex w-full items-center gap-3.5 border-b border-line px-1 py-3.5 text-left transition-colors duration-200 last:border-b-0 hover:bg-accent/[0.03]"
+    >
+      <span
+        className="flex size-9 shrink-0 items-center justify-center rounded-[12px] transition-transform duration-200 group-hover:scale-105"
+        style={{ background: `${tone}14`, color: tone }}
+      >
+        <Icon size={16} strokeWidth={2} />
+      </span>
+      <span className="min-w-0 flex-1 text-[13.5px] leading-snug text-sub">
+        {signal.count != null && <b className="text-[15px] font-bold text-ink">{signal.count} </b>}
+        {signal.lead && <b className="font-semibold text-ink">{signal.lead} </b>}
+        {signal.text}
+      </span>
+      <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mute transition-colors group-hover:text-accent">
+        {signal.action}
+        <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
+      </span>
+    </button>
   );
 }
 
-/* Grouped creator breakdown (count, avg ER vs overall, follower share) */
-function BreakdownCard({ group, grp, total, totalFollowers, erAvg, erOutlier, P, index = 0 }) {
-  const erPctOfAvg = erAvg > 0 && grp.er > 0 ? ((grp.er / erAvg - 1) * 100).toFixed(0) : "0";
-  const folPct = totalFollowers > 0 ? ((grp.followers / totalFollowers) * 100).toFixed(1) : 0;
-  const countPct = total > 0 ? ((grp.count / total) * 100).toFixed(0) : 0;
-  const badge = erOutlier === "high" ? { c:P.green, label:"HIGH OUTLIER", sym:"▲" }
-    : erOutlier === "low" ? { c:P.red, label:"LOW OUTLIER", sym:"▼" } : null;
+/* ═══════════════════════════════════════════════════════════════════════════
+   CREATOR FILTER BAR
+   ═════════════════════════════════════════════════════════════════════════ */
+
+function CreatorFilters({ options, filters, setFilters, shown, total }) {
+  const [open, setOpen] = useState(null);
+  const activeCount = Object.values(filters).reduce((s, a) => s + a.length, 0);
+  const groups = FILTER_GROUPS.filter((g) => options[g.id]?.length > 1);
+
+  const toggle = (group, value) =>
+    setFilters((f) => ({
+      ...f,
+      [group]: f[group].includes(value) ? f[group].filter((v) => v !== value) : [...f[group], value],
+    }));
+  const clear = () => setFilters(Object.fromEntries(FILTER_GROUPS.map((g) => [g.id, []])));
+
+  if (!groups.length) return null;
+
   return (
-    <Reveal delay={Math.min(index * 0.05, 0.3)} className="rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_10px_26px_rgba(25,22,17,0.07)]"
-      style={{ borderColor: erOutlier === "high" ? `${P.green}30` : erOutlier === "low" ? `${P.red}30` : "var(--color-line)" }}>
-      <div className="mb-[3px] flex items-start justify-between">
-        <div>
-          <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{group}</div>
-          <div className="mt-[3px] text-[19px] font-bold text-ink">
-            {grp.count} <span className="text-[11px] font-medium text-mute">· {countPct}%</span>
-          </div>
-        </div>
-        {badge && (
-          <motion.span
-            variants={scaleIn} initial="hidden" whileInView="show" viewport={{ once: true }}
-            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] shadow-sm"
-            style={{ color:badge.c, background:`${badge.c}12` }}>
-            {badge.sym} {badge.label}
-          </motion.span>
+    <Panel reveal className="mb-5 px-5 py-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">
+          <SlidersHorizontal size={13} /> Filter creators
+        </span>
+        {groups.map((g) => (
+          <button
+            key={g.id}
+            onClick={() => setOpen(open === g.id ? null : g.id)}
+            aria-expanded={open === g.id}
+            className={`rounded-full border px-3.5 py-[7px] text-[11.5px] font-semibold transition-all duration-200 ease-out ${
+              filters[g.id].length
+                ? "border-accent/20 bg-accent/[0.08] text-accent shadow-sm"
+                : "border-line bg-well/70 text-sub hover:text-ink"
+            }`}
+          >
+            {g.label}{filters[g.id].length ? ` · ${filters[g.id].length}` : ""} {open === g.id ? "▴" : "▾"}
+          </button>
+        ))}
+        {activeCount > 0 && (
+          <button onClick={clear} className="rounded-full px-3 py-[7px] text-[11.5px] font-semibold text-red transition-colors hover:bg-red/5">
+            Clear all
+          </button>
         )}
+        <span className="ml-auto text-[11.5px] text-sub">
+          {shown} of {total} creators
+        </span>
       </div>
-      <div className="mt-3 flex flex-col gap-2">
-        <div>
-          <div className="mb-1 flex justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-mute">Avg ER</span>
-            <div className="flex items-center gap-[5px]">
-              <span className="text-[12px] font-bold text-pink">{grp.er.toFixed(1)}%</span>
-              {erPctOfAvg !== "0" && (
-                <span className={`text-[10px] font-semibold ${erPctOfAvg > 0 ? "text-green" : "text-red"}`}>
-                  {erPctOfAvg > 0 ? "+" : ""}{erPctOfAvg}%
-                </span>
-              )}
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key={open}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
+              {options[open].map((opt) => {
+                const on = filters[open].includes(opt.value);
+                return (
+                  <button
+                    key={String(opt.value)}
+                    onClick={() => toggle(open, opt.value)}
+                    className={`rounded-full border px-3 py-1 text-[11.5px] transition-all duration-200 ${
+                      on ? "border-accent/25 bg-accent/[0.1] font-semibold text-accent shadow-sm" : "border-line bg-well/70 text-sub hover:text-ink"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-          <div className="relative h-[5px] rounded-full bg-well">
-            <motion.div
-              className="h-full rounded-full bg-pink"
-              initial={{ width: 0 }} whileInView={{ width: `${Math.min((grp.er/10)*100, 100)}%` }}
-              viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE }}/>
-            {erAvg > 0 && <div className="absolute -inset-y-1 w-px bg-ink opacity-40" style={{ left:`${Math.min((erAvg/10)*100, 100)}%` }}/>}
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 flex justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-mute">Followers</span>
-            <div className="flex items-center gap-[5px]">
-              <span className="text-[12px] font-bold text-accent">{fmtNum(grp.followers)}</span>
-              <span className="text-[10px] text-sub">{folPct}%</span>
-            </div>
-          </div>
-          <div className="h-[5px] rounded-full bg-well">
-            <motion.div
-              className="h-full rounded-full bg-accent"
-              initial={{ width: 0 }} whileInView={{ width: `${folPct}%` }}
-              viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE, delay: 0.1 }}/>
-          </div>
-        </div>
-      </div>
-    </Reveal>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Panel>
   );
 }
 
-/* ═══ MAIN ═══ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   GROUPED CREATOR PANEL — one chart, switchable metric
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/** Shared by "by niche" (columns) and "by follower tier" (bars): the same rows
+    and the same metric switch, drawn two ways. Metrics with no data behind
+    them never reach the switch (see availableMetrics). */
+function GroupedPanel({ title, hint, rows, chart, color, delay = 0 }) {
+  const metrics = useMemo(() => availableMetrics(rows), [rows]);
+  const [metricId, setMetricId] = useState(metrics[0]?.id ?? "count");
+  const metric = metrics.find((m) => m.id === metricId) ?? metrics[0] ?? GROUP_METRICS[3];
+
+  // A metric can disappear when the filter narrows the roster — fall back
+  // rather than rendering a switch pointing at nothing.
+  useEffect(() => {
+    if (metrics.length && !metrics.some((m) => m.id === metricId)) setMetricId(metrics[0].id);
+  }, [metrics, metricId]);
+
+  const items = useMemo(() => {
+    const withValue = rows.filter((g) => metric.pick(g) != null);
+    const flags = flagOutliers(withValue, metric.pick);
+    return withValue.map((g, i) => ({
+      label: g.label,
+      value: metric.pick(g),
+      display: metric.format(metric.pick(g)),
+      color,
+      flag: flags[i],
+      sub: `${g.count} creator${g.count === 1 ? "" : "s"}`,
+    }));
+  }, [rows, metric, color]);
+
+  const avg = items.length ? items.reduce((s, i) => s + i.value, 0) / items.length : undefined;
+
+  return (
+    <Panel reveal delay={delay} className="px-6 py-5">
+      <PanelTitle
+        title={title}
+        hint={`${hint} · ${metric.hint}`}
+        action={<MetricSwitch label={title} options={metrics} value={metric.id} onChange={setMetricId} />}
+      />
+      {items.length === 0 ? (
+        <PanelEmpty>No creators match the current filters.</PanelEmpty>
+      ) : chart === "column" ? (
+        <ColumnChart items={items} avg={avg} height={190} />
+      ) : (
+        <BarList items={items} avg={avg} />
+      )}
+    </Panel>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAGE
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const EMPTY_FILTERS = Object.fromEntries(FILTER_GROUPS.map((g) => [g.id, []]));
+
 export default function OverviewDashboard() {
   const { P, setPage } = useApp();
   const { user } = useAuth();
   const reducedMotion = useReducedMotion();
   const clientName = user?.clientName ?? "Your Brand";
-  const [filters, setFilters] = useState({ niche:[], size:[], language:[], status:[] });
-  const [openFilter, setOpenFilter] = useState(null);
+  const firstName = user?.name?.split(/\s+/)[0] || clientName;
+
   const { data: campaigns, error, retry } = usePortalCampaigns(); // null = loading
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+
   const introSeen = sessionStorage.getItem(INTRO_KEY) === "1";
   const [introDone, setIntroDone] = useState(introSeen);     // gates the dashboard cascade
   const [introClosed, setIntroClosed] = useState(introSeen); // unmounts the overlay after its exit fade
@@ -155,93 +243,54 @@ export default function OverviewDashboard() {
     }
   }, [reducedMotion, introDone]);
 
-  const toggleFilter = (group, val) =>
-    setFilters(f => ({ ...f, [group]: f[group].includes(val) ? f[group].filter(x => x !== val) : [...f[group], val] }));
-  const clearFilters = () => setFilters({ niche:[], size:[], language:[], status:[] });
-  const activeFilterCount = Object.values(filters).reduce((s, a) => s + a.length, 0);
+  /* ── Derived data. One flatten, then every panel reads from it. ───────── */
+  const list = useMemo(() => campaigns ?? [], [campaigns]);
+  const allCreators = useMemo(() => flattenCreators(list), [list]);
+  const options = useMemo(() => filterOptions(allCreators), [allCreators]);
+  const creators = useMemo(() => applyFilters(allCreators, filters), [allCreators, filters]);
 
-  /* All campaigns for this client (the per-service influencer view was removed) */
-  const serviceCampaigns = useMemo(() => campaigns || [], [campaigns]);
+  const kpis = useMemo(() => summarise(list, creators), [list, creators]);
+  const health = useMemo(() => healthScore(list), [list]);
+  const phases = useMemo(() => pipeline(list), [list]);
+  // Signals and the activity feed describe the account, not the current
+  // filter — narrowing to "Nano creators" must not hide an approval request.
+  const signalRows = useMemo(() => signals(list, allCreators), [list, allCreators]);
+  const activity = useMemo(() => activityFeed(list, allCreators), [list, allCreators]);
+  const queues = useMemo(() => needsYou(list, allCreators), [list, allCreators]);
 
-  /* Flatten creators across campaigns, normalising followers/size */
-  const allCreators = useMemo(() =>
-    serviceCampaigns.flatMap(c => (c.creators || []).map(cr => {
-      const followers = parseFollowers(cr.followers);
-      return { ...cr, followers, size: sizeOf(followers), er: Number(cr.avgER) || 0, campaignName: c.name };
-    })), [serviceCampaigns]);
+  const goals = useMemo(() => serviceGroups(list, allCreators), [list, allCreators]);
+  const ranked = useMemo(() => rankCampaigns(list, creators), [list, creators]);
+  const byNiche = useMemo(() => groupBy(creators, "niche"), [creators]);
+  const bySize = useMemo(() => groupBy(creators, "size"), [creators]);
+  const platforms = useMemo(() => platformPerformance(creators), [creators]);
+  const posts = useMemo(() => livePosts(creators), [creators]);
 
-  /* Filter options offered = values that actually occur in the data */
-  const filterOptions = useMemo(() => {
-    const opts = {};
-    for (const g of FILTER_GROUPS) {
-      opts[g.id] = [...new Set(allCreators.map(cr => cr[g.id]).filter(Boolean))].sort();
-    }
-    return opts;
-  }, [allCreators]);
+  const summary = useMemo(
+    () => heroSummary({ kpis, health, signalRows }),
+    [kpis, health, signalRows],
+  );
 
-  const creators = useMemo(() => allCreators.filter(cr =>
-    Object.entries(filters).every(([g, sel]) => !sel.length || sel.includes(cr[g]))
-  ), [allCreators, filters]);
-
-  /* KPIs */
-  const kpis = useMemo(() => {
-    const active = serviceCampaigns.filter(c => phaseOf(c.stage) !== "completed").length;
-    const followers = creators.reduce((s, cr) => s + cr.followers, 0);
-    const ers = creators.map(cr => cr.er).filter(v => v > 0);
-    const liveCreators = creators.filter(cr => cr.live?.postUrl).length;
-    const budget = serviceCampaigns.reduce((s, c) => s + (Number(c.budget) || 0), 0);
-    return { active, total: serviceCampaigns.length, creators: creators.length,
-      followers, avgER: ers.length ? ers.reduce((a,b)=>a+b,0)/ers.length : 0, liveCreators, budget };
-  }, [serviceCampaigns, creators]);
-
-  /* Pipeline snapshot — campaign count per portal phase */
-  const phaseCounts = useMemo(() => {
-    const m = Object.fromEntries(PHASES.map(p => [p.id, 0]));
-    serviceCampaigns.forEach(c => { m[phaseOf(c.stage)]++; });
-    return m;
-  }, [serviceCampaigns]);
-  const phaseColors = phaseColorsFor(P);
-
-  /* Creator breakdowns by group, with ER outlier flags */
-  const breakdown = (key) => {
-    const groups = {};
-    creators.forEach(cr => {
-      const g = cr[key] || "Unknown";
-      if (!groups[g]) groups[g] = { count:0, followers:0, ers:[] };
-      groups[g].count++;
-      groups[g].followers += cr.followers;
-      if (cr.er > 0) groups[g].ers.push(cr.er);
-    });
-    const rows = Object.entries(groups).map(([g, v]) => ({
-      group: g, count: v.count, followers: v.followers,
-      er: v.ers.length ? v.ers.reduce((a,b)=>a+b,0)/v.ers.length : 0,
-    })).sort((a,b) => b.count - a.count);
-    const erStats = stats(rows.map(r => r.er).filter(v => v > 0));
-    return { rows, erStats };
-  };
-  const byNiche = useMemo(() => breakdown("niche"), [creators]);
-  const bySize  = useMemo(() => breakdown("size"),  [creators]);
-  const totalFollowers = creators.reduce((s, cr) => s + cr.followers, 0);
-
-  /* Campaigns with creators waiting on client review — surfaced up top */
-  const actionItems = useMemo(() => serviceCampaigns
-    .map(c => ({ id: c.id, name: c.name, n: (c.creators || []).filter(needsInput).length }))
-    .filter(x => x.n > 0), [serviceCampaigns]);
-
-  /* Intro data — derived from the same kpis memo the dashboard renders */
   const introData = useMemo(() => ({
     clientName,
-    totalCampaigns: kpis.total,
+    totalCampaigns: kpis.campaigns,
     activeCampaigns: kpis.active,
     creators: kpis.creators,
-    liveCreators: kpis.liveCreators,
+    liveCreators: kpis.live,
     followers: kpis.followers,
-    avgER: kpis.avgER,
+    avgER: kpis.avgER ?? 0,
     budget: kpis.budget,
   }), [clientName, kpis]);
 
-  if (error) return <ErrorState message={error} onRetry={retry}/>;
-  if (!campaigns) return <PageSkeleton/>;
+  const phaseColors = phaseColorsFor(P);
+  const SIGNAL_TONES = [P.amber, P.pink, P.accent, P.green, P.purple];
+
+  const go = (signal) => {
+    if (signal.page) return setPage(signal.page, signal.params);
+    document.getElementById(signal.anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  if (error) return <ErrorState message={error} onRetry={retry} />;
+  if (!campaigns) return <PageSkeleton />;
 
   return (
     <div className="relative">
@@ -254,193 +303,390 @@ export default function OverviewDashboard() {
 
       <AmbientBackground variant="a" />
 
-      <div className="mx-auto w-full max-w-[1600px] px-5 pb-14 sm:px-9">
-        {/* Editorial hero header — cascades in after the intro hands off */}
-        <Stagger key={`hdr-${introDone}`} animate={introDone ? "show" : "hidden"} stagger={0.08} className="pb-7 pt-10">
-          <StaggerItem>
-            <div className="microlabel mb-2 tracking-[0.2em]">Overview · {kpis.total} campaign{kpis.total === 1 ? "" : "s"}</div>
-          </StaggerItem>
-          <StaggerItem>
-            <h1 className="font-serif text-[clamp(34px,4.5vw,52px)] font-bold leading-[1.05] tracking-[-0.02em] text-ink">
-              The story of <span className="italic text-accent">{clientName}</span>
-            </h1>
-          </StaggerItem>
-          <StaggerItem>
-            <div className="mt-2 text-[14px] text-sub">
-              {kpis.creators} creator{kpis.creators === 1 ? "" : "s"} · {fmtNum(kpis.followers)} combined audience
-            </div>
-          </StaggerItem>
-        </Stagger>
-
-        {/* Action needed — creators waiting on client review, across campaigns */}
-        <AnimatePresence>
-          {actionItems.length > 0 && introDone && (
-            <motion.div
-              variants={fadeUp} initial="hidden" animate="show"
-              className="mb-6 flex flex-wrap items-center gap-2.5 rounded-[18px] border border-amber/20 bg-amber/[0.06] px-5 py-4 shadow-[0_2px_16px_rgba(180,120,10,0.05)] backdrop-blur-md">
-              <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-amber">
-                <span className="text-[13px]">⚠</span> {actionItems.reduce((s, x) => s + x.n, 0)} creator{actionItems.reduce((s, x) => s + x.n, 0) === 1 ? "" : "s"} waiting on your review
-              </span>
-              {actionItems.map(x => (
-                <button key={x.id} onClick={() => setPage("campaigns", { campaignId: x.id })}
-                  className="rounded-full border border-amber/25 bg-[--color-glass] px-3.5 py-1.5 text-[11.5px] font-medium text-ink shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-amber/50 hover:shadow-md">
-                  {x.name} <span className="mx-0.5 text-mute">·</span> <b className="text-amber">{x.n}</b>
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* KPI row — numbers count up as the row cascades in */}
-        <Stagger key={`kpi-${introDone}`} animate={introDone ? "show" : "hidden"} stagger={0.07} delayChildren={0.1}
-          className="mb-6 grid gap-3.5" style={{ gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))" }}>
-          <KPICard label="Active Campaigns" value={kpis.active} format={v => Math.round(v)} sublabel={`of ${kpis.total} total`} color={P.accent}/>
-          <KPICard label="Creators" value={kpis.creators} format={v => Math.round(v)} sublabel={`${kpis.liveCreators} live`} color={P.green}/>
-          <KPICard label="Combined Followers" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.pink}/>
-          <KPICard label="Avg Engagement" value={kpis.avgER} format={v => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber}/>
-          <KPICard label="Campaign Budget" value={kpis.budget} format={fmtINR} sublabel="committed" color={P.purple}/>
-        </Stagger>
-
-        {/* Creator filters */}
-        <Reveal className="mb-6 rounded-[20px] border border-line bg-[--color-glass] px-5 py-4 shadow-card backdrop-blur-xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">Creator Filters</span>
-            {FILTER_GROUPS.map(g => (
-              <button key={g.id} onClick={() => setOpenFilter(openFilter === g.id ? null : g.id)}
-                className={`rounded-full border px-3.5 py-[7px] text-[11.5px] font-semibold transition-all duration-200 ease-out ${
-                  filters[g.id].length
-                    ? "border-accent/20 bg-accent/[0.08] text-accent shadow-sm"
-                    : "border-line bg-well/70 text-sub hover:text-ink"
-                }`}>
-                {g.label}{filters[g.id].length ? ` · ${filters[g.id].length}` : ""} {openFilter === g.id ? "▴" : "▾"}
-              </button>
-            ))}
-            {activeFilterCount > 0 && (
-              <button onClick={clearFilters} className="rounded-full px-3 py-[7px] text-[11.5px] font-semibold text-red transition-colors hover:bg-red/5">
-                Clear all
-              </button>
-            )}
-            <span className="ml-auto text-[11.5px] text-sub">{creators.length} of {allCreators.length} creators</span>
+      <div className="mx-auto w-full max-w-[1600px] px-5 pb-16 sm:px-9">
+        {/* ── HERO ─────────────────────────────────────────────────────── */}
+        <motion.header
+          key={`hero-${introDone}`}
+          variants={fadeUp}
+          initial="hidden"
+          animate={introDone ? "show" : "hidden"}
+          className="pt-10"
+        >
+          <div className="microlabel mb-2 tracking-[0.2em]">
+            Overview · {clientName} · {kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}
           </div>
-          <AnimatePresence initial={false}>
-            {openFilter && (
-              <motion.div
-                key={openFilter}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.28, ease: EASE }}
-                className="overflow-hidden">
-                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
-                  {(filterOptions[openFilter] || []).map(opt => {
-                    const on = filters[openFilter].includes(opt);
-                    return (
-                      <button key={opt} onClick={() => toggleFilter(openFilter, opt)}
-                        className={`rounded-full border px-3 py-1 text-[11.5px] transition-all duration-200 ${
-                          on ? "border-accent/25 bg-accent/[0.1] font-semibold text-accent shadow-sm" : "border-line bg-well/70 text-sub hover:text-ink"
-                        }`}>{opt}</button>
-                    );
-                  })}
-                  {!(filterOptions[openFilter] || []).length && <span className="text-[11.5px] text-mute">No data for this filter yet</span>}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Reveal>
+          <h1 className="font-serif text-[clamp(32px,4.6vw,52px)] font-bold leading-[1.05] tracking-[-0.02em] text-ink">
+            {greeting()}, <span className="italic text-accent">{firstName}</span>.
+          </h1>
+          <p className="mt-3 max-w-[62ch] text-[14.5px] leading-relaxed text-sub">{summary}</p>
 
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.4fr_1fr]">
-          {/* Pipeline snapshot */}
-          <Reveal className="rounded-[20px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
-            <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">Campaign Pipeline</h3>
-            <p className="mb-5 text-[12.5px] text-sub">Where each campaign stands</p>
-            <div className="flex flex-col gap-3.5">
-              {PHASES.map((p, pi) => {
-                const n = phaseCounts[p.id];
-                const pct = kpis.total ? (n / kpis.total) * 100 : 0;
-                return (
+          <div className="mt-7 grid items-stretch gap-4 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+            {/* Campaign health — the mean of the progress 5th Avenue records on
+                each live campaign. Hidden entirely when nothing is in flight. */}
+            <Panel reveal className="flex flex-col items-center justify-center px-6 py-7">
+              {health ? (
+                <>
+                  <div className="relative">
+                    <ProgressRing
+                      value={health.value}
+                      size={168}
+                      stroke={13}
+                      color={health.value >= 66 ? P.green : health.value >= 33 ? P.amber : P.accent}
+                      showLabel={false}
+                    />
+                    <div className="pointer-events-none absolute inset-0 flex items-baseline justify-center gap-0.5 pt-[68px]">
+                      <span className="tnum text-[46px] font-bold leading-none tracking-tight text-ink">{health.value}</span>
+                      <span className="text-[17px] font-semibold text-mute">%</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 text-center">
+                    <div className="text-[15px] font-bold text-ink">Campaign health</div>
+                    <p className="mt-1 text-[11.5px] leading-relaxed text-mute">
+                      Average progress across {health.of} active campaign{health.of === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <PanelEmpty>Nothing in flight — every campaign is complete.</PanelEmpty>
+              )}
+            </Panel>
+
+            {/* Signals — the decisions waiting on the brand today */}
+            <Panel reveal delay={0.06} className="px-6 py-2">
+              {signalRows.length ? (
+                signalRows.map((s, i) => (
+                  <SignalRow key={s.id} signal={s} tone={SIGNAL_TONES[i % SIGNAL_TONES.length]} onGo={() => go(s)} />
+                ))
+              ) : (
+                <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 text-center">
+                  <Radio size={22} className="text-green" />
+                  <div className="text-[13.5px] font-semibold text-ink">All clear</div>
+                  <p className="max-w-xs text-[12px] text-mute">
+                    Nothing is waiting on your call. We'll surface approvals and uploads here the moment they land.
+                  </p>
+                </div>
+              )}
+            </Panel>
+          </div>
+        </motion.header>
+
+        {/* ── PERFORMANCE ──────────────────────────────────────────────── */}
+        <Section
+          id="numbers"
+          eyebrow="Performance"
+          title="The numbers"
+          hint="Campaign counts and committed budget cover the whole account; audience figures follow the creator filter."
+        >
+          <CreatorFilters
+            options={options}
+            filters={filters}
+            setFilters={setFilters}
+            shown={creators.length}
+            total={allCreators.length}
+          />
+
+          <Stagger animate="show" stagger={0.07} className="mb-5 grid gap-3.5"
+            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+            <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.accent} />
+            <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.green} />
+            <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.pink} />
+            <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber} />
+            <KPI index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR} sublabel="committed" color={P.purple} />
+          </Stagger>
+
+          <PerformanceSection clientName={clientName} />
+        </Section>
+
+        {/* ── CAMPAIGNS ────────────────────────────────────────────────── */}
+        <Section
+          id="campaigns"
+          eyebrow="Campaigns"
+          title="Where the plan is working"
+          hint="Every campaign grouped by the service delivering it. Progress is weighted by budget, so the biggest commitments move the number most."
+          action={
+            <button onClick={() => setPage("campaigns")} className="flex items-center gap-1.5 text-[12px] font-semibold text-sub transition-colors hover:text-accent">
+              All campaigns <ArrowRight size={13} />
+            </button>
+          }
+        >
+          {goals.length > 0 && (
+            <div className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+              {goals.map((g, i) => (
+                <Panel key={g.service} reveal delay={i * 0.05} className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-[15px] font-bold text-ink">{g.service}</h3>
+                      <div className="mt-1 flex items-center gap-1.5 text-[11.5px] text-mute">
+                        <Calendar size={11} />
+                        {g.from ? prettyDate(g.from) : "—"} – {g.to ? prettyDate(g.to) : "—"}
+                      </div>
+                    </div>
+                    <span className="tnum shrink-0 text-[17px] font-bold text-accent">{g.progress}%</span>
+                  </div>
+
+                  {g.regions.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1">
+                      {g.regions.map((r) => (
+                        <span key={r} className="rounded-full bg-well px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-sub">{r}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-3 text-[11.5px] text-sub">
+                    {g.campaigns} campaign{g.campaigns === 1 ? "" : "s"} · {g.active} active
+                  </div>
+                  <div className="mt-1.5 h-[7px] overflow-hidden rounded-full bg-well">
+                    <motion.div
+                      className="h-full rounded-full bg-accent"
+                      initial={{ width: 0 }} whileInView={{ width: `${g.progress}%` }}
+                      viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE, delay: i * 0.06 }}
+                    />
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[12.5px]">
+                    <span className="text-sub">{fmtNum(g.reach)} reach</span>
+                    <span className="font-semibold text-ink">{fmtINR(g.budget || null)}</span>
+                  </div>
+                </Panel>
+              ))}
+            </div>
+          )}
+
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+            <Panel reveal className="px-6 py-5">
+              <PanelTitle title="Campaign pipeline" hint="Where each campaign stands" />
+              <div className="flex flex-col gap-3.5">
+                {phases.map((p, i) => (
                   <div key={p.id}>
                     <div className="mb-[5px] flex justify-between">
                       <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
-                        <Dot color={phaseColors[p.id]}/> {p.short}
+                        <Dot color={phaseColors[p.id]} /> {p.short}
                       </span>
-                      <span className="text-[13.5px] font-bold" style={{ color: n ? phaseColors[p.id] : P.doneTxt }}>{n}</span>
+                      <span className="tnum text-[13.5px] font-bold" style={{ color: p.count ? phaseColors[p.id] : P.doneTxt }}>{p.count}</span>
                     </div>
                     <div className="h-[7px] overflow-hidden rounded-full bg-well">
-                      <motion.div className="h-full rounded-full"
-                        initial={{ width: 0 }} whileInView={{ width: `${pct}%` }}
-                        viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE, delay: pi * 0.08 }}
-                        style={{ background:phaseColors[p.id], boxShadow: n ? `0 0 10px ${phaseColors[p.id]}55` : "none" }}/>
+                      <motion.div
+                        className="h-full rounded-full"
+                        initial={{ width: 0 }}
+                        whileInView={{ width: `${kpis.campaigns ? (p.count / kpis.campaigns) * 100 : 0}%` }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.7, ease: EASE, delay: i * 0.08 }}
+                        style={{ background: phaseColors[p.id], boxShadow: p.count ? `0 0 10px ${phaseColors[p.id]}55` : "none" }}
+                      />
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </Reveal>
+                ))}
+              </div>
+            </Panel>
 
-          {/* Campaign list */}
-          <Reveal delay={0.08} className="rounded-[20px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
-            <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">Campaigns</h3>
-            <p className="mb-4 text-[12.5px] text-sub">Tap to open</p>
-            <Stagger animate="show" stagger={0.05} className="flex flex-col gap-2">
-              {[...serviceCampaigns]
-                .sort((a,b) => (b.creators?.length || 0) - (a.creators?.length || 0))
-                .map(c => {
-                  const phase = phaseOf(c.stage);
-                  return (
-                    <StaggerItem key={c.id}>
-                      <button onClick={() => setPage("campaigns", { campaignId: c.id })}
-                        className="group w-full rounded-[14px] border border-line bg-[--color-glass] px-4 py-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-accent/20 hover:shadow-[0_8px_22px_rgba(25,22,17,0.07)]">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[13.5px] font-semibold text-ink">{c.name}</span>
-                          <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color:phaseColors[phase] }}>
-                            <Dot color={phaseColors[phase]} sz={5}/> {PHASES.find(p => p.id === phase)?.short}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[11.5px] text-sub">
-                          {(c.creators || []).length} creator{(c.creators || []).length === 1 ? "" : "s"} · {fmtINR(Number(c.budget) || null)}
-                        </div>
-                      </button>
-                    </StaggerItem>
-                  );
-                })}
-              {!serviceCampaigns.length && (
-                <EmptyState icon="▤" title="No campaigns yet"
-                  hint="Start one by sending us a requirement from the Campaigns page."
-                  actionLabel="Go to Campaigns" onAction={() => setPage("campaigns")}/>
+            <Panel reveal delay={0.06} className="px-6 py-5">
+              <PanelTitle title="Top campaigns" hint={`Ranked by audience reached · ${ranked.length} campaign${ranked.length === 1 ? "" : "s"}`} />
+              {ranked.length ? (
+                <Podium
+                  items={ranked.map((c) => ({
+                    name: c.name,
+                    value: c.reach,
+                    display: fmtNum(c.reach),
+                    sub: c.er != null ? `${c.er.toFixed(1)}% ER` : undefined,
+                  }))}
+                />
+              ) : list.length ? (
+                <PanelEmpty>No creators are attached to these campaigns yet, so there's no reach to rank.</PanelEmpty>
+              ) : (
+                <EmptyState
+                  icon="▤"
+                  title="No campaigns yet"
+                  hint="Send us your first requirement and we'll take it from brief to live."
+                  actionLabel="Go to Campaigns"
+                  onAction={() => setPage("campaigns")}
+                />
               )}
-            </Stagger>
-          </Reveal>
-        </div>
+            </Panel>
+          </div>
+        </Section>
 
-        {/* Creator breakdowns */}
-        {[
-          ["Creator Niche Performance", byNiche, "Your creators grouped by content niche — how many, how they engage, and their share of your total audience"],
-          ["Creator Size Performance", bySize, "Your creators grouped by follower tier (Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+)"],
-        ].map(([title, data, subtitle]) => (
-          <Reveal className="mt-4 rounded-[20px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]" key={title}>
-            <h3 className="mb-1 font-serif text-[19px] italic font-semibold text-ink">{title}</h3>
-            <p className="mb-4 text-[12.5px] text-sub">{subtitle}</p>
-            <div className="grid gap-3" style={{ gridTemplateColumns:"repeat(auto-fill, minmax(190px, 1fr))" }}>
-              {data.rows.map((r, i) => (
-                <BreakdownCard key={r.group} group={r.group} grp={r} total={creators.length}
-                  totalFollowers={totalFollowers} erAvg={data.erStats.avg}
-                  erOutlier={isOutlier(r.er, data.erStats.avg, data.erStats.stdDev)} P={P} index={i}/>
-              ))}
-              {!data.rows.length && <div className="p-3 text-[12.5px] text-mute">No creators match the current filters</div>}
+        {/* ── CREATORS ─────────────────────────────────────────────────── */}
+        {creators.length > 0 && (
+          <Section
+            id="creators"
+            eyebrow="Creators"
+            title="Who moves the needle"
+            hint="Your roster grouped two ways. Switch the metric to compare on engagement, audience or measured views; the dashed line is the group average and ↑↓ flags a group behaving unlike the rest."
+          >
+            <div className="grid items-start gap-4 lg:grid-cols-2">
+              <GroupedPanel
+                title="By niche"
+                hint="Grouped by content niche"
+                rows={byNiche}
+                chart="column"
+                color={P.accent}
+              />
+              <GroupedPanel
+                title="By follower tier"
+                hint="Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+"
+                rows={bySize}
+                chart="bar"
+                color={P.teal}
+                delay={0.06}
+              />
             </div>
-            <p className="mt-3.5 text-[10.5px] text-mute">
-              Big number = creators in the group (% of all creators). Avg ER = the group's average engagement rate;
-              the ±% beside it compares against your overall average (the thin marker on the bar). Followers = the
-              group's combined audience and its share of your total. Groups engaging unusually far above or below
-              the rest are flagged ▲ high / ▼ low.
-            </p>
-          </Reveal>
-        ))}
+          </Section>
+        )}
 
-        {/* Performance — dual-axis charts, funnel, spend split */}
-        <div className="mt-4">
-          <PerformanceSection clientName={clientName} />
-        </div>
+        {/* ── CONTENT ──────────────────────────────────────────────────── */}
+        <Section
+          id="content"
+          eyebrow="Content"
+          title="What lands, and why"
+          hint="Only posts that are live and whose metrics we've fetched appear here — a creator without measured views is left out rather than plotted at zero."
+        >
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <Panel reveal className="px-6 py-5">
+              <PanelTitle title="Platform performance" hint="Measured views × engagement rate — bubble size is live posts" />
+              {platforms.length ? (
+                <ScatterPlot
+                  points={platforms.map((p, i) => ({
+                    id: p.value,
+                    x: p.avgViews,
+                    y: p.er ?? 0,
+                    size: p.live || p.count,
+                    color: [P.accent, P.green, P.pink, P.amber, P.purple][i % 5],
+                    label: p.label,
+                    meta: `${p.live} post${p.live === 1 ? "" : "s"}`,
+                  }))}
+                  xLabel="Avg views"
+                  yLabel="Engagement rate"
+                  xFormat={fmtNum}
+                  yFormat={(v) => `${v.toFixed(1)}%`}
+                  quadrantLabels={["Distribute more", "Double down", "Stop producing", "Improve hooks"]}
+                  height={280}
+                />
+              ) : (
+                <PanelEmpty>
+                  Nothing is live with measured metrics yet. Post performance appears here after the first refresh.
+                </PanelEmpty>
+              )}
+            </Panel>
+
+            <Panel reveal delay={0.06} className="px-6 py-5">
+              <PanelTitle title="Live posts" hint={`Best engaging first · ${posts.length} live`} />
+              {posts.length ? (
+                <div className="flex flex-col">
+                  {posts.slice(0, 6).map((p) => (
+                    <a
+                      key={p.key}
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-center gap-3 border-b border-line py-3 last:border-b-0 hover:bg-accent/[0.03]"
+                    >
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/[0.09] text-[10px] font-bold text-accent">
+                        {initials(p.name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold text-ink">{p.name}</span>
+                        <span className="block truncate text-[11px] text-mute">
+                          {p.campaignName} · {p.platform}
+                          {p.postedDate ? ` · ${prettyDate(p.postedDate)}` : ""}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="tnum block text-[12.5px] font-bold text-ink">{p.views != null ? fmtNum(p.views) : "—"}</span>
+                        <span className="block text-[9px] uppercase tracking-[0.08em] text-mute">views</span>
+                      </span>
+                      <span className="w-[52px] shrink-0 text-right">
+                        <span className="tnum block text-[12.5px] font-bold text-pink">{p.er != null ? `${p.er.toFixed(1)}%` : "—"}</span>
+                        <span className="block text-[9px] uppercase tracking-[0.08em] text-mute">er</span>
+                      </span>
+                      <ExternalLink size={13} className="shrink-0 text-mute opacity-0 transition-opacity group-hover:opacity-100" />
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <PanelEmpty>No posts are live yet for the current filter.</PanelEmpty>
+              )}
+            </Panel>
+          </div>
+        </Section>
+
+        {/* ── ACTIVITY ─────────────────────────────────────────────────── */}
+        <Section id="activity" eyebrow="Activity" title="Latest & pending">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <Panel reveal className="px-6 py-5">
+              <PanelTitle title="Recent activity" hint="Dated events across your campaigns" />
+              {activity.length ? (
+                <div className="flex flex-col">
+                  {activity.map((a) => {
+                    const tone = a.kind === "live" ? P.green : a.kind === "metrics" ? P.accent : a.kind === "end" ? P.doneTxt : P.purple;
+                    const Icon = a.kind === "live" ? Radio : a.kind === "metrics" ? TrendingUp : Rocket;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setPage("campaigns", { campaignId: a.campaignId })}
+                        className="group flex items-center gap-3 border-b border-line py-3 text-left last:border-b-0 hover:bg-accent/[0.03]"
+                      >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-[11px]" style={{ background: `${tone}14`, color: tone }}>
+                          <Icon size={14} strokeWidth={2} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-semibold text-ink">{a.title}</span>
+                          <span className="block truncate text-[11px] text-mute">{a.meta}</span>
+                        </span>
+                        <span className="shrink-0 text-[11px] text-mute">{prettyDate(a.at)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <PanelEmpty>
+                  Nothing dated to show yet. Posts going live and metric refreshes appear here as they happen.
+                </PanelEmpty>
+              )}
+            </Panel>
+
+            <Panel reveal delay={0.06} className="px-6 py-5">
+              <PanelTitle
+                title="Needs you"
+                hint="Creators sitting in your court"
+                action={
+                  queues.length > 0 && (
+                    <span className="tnum flex size-6 items-center justify-center rounded-full bg-amber/[0.12] text-[11px] font-bold text-amber">
+                      {queues.reduce((s, q) => s + q.count, 0)}
+                    </span>
+                  )
+                }
+              />
+              {queues.length ? (
+                <div className="flex flex-col gap-2">
+                  {queues.map((q, i) => (
+                    <Subpanel
+                      key={q.campaignId}
+                      className={`overflow-hidden transition-all duration-200 hover:-translate-y-px hover:shadow-md ${
+                        i === 0 ? "border-amber/25 bg-amber/[0.06]" : ""
+                      }`}
+                    >
+                      <button
+                        onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                        className="group flex w-full items-center gap-2.5 px-4 py-3 text-left"
+                      >
+                        {i === 0 && <span className="size-1.5 shrink-0 rounded-full bg-red" />}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-semibold text-ink">
+                            {q.lead.name} {q.count > 1 ? `+${q.count - 1} more` : ""} need{q.count === 1 ? "s" : ""} a decision
+                          </span>
+                          <span className="block truncate text-[11px] text-mute">{q.campaignName} · {q.lead.statusLabel}</span>
+                        </span>
+                        <ArrowRight size={14} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
+                      </button>
+                    </Subpanel>
+                  ))}
+                </div>
+              ) : (
+                <PanelEmpty>Nothing needs your call right now.</PanelEmpty>
+              )}
+            </Panel>
+          </div>
+        </Section>
       </div>
     </div>
   );

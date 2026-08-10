@@ -306,7 +306,17 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
               : <span className="text-[12px] text-sub">{cr.handle}</span>}
           </div>
           <div className="mt-0.5 flex flex-wrap gap-2 text-[12px] text-sub">
-            <span>{cr.followers}</span><span>{cr.platform}</span><span>{cr.deliverables}</span>
+            <span>{cr.followers}</span><span>{cr.platform}</span>
+            {/* Posts live / posts owed — only shown once the creator is locked,
+                because that's the point the commitment exists. */}
+            {cr.locked && (
+              <span
+                title={`${cr.deliverablesPosted} of ${cr.deliverableTarget} deliverable${cr.deliverableTarget === 1 ? "" : "s"} live`}
+                className={cr.deliverablesPosted >= cr.deliverableTarget ? "font-medium text-green" : ""}
+              >
+                {cr.deliverables} posted
+              </span>
+            )}
             <span className="font-medium text-accent">ER: {cr.engRate}</span>
             {cr.avgLikes != null && <span>♥ {fmtNum(cr.avgLikes)} avg</span>}
           </div>
@@ -408,7 +418,12 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
   };
 
   const isAEO = c.service === "AEO"; const numCr = creators.length;
-  const numDel = creators.reduce((s, cr) => { const m = cr.deliverables.match(/\d+/g); return s + (m ? m.reduce((a, n) => a + parseInt(n), 0) : 0); }, 0);
+  /* Deliverables come off the campaign view-model (mapping.js → portalMetrics
+     totalDeliverables), not off a per-creator display string. This used to
+     regex the digits out of `cr.deliverables`, which mapping.js hardcoded to
+     "—" for every creator — so this tile read 0 on every campaign. */
+  const numDel = c.deliverablesTotal ?? 0;
+  const numDelPosted = c.deliverablesPosted ?? 0;
   const needsAction = creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status));
 
   const mkBD = (f) => { if (!creators.length) return []; const g = {}; creators.forEach(cr => { g[cr[f] || "Other"] = (g[cr[f] || "Other"] || 0) + 1; }); return Object.entries(g).map(([k, v]) => ({ label: k, value: v })); };
@@ -467,12 +482,15 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                         were permanently blank. Views is measured, so it stays. */}
                     <MetricCard label="Views" value={c.views} breakdowns={bd}/>
                     <MetricCard label="Creators" value={`${numCr}`}/>
-                    <MetricCard label="Deliverables" value={`${numDel}`}/>
+                    {/* "n / N" — posts live against posts committed. A bare
+                        total hid the only part a brand acts on: how much of
+                        what they paid for has actually gone out. */}
+                    <MetricCard label="Deliverables" value={numDel ? `${numDelPosted}/${numDel}` : "—"}/>
                   </div>
                   <MetricCard label="Engagement Rate" value={c.engRate} breakdowns={engBD} suffix="%"/>
                   <div className="mb-3 mt-2 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
                     <div className="flex items-center justify-between">
-                      <div><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Timeline</div><div className="mt-0.5 text-[12.5px] font-medium text-ink">{c.start} — {c.end}</div></div>
+                      <div><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Timeline</div><div className="mt-0.5 text-[12.5px] font-medium text-ink">{prettyDate(c.start)} — {prettyDate(c.end)}</div></div>
                       <span className="text-[12.5px] font-semibold text-accent">{c.progress}%</span>
                     </div>
                     <div className="mt-2 h-[5px] rounded-full bg-well">

@@ -107,7 +107,7 @@ export default function AppShell({ children }) {
             <ThemeToggle />
             <button
               onClick={() => setPage("profile")}
-              title="View your profile"
+              title="Account settings"
               aria-current={page === "profile" ? "page" : undefined}
               className={`flex items-center gap-[9px] rounded-full border bg-[--color-glass-soft] py-[5px] pl-[5px] pr-3.5 text-[12.5px] text-ink shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:shadow-md ${
                 page === "profile" ? "border-accent/40 ring-1 ring-accent/20" : "border-line hover:border-accent/25"

@@ -28,7 +28,7 @@ export function Funnel({ stages }: { stages: FunnelStage[] }) {
             )}
             <div className="flex items-center gap-3">
               <div className="w-24 shrink-0 text-caption text-ink-2">{s.stage}</div>
-              <div className="relative h-7 flex-1 overflow-hidden rounded-md bg-input">
+              <div className="relative h-7 flex-1 overflow-hidden rounded-md bg-well">
                 <div
                   className="h-full rounded-md transition-[width] duration-500 ease-out"
                   style={{ width: `${Math.max(pct, 4)}%`, background: s.color }}
