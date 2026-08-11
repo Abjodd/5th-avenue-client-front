@@ -24,6 +24,12 @@ export const PortalAPI = {
   campaigns: (clientName) =>
     request(`/api/portal/campaigns?client=${encodeURIComponent(clientName)}`),
 
+  // The brand's own company record (allowlisted server-side — the internal
+  // audit scoring, competitor mapping and package details never leave). Powers
+  // Settings → Company.
+  client: (clientName) =>
+    request(`/api/portal/client?client=${encodeURIComponent(clientName)}`),
+
   // Pre-aggregated analytics timeseries + spend split.
   // from / to are ISO strings (optional — defaults to YTD on the backend).
   analytics: (clientName, from, to) => {
@@ -34,25 +40,7 @@ export const PortalAPI = {
   },
 };
 
-// The backend stores the internal 16-stage pipeline stage on each campaign;
-// the portal shows clients a simpler 5-phase view.
-export const STAGE_TO_PHASE = {
-  draft: "brief",
-  creator_shortlist: "shortlist",
-  po_raised: "shortlist",
-  advance_received: "shortlist",
-  execution: "production",
-  brief_sent: "production",
-  concept_submitted: "production",
-  concept_approved: "production",
-  production: "production",
-  video_submitted: "production",
-  internal_review: "production",
-  client_approved: "production",
-  live: "live",
-  creator_paid: "live",
-  reporting: "live",
-  completed: "completed",
-};
-
-export const phaseOf = (stage) => STAGE_TO_PHASE[stage] || "brief";
+// Stage → client-facing phase now lives with the phase registry in
+// lib/phases.js, so pure modules can map a stage without pulling in this
+// fetch client. Re-exported for the callers that already import it here.
+export { STAGE_TO_PHASE, phaseOf } from "./phases";

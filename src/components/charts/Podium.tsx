@@ -61,7 +61,7 @@ export function Podium({ items, className }: PodiumProps) {
             <div key={it.name} className="flex items-center gap-2.5">
               <span className="tnum w-4 shrink-0 text-caption text-ink-3">{i + 4}</span>
               <span className="min-w-0 flex-1 truncate text-caption text-ink-2">{it.name}</span>
-              <div className="hidden h-1 w-20 overflow-hidden rounded-full bg-input sm:block">
+              <div className="hidden h-1 w-20 overflow-hidden rounded-full bg-well sm:block">
                 <div className="h-full rounded-full bg-ink-3/50" style={{ width: `${(it.value / peak) * 100}%` }} />
               </div>
               <span className="tnum shrink-0 text-caption text-ink">{it.display}</span>

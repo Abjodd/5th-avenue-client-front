@@ -4,6 +4,7 @@
 
 import { motion } from "motion/react";
 import { useApp } from "../../context";
+import { prettyDate } from "../../lib/format";
 import { phaseColors as phaseColorsFor } from "../../lib/phases";
 
 /* Progress ring — phase-colored */
@@ -66,8 +67,10 @@ function TimelineBar({ start, end, color }) {
           <div className="absolute -top-[2.5px] h-[9px] w-[2px] rounded-full bg-ink/60" style={{ left: `${pct * 100}%` }} title="Today"/>
         )}
       </div>
+      {/* Dates are stored ISO ("2026-04-20"); print them the way the rest of
+          the portal does rather than leaking the storage format onto the card. */}
       <div className="mt-1 flex justify-between text-[9.5px] text-mute">
-        <span>{start}</span><span>{end}</span>
+        <span>{prettyDate(start)}</span><span>{prettyDate(end)}</span>
       </div>
     </div>
   );

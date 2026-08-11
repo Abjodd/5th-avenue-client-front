@@ -7,14 +7,17 @@ import { phaseOf } from "../../lib/api";
 import { parseFollowers, sizeOf, fmtNum, fmtINR, initials } from "../../lib/format";
 import { STATES_META, stateCode } from "../../lib/geo";
 import { PHASES } from "../../lib/phases";
+import {
+  STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf,
+  isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
+} from "../../lib/portalMetrics";
 
-// Every status maps to a client-facing tier (components/StatusPill TIERS):
-// action = waiting on you · progress = agency at work · done · dropped.
-export const STATUS_MAP = {yet_to_pick:{label:"Yet to Pick",t:"neutral"},shortlisted:{label:"Shortlisted",t:"progress"},reached_out:{label:"Reached Out",t:"progress"},in_negotiation:{label:"Negotiating",t:"action"},locked:{label:"Locked",t:"done"},dropped:{label:"Dropped",t:"dropped"},brand_reject:{label:"Rejected",t:"dropped"},finalized:{label:"Finalised",t:"progress"},briefed:{label:"Briefed",t:"progress"},concept_received:{label:"Concept In",t:"action"},concept_approved:{label:"Concept OK",t:"done"},rework:{label:"Rework",t:"progress"},pending_brand:{label:"Pending You",t:"action"},video_received:{label:"Video In",t:"action"},video_approved:{label:"Video OK",t:"done"},posted:{label:"Posted",t:"done"},tracking:{label:"Live Tracking",t:"done"}};
-
-/* Creator statuses that mean "waiting on the client" — shared by the board
-   badge and the DetailPanel review strip so the numbers always agree. */
-export const ACTIONABLE_STATUSES = ["pending_brand","in_negotiation","rework","concept_received","video_received"];
+// The status vocabulary, the "waiting on you" list, the furthest-signal status
+// resolver and the ER formula now live in lib/portalMetrics.js — Overview and
+// the Regional Map need them too, and three copies of "what counts as waiting
+// on the brand" is how the board and the dashboard start disagreeing.
+// Re-exported here so this module stays the one import the campaigns UI needs.
+export { STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf };
 
 // Chart series drawn from the theme palette (accent/teal/pink/amber/purple/
 // green/gold + tints) so charts read as part of the same system.
@@ -56,50 +59,25 @@ export function profileUrl(cr) {
   return PROFILE_URL[cr?.platform]?.(h) || null;
 }
 
-// A creator's display status: prefer the furthest workflow signal we have.
-export function creatorStatus(cr) {
-  if (cr.live?.postUrl) return "posted";
-  if (cr.demo?.status === "approved") return "video_approved";
-  if (cr.demo?.status === "rework") return "rework";
-  if (cr.demo?.status === "received") return "video_received";
-  if (cr.concept?.status === "approved") return "concept_approved";
-  if (cr.concept?.status === "received") return "concept_received";
-  if (cr.status === "reached_out" || cr.status === "negotiating") return "in_negotiation";
-  return STATUS_MAP[cr.status] ? cr.status : "yet_to_pick";
-}
-
 /* Numeric-or-null: never invents a value for missing tracking data */
 const numOrNull = (v) => (v == null || v === "" ? null : Number(v) || null);
 
-/* ── ENGAGEMENT RATE ────────────────────────────────────────────────────────
-   ER% = reactions the audience left ON the post ÷ views. Forwards are excluded
-   deliberately — they're distribution, not engagement, and only Instagram
-   reports them, so including them made IG creators look better than YouTube
-   ones for identical performance. Same formula the internal app's Deliverables
-   tab shows, so the two apps never quote the brand different numbers.
-
-   MEASURED data wins. `avgER` is the creator's PROFILE rate — what their
-   account averages, captured when their handle was looked up — so it's a
-   forecast, and for a roster typed in by hand it was never captured at all.
-   That's why campaigns like Pronto showed "—" here permanently and never
-   refreshed: nothing recomputed it, because it wasn't derived from anything.
-   Now it is: every nightly post-metrics refresh moves this number.
-
-   Profile ER stays as the fallback for the window before anything is live,
-   which is the only time it's the best estimate available.
-
-   Returns null (not 0) when it can't be computed — "we didn't measure the
-   reactions" and "nobody engaged" are different answers, and only one of them
-   belongs in front of a brand. Matches engagementRate() in the backend's
-   engagement.js. */
-export const erOf = (likes, comments, views) =>
-  views > 0 && (likes != null || comments != null)
-    ? (((likes || 0) + (comments || 0)) / views) * 100
-    : null;
+/* MEASURED data wins over the creator's profile `avgER`, which is only a
+   forecast — see erOf()'s contract in lib/portalMetrics.js. Profile ER stays
+   the fallback for the window before anything is live, which is the only time
+   it's the best estimate available. */
 const fmtER = (v) => (v == null ? "—" : `${v.toFixed(1)}%`);
 
-export function toViewCreator(cr) {
+/**
+ * `campaign` is required to read deliverables: what a creator owes is their own
+ * `numDeliverables` override *or* the campaign's plan, so the creator can't be
+ * mapped in isolation. See the DELIVERABLES block in lib/portalMetrics.js.
+ */
+export function toViewCreator(cr, campaign) {
   const followers = parseFollowers(cr.followers);
+  const locked = isLocked(cr);
+  const target = deliverableTarget(campaign, cr);
+  const posted = deliverablesPosted(cr);
   const tracking = cr.tracking && typeof cr.tracking === "object" ? {
     views: numOrNull(cr.tracking.views),
     likes: numOrNull(cr.tracking.likes),
@@ -118,7 +96,12 @@ export function toViewCreator(cr) {
     platform: cr.platform || "—",
     status: creatorStatus(cr),
     rawStatus: cr.status || null,
-    deliverables: "—", // not tracked per-creator in the DB yet
+    // Deliverables only mean something once a creator is locked — until then
+    // they're a candidate, not a commitment. Reads "1/2" (posted of target).
+    locked,
+    deliverableTarget: locked ? target : null,
+    deliverablesPosted: locked ? posted : null,
+    deliverables: locked ? `${posted}/${target}` : "—",
     engRate: fmtER(
       (tracking && erOf(tracking.likes, tracking.comments, tracking.views)) ?? numOrNull(cr.avgER)
     ),
@@ -138,7 +121,7 @@ export function toViewCreator(cr) {
 
 export function toViewCampaign(c) {
   const phase = phaseOf(c.stage);
-  const creators = (c.creators || []).map(toViewCreator);
+  const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
   const brief = c.brief && typeof c.brief === "object" ? c.brief : null;
   const briefLocked = c.briefStatus === "locked";
   const briefView = brief ? {
@@ -183,7 +166,14 @@ export function toViewCampaign(c) {
     budget: fmtINR(Number(c.budget) || null),
     budgetNum: Number(c.budget) || 0,
     numReq: Number(c.numReq) || null,
-    lockedCount: (c.creators || []).filter(cr => cr.status === "locked").length,
+    lockedCount: (c.creators || []).filter(isLocked).length,
+    // Committed posts (locked creators' real targets + unfilled slots at the
+    // campaign plan) and how many are actually live. Computed off the RAW
+    // campaign so it matches totalDelivOf() in the internal app exactly — the
+    // two must never quote a brand different numbers.
+    deliverablesTotal: totalDeliverables(c),
+    deliverablesPosted: postedDeliverables(c),
+    deliverablesPerCreator: Number(c.deliverablesPerCreator) || 1,
     liveCount: creators.filter(cr => cr.live).length,
     waiting: creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status)).length,
     trackTotals: hasTrackTotals ? trackTotals : null,
