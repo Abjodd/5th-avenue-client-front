@@ -6,10 +6,11 @@
 import { phaseOf } from "../../lib/api";
 import { parseFollowers, sizeOf, fmtNum, fmtINR, initials } from "../../lib/format";
 import { STATES_META, stateCode } from "../../lib/geo";
-import { PHASES } from "../../lib/phases";
+import { progressOf } from "../../lib/phases";
 import {
   STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
+  growthSeries, growthByCreator,
 } from "../../lib/portalMetrics";
 
 // The status vocabulary, the "waiting on you" list, the furthest-signal status
@@ -86,6 +87,11 @@ export function toViewCreator(cr, campaign) {
     commentAnalysis: cr.tracking.commentAnalysis || null,
     positivityScore: numOrNull(cr.tracking.positivityScore),
     lastFetched: cr.tracking.lastFetched || null,
+    // The append-only series behind the Growth tab (backend trackingHistory.js).
+    // Passed straight through rather than reshaped: growthSeries() in
+    // portalMetrics.js owns the aggregation, and two places normalising the
+    // same points is how they drift.
+    history: Array.isArray(cr.tracking.history) ? cr.tracking.history : null,
   } : null;
   const hasTracking = tracking && Object.values(tracking).some(v => v != null);
   return {
@@ -150,6 +156,11 @@ export function toViewCampaign(c) {
   const positivities = creators.map(cr => cr.tracking?.positivityScore).filter(v => v != null);
   const avgPositivity = positivities.length ? positivities.reduce((a, b) => a + b, 0) / positivities.length : null;
   const lastFetched = creators.map(cr => cr.tracking?.lastFetched).filter(Boolean).sort().pop() || null;
+  // Empty until at least two days of readings exist; the drawer hides the tab
+  // rather than showing a chart with one point in it. The per-creator split
+  // shares the same basis, so the two views can never disagree.
+  const growth = growthSeries(creators);
+  const growthPerCreator = growthByCreator(creators);
 
   return {
     id: c.id,
@@ -157,7 +168,11 @@ export function toViewCampaign(c) {
     service: c.service || "Influencer Marketing",
     region: c.region || "—",
     phase,
-    progress: Number(c.progress) || Math.round((PHASES.findIndex(p => p.id === phase) / (PHASES.length - 1)) * 100),
+    // progressOf() reads the stored value where one exists and otherwise
+    // derives it from the stage, matching the internal app's pipeline table.
+    // The old phase-index fallback here rounded five phases into 0/25/50/75/100
+    // and disagreed with the health ring on the same campaign.
+    progress: progressOf(c),
     engagement: avgER,
     engRate: avgER,
     views: views ? fmtNum(views) : "—",
@@ -177,6 +192,7 @@ export function toViewCampaign(c) {
     liveCount: creators.filter(cr => cr.live).length,
     waiting: creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status)).length,
     trackTotals: hasTrackTotals ? trackTotals : null,
+    growth,
     avgPositivity,
     lastFetched,
     brief: brief?.objective || "",

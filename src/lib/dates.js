@@ -65,10 +65,23 @@ export function bucketLabel(date, interval) {
 }
 
 /* Turn dated events into a chart-ready time series: one row per bucket
-   covering [from, to] (empty buckets included, so the axis has no gaps),
-   with each event's numeric fields summed into the bucket its date falls
-   in. Events: [{ date: Date, ...numbers }]. */
-export function buildTimeSeries(events, { from, to }, interval, fields) {
+   covering [from, to] (empty buckets in the MIDDLE included, so the axis has no
+   gaps), with each event's numeric fields summed into the bucket its date falls
+   in. Events: [{ date: Date, ...numbers }].
+
+   `trimLeading` drops empty buckets BEFORE the first real one. The selected
+   period is a window the reader chose, not a claim that anything happened at
+   the start of it — a brand whose first campaign began in June but who is
+   looking at "last 6 months" was getting five flat months pinned to zero and
+   then a line, which reads as a collapse in performance rather than as an
+   absence of history. Worse, those zeros are real data points to the y-axis, so
+   the scale started at 0 and squashed the part of the chart that had something
+   in it.
+
+   Only LEADING buckets are trimmed. A gap in the middle is a genuine quiet
+   month and has to stay, and trailing empties are the current period still
+   filling in. */
+export function buildTimeSeries(events, { from, to }, interval, fields, { trimLeading = false } = {}) {
   const series = [];
   const index = new Map();
   for (let t = bucketStart(from, interval); t <= to; t = nextBucket(t, interval)) {
@@ -85,5 +98,9 @@ export function buildTimeSeries(events, { from, to }, interval, fields) {
     fields.forEach(f => { row[f] += Number(ev[f]) || 0; });
     row.count++;
   });
-  return series;
+  if (!trimLeading) return series;
+  const first = series.findIndex(r => r.count > 0);
+  // No events at all: hand back the empty frame rather than an empty array, so
+  // the chart still draws its axes instead of switching to a "no data" panel.
+  return first <= 0 ? series : series.slice(first);
 }

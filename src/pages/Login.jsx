@@ -143,7 +143,15 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const reduced = useReducedMotion();
-  const [email, setEmail] = useState("");
+  // Pre-filled from `?email=` when arriving from the internal app's Access &
+  // Credentials page ("Client login ↗"), so whoever is checking a brand's view
+  // doesn't retype the address. Read once as the initial state rather than in an
+  // effect: a later sync would fight the user's own typing, and the param is
+  // only ever meaningful on first paint. The password is never accepted this
+  // way — see openClientLogin in 5th-internal-front.
+  const [email, setEmail] = useState(
+    () => new URLSearchParams(location.search).get("email") || ""
+  );
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -321,7 +329,11 @@ export default function LoginPage() {
             </div>
             <div className="mb-5">
               <label className={labelCls}>Password</label>
+              {/* Arriving with the email already filled, the only field left is
+                  this one — so the cursor starts here rather than making the
+                  user click past a box that's already correct. */}
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                autoFocus={!!email}
                 placeholder="••••••••" autoComplete="current-password" className={inputCls} />
             </div>
 

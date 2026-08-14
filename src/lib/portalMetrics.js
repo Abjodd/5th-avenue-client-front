@@ -19,7 +19,7 @@
 // Vite's resolver) so plain Node can import this module — that's what lets the
 // test suite run without a bundler or a test framework.
 import { parseFollowers, sizeOf, fmtNum, fmtINR } from "./format.js";
-import { PHASES, phaseOf } from "./phases.js";
+import { PHASES, phaseOf, progressOf } from "./phases.js";
 import { stateCode, STATES_META } from "./geo.js";
 
 /* ── Creator status vocabulary ───────────────────────────────────────────────
@@ -270,7 +270,7 @@ export function summarise(campaigns = [], creators = []) {
 export function healthScore(campaigns = []) {
   const live = campaigns.filter((c) => phaseOf(c.stage) !== "completed");
   if (!live.length) return null;
-  const progress = live.map((c) => Math.min(100, Math.max(0, num(c.progress) ?? 0)));
+  const progress = live.map(progressOf);
   return { value: Math.round(mean(progress)), of: live.length };
 }
 
@@ -441,7 +441,7 @@ export function serviceGroups(campaigns = [], creators = []) {
   return [...groups]
     .map(([service, rows]) => {
       const budget = sum(rows, (c) => num(c.budget));
-      const weighted = rows.reduce((s, c) => s + (num(c.progress) ?? 0) * (num(c.budget) || 1), 0);
+      const weighted = rows.reduce((s, c) => s + progressOf(c) * (num(c.budget) || 1), 0);
       const weights = rows.reduce((s, c) => s + (num(c.budget) || 1), 0);
       const ids = new Set(rows.map((c) => c.id));
       const roster = creators.filter((cr) => ids.has(cr.campaignId));
@@ -587,7 +587,7 @@ export function regionalRollup(campaigns = [], creators = []) {
   const byCampaign = new Map(
     campaigns.map((c) => [c.id, {
       id: c.id, name: c.name, service: c.service || "—", phase: phaseOf(c.stage),
-      progress: num(c.progress) ?? 0, budget: num(c.budget),
+      progress: progressOf(c), budget: num(c.budget),
       states: new Set(), regions: new Set(), creators: [],
     }]),
   );
@@ -687,4 +687,124 @@ export function heroSummary({ kpis, health, signalRows, date = new Date() }) {
   }
   if (kpis.creators) parts.push(`${kpis.creators} creator${kpis.creators === 1 ? "" : "s"} are carrying ${fmtNum(kpis.followers)} combined audience.`);
   return parts.join(" ");
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVE-POST GROWTH
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Shared basis for both growth views.
+ *
+ * Each creator's `tracking.history[]` is a CUMULATIVE series (total views so
+ * far), sampled whenever that creator's post happened to be refreshed.
+ * Different creators are therefore sampled at different moments, and a creator
+ * with no reading on a given day has not dropped to zero — they simply weren't
+ * measured. Summing only the points that exist on each day would make the
+ * campaign total lurch up and down purely with the refresh schedule, inventing
+ * collapses that never happened.
+ *
+ * So each creator's last known value is carried forward across days they have
+ * no reading. That makes every series monotonic, which a cumulative metric
+ * must be. Both growthSeries() and growthByCreator() are built on this, so the
+ * combined line and the per-creator lines can never disagree.
+ */
+function carriedByDay(creators = []) {
+  const tracked = creators
+    .map((cr, i) => ({ name: cr.name || `Creator ${i + 1}`, points: cr.tracking?.history }))
+    .filter((c) => Array.isArray(c.points) && c.points.length);
+  if (!tracked.length) return null;
+
+  const dayOf = (iso) => String(iso).slice(0, 10);
+
+  // Per creator: the last reading recorded on each day (a day may hold several
+  // refreshes; the last one is that day's standing total).
+  const byDay = tracked.map(({ points }) => {
+    const m = new Map();
+    for (const p of [...points].sort((a, b) => String(a.at).localeCompare(String(b.at)))) {
+      m.set(dayOf(p.at), p);
+    }
+    return m;
+  });
+
+  const days = [...new Set(byDay.flatMap((m) => [...m.keys()]))].sort();
+  if (days.length < 2) return null;
+
+  // days × creators, already carried forward. null = this creator had not been
+  // measured yet on that day, which is NOT the same as zero and is left out
+  // rather than plotted.
+  const carried = byDay.map(() => null);
+  const grid = days.map((day) =>
+    byDay.map((m, i) => {
+      if (m.has(day)) carried[i] = m.get(day);
+      return carried[i];
+    }),
+  );
+
+  return { names: tracked.map((t) => t.name), days, grid };
+}
+
+const metricsOf = (p) => {
+  const likes = Number(p?.likes) || 0;
+  const comments = Number(p?.comments) || 0;
+  const forwards = Number(p?.forwards) || 0;
+  return {
+    views: Number(p?.views) || 0,
+    likes, comments, forwards,
+    engagements: likes + comments + forwards,
+  };
+};
+
+/**
+ * Campaign-level growth: one row per day, every creator summed.
+ * Returns [] when there is less than two days of readings — a growth chart
+ * needs at least two points, and the caller hides the tab rather than drawing
+ * a single dot.
+ */
+export function growthSeries(creators = []) {
+  const basis = carriedByDay(creators);
+  if (!basis) return [];
+  return basis.days.map((date, d) => {
+    const totals = { views: 0, likes: 0, comments: 0, forwards: 0, engagements: 0 };
+    for (const p of basis.grid[d]) {
+      if (!p) continue;
+      const m = metricsOf(p);
+      for (const k of Object.keys(totals)) totals[k] += m[k];
+    }
+    return { date, ...totals };
+  });
+}
+
+/**
+ * The same growth, split per creator — so a campaign running two creators
+ * shows whose post is actually carrying it rather than one blended line that
+ * hides a strong post next to a flat one.
+ *
+ * Wide format, because that is what a multi-series chart consumes: one row per
+ * day, one KEY per creator. Keys are positional (`c0`, `c1`, …) rather than
+ * names — two creators can share a display name, and a duplicate data key
+ * would silently collapse two lines into one.
+ *
+ * Returns { rows: [], series: [] } below two days of readings, matching
+ * growthSeries so callers can gate on either.
+ */
+export function growthByCreator(creators = []) {
+  const basis = carriedByDay(creators);
+  if (!basis) return { rows: [], series: [] };
+
+  const series = basis.names.map((name, i) => ({ key: `c${i}`, name }));
+  const rows = basis.days.map((date, d) => {
+    const row = { date };
+    basis.grid[d].forEach((p, i) => {
+      // Left undefined (not 0) before a creator's first reading, so the line
+      // starts where they were first measured instead of climbing off a
+      // baseline they never sat at.
+      if (!p) return;
+      const m = metricsOf(p);
+      row[`${series[i].key}_views`] = m.views;
+      row[`${series[i].key}_engagements`] = m.engagements;
+    });
+    return row;
+  });
+  return { rows, series };
 }

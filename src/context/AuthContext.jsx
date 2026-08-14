@@ -41,13 +41,29 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // Merge fields into the signed-in user, in state AND in sessionStorage.
+  //
+  // Exists for Settings → Profile: after changing your photo, the session copy
+  // has to be updated or the portal shell keeps rendering the old avatar until
+  // the next sign-in, and a reload would restore the stale version from
+  // sessionStorage. A merge, not a replace: the login payload carries fields no
+  // other endpoint returns (`clientName`, `brandId`, `email`).
+  const updateUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      try { sessionStorage.setItem(USER_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     sessionStorage.removeItem(USER_KEY);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

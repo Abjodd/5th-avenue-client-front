@@ -540,8 +540,12 @@ export default function OverviewDashboard() {
           title="What lands, and why"
           hint="Only posts that are live and whose metrics we've fetched appear here — a creator without measured views is left out rather than plotted at zero."
         >
-          <div className="grid items-start gap-4 lg:grid-cols-2">
-            <Panel reveal className="px-6 py-5">
+          {/* items-stretch, not items-start: these two sit side by side and
+              each was sizing to its own content, so a 280px scatter next to a
+              two-row list left the right panel visibly stunted. Equal heights
+              read as one row of the page rather than two unrelated boxes. */}
+          <div className="grid items-stretch gap-4 lg:grid-cols-2">
+            <Panel reveal className="flex h-full flex-col px-6 py-5">
               <PanelTitle title="Platform performance" hint="Measured views × engagement rate — bubble size is live posts" />
               {platforms.length ? (
                 <ScatterPlot
@@ -568,10 +572,12 @@ export default function OverviewDashboard() {
               )}
             </Panel>
 
-            <Panel reveal delay={0.06} className="px-6 py-5">
+            <Panel reveal delay={0.06} className="flex h-full flex-col px-6 py-5">
               <PanelTitle title="Live posts" hint={`Best engaging first · ${posts.length} live`} />
               {posts.length ? (
-                <div className="flex flex-col">
+                /* flex-1 so a short list distributes down the panel it shares a
+                   row with, instead of bunching at the top under dead space. */
+                <div className="flex flex-1 flex-col justify-center">
                   {posts.slice(0, 6).map((p) => (
                     <a
                       key={p.key}
