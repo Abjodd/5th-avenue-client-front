@@ -3,10 +3,12 @@
 // shape; these helpers convert them into what the page renders. Anything the DB
 // doesn't store yet renders as "—" / hidden rather than being invented.
 
-import { phaseOf } from "../../lib/api";
 import { parseFollowers, sizeOf, fmtNum, fmtINR, initials } from "../../lib/format";
 import { STATES_META, stateCode } from "../../lib/geo";
-import { progressOf } from "../../lib/phases";
+// Both from the phase registry itself. lib/api re-exports phaseOf for callers
+// that already imported it there, but taking one of the pair from each module
+// would leave two import paths for one registry.
+import { phaseOf, progressOf } from "../../lib/phases";
 import {
   STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
@@ -193,6 +195,7 @@ export function toViewCampaign(c) {
     waiting: creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status)).length,
     trackTotals: hasTrackTotals ? trackTotals : null,
     growth,
+    growthPerCreator,
     avgPositivity,
     lastFetched,
     brief: brief?.objective || "",

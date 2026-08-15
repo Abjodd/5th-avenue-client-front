@@ -11,7 +11,7 @@
  * hold renders "—", and a whole section with no data says so rather than
  * showing a grid of dashes.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { User, Palette, Building2, ArrowLeft, Mail, ExternalLink } from "lucide-react";
 
 import { useApp } from "../context";
@@ -24,6 +24,7 @@ import { Reveal, Stagger, StaggerItem, AmbientBackground } from "../components/m
 import { Panel, Subpanel, PanelTitle, PanelEmpty } from "../components/portal/Shell";
 import { Skeleton } from "../components/PageStates";
 import ThemeToggle from "../components/ThemeToggle";
+import ProfileCompletion from "../components/ProfileCompletion";
 
 const PANES = [
   { id: "profile", label: "Profile", Icon: User },
@@ -72,7 +73,7 @@ function FieldGrid({ fields, empty }) {
  * separate button: there is exactly one field, so a Save step would be a second
  * click that can only ever mean "yes, the thing I just chose".
  */
-function AvatarUpload({ user, onSaved }) {
+function AvatarUpload({ user, onSaved, openRef }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -84,6 +85,19 @@ function AvatarUpload({ user, onSaved }) {
   const stored = AccountAPI.avatarUrl(user);
   const src = pending || stored;
   const show = !!src && !broken;
+
+  // Lets the completion panel's "Add" button open this picker directly.
+  // Handing up the opener rather than having the caller reach for a DOM node
+  // keeps the hidden <input> an implementation detail of this component.
+  //
+  // In an effect, not the render body: publishing the opener is a side effect,
+  // and it closes over `busy` — so it has to be republished whenever that
+  // changes or the guard would test a stale value.
+  useEffect(() => {
+    if (!openRef) return undefined;
+    openRef.current = () => { if (!busy) inputRef.current?.click(); };
+    return () => { openRef.current = null; };
+  }, [openRef, busy]);
 
   const pick = async (file) => {
     if (!file) return;
@@ -170,6 +184,17 @@ export default function Settings() {
   const [pane, setPane] = useState("profile");
   const { data: company, error: companyError } = usePortalClient();
 
+  // The identity panel sits above the pane rail, so "Add a photo" from the
+  // completion list has to scroll back up to it as well as open the picker —
+  // firing the picker alone would leave the reader looking at a file dialog
+  // with no idea which control opened it.
+  const identityRef = useRef(null);
+  const openPhotoPicker = useRef(null);
+  const fixPhoto = () => {
+    identityRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    openPhotoPicker.current?.();
+  };
+
   const account = [
     { label: "Full name", value: user?.name },
     { label: "Role", value: user?.title },
@@ -207,10 +232,15 @@ export default function Settings() {
           </h1>
         </Reveal>
 
-        {/* Identity header — the avatar here is the upload control */}
-        <Panel reveal className="mt-6 mb-5 px-7 py-6">
-          <AvatarUpload user={user} onSaved={updateUser} />
-        </Panel>
+        {/* Identity header — the avatar here is the upload control.
+            The ref lives on a wrapper because Panel is a plain function
+            component: a ref passed to it would land in ...rest and never
+            attach. */}
+        <div ref={identityRef} className="scroll-mt-28">
+          <Panel reveal className="mt-6 mb-5 px-7 py-6">
+            <AvatarUpload user={user} onSaved={updateUser} openRef={openPhotoPicker} />
+          </Panel>
+        </div>
 
         <div className="grid items-start gap-5 md:grid-cols-[minmax(0,190px)_minmax(0,1fr)]">
           {/* Pane rail */}
@@ -229,14 +259,17 @@ export default function Settings() {
 
           <div className="min-w-0">
             {pane === "profile" && (
-              <Panel reveal className="px-6 py-5">
-                <PanelTitle title="Account" hint="Issued to you by 5th Avenue and scoped to one brand." />
-                <FieldGrid fields={account} empty="No account details on file." />
-                <p className="mt-4 text-[11px] leading-relaxed text-mute">
-                  These details are managed by 5th Avenue. To change your name, contact details or access,
-                  reach out to your account manager.
-                </p>
-              </Panel>
+              <div className="flex flex-col gap-4">
+                <ProfileCompletion user={user} onFixPhoto={fixPhoto} />
+                <Panel reveal delay={0.06} className="px-6 py-5">
+                  <PanelTitle title="Account" hint="Issued to you by 5th Avenue and scoped to one brand." />
+                  <FieldGrid fields={account} empty="No account details on file." />
+                  <p className="mt-4 text-[11px] leading-relaxed text-mute">
+                    These details are managed by 5th Avenue. To change your name, contact details or access,
+                    reach out to your account manager.
+                  </p>
+                </Panel>
+              </div>
             )}
 
             {pane === "appearance" && (

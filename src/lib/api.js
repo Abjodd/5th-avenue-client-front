@@ -60,7 +60,9 @@ export const PortalAPI = {
  * they are the same documents.
  */
 export const AccountAPI = {
-  // `patch` is deliberately narrow — callers pass { avatarImage } only.
+  // Deliberately takes the photo alone rather than a patch object: this is the
+  // portal's only write, and a general-purpose update() here would be an open
+  // door to fields the brand is not allowed to set on itself.
   updatePhoto: (id, avatarImage) =>
     request(`/api/brand-credentials/${encodeURIComponent(id)}`, {
       method: "PATCH",
