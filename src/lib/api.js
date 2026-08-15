@@ -12,7 +12,14 @@ async function request(path, options = {}) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API ${options.method || "GET"} ${path} failed: ${res.status} ${body}`);
+    const err = new Error(`API ${options.method || "GET"} ${path} failed: ${res.status} ${body}`);
+    // Structured fields so a caller can show the backend's own message (e.g.
+    // "Profile photo must be 2MB or smaller.") instead of the raw URL-and-status
+    // string, which is a debugging aid, not something to put in front of a
+    // brand. Mirrors 5th-internal-front/src/lib/api.js.
+    err.status = res.status;
+    try { err.body = JSON.parse(body); } catch { err.body = null; }
+    throw err;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -37,6 +44,41 @@ export const PortalAPI = {
     if (from) params.set("from", from);
     if (to)   params.set("to",   to);
     return request(`/api/portal/analytics?${params}`);
+  },
+};
+
+/**
+ * The signed-in brand user's own credential record.
+ *
+ * The portal is otherwise strictly read-only — this is the single exception,
+ * and it is scoped as narrowly as that fact deserves: a user may change THEIR
+ * OWN profile photo and nothing else. Every other field on the record (brand,
+ * username, title, role) is the agency's to set, and lives behind the founder's
+ * Access & Credentials page.
+ *
+ * Hits the same /api/brand-credentials routes the internal app uses, because
+ * they are the same documents.
+ */
+export const AccountAPI = {
+  // Deliberately takes the photo alone rather than a patch object: this is the
+  // portal's only write, and a general-purpose update() here would be an open
+  // door to fields the brand is not allowed to set on itself.
+  updatePhoto: (id, avatarImage) =>
+    request(`/api/brand-credentials/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ avatarImage }),
+    }),
+
+  // Null when the record has no photo, so the caller renders initials instead
+  // of firing a request that is certain to 404. `?v=` busts the image's
+  // one-year immutable cache the moment the photo changes.
+  avatarUrl: (account) => {
+    const id = typeof account === "string" ? account : account?.id;
+    if (!id || (typeof account === "object" && !account?.hasAvatar)) return null;
+    const v = typeof account === "object" && account?.avatarUpdatedAt
+      ? `?v=${encodeURIComponent(account.avatarUpdatedAt)}`
+      : "";
+    return `${BASE}/api/brand-credentials/${encodeURIComponent(id)}/avatar${v}`;
   },
 };
 

@@ -24,6 +24,7 @@ import PeriodFilter from "./PeriodFilter";
 import AnimatedNumber from "./AnimatedNumber";
 import { useApp } from "../context";
 import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/dates";
+import { chartTheme } from "../lib/chartTheme";
 import { fmtNum, fmtINR } from "../lib/format";
 import { PortalAPI } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -39,30 +40,6 @@ function serviceColor(name, P) {
   if (n.includes("offline")) return P.amber;
   return P.purple;
 }
-
-/* Recharts styling is theme-aware — built from the palette so tooltips, axes
-   and grid lines flip with light/dark (see chartTheme() called with P). */
-const chartTheme = (P) => ({
-  axisProps: {
-    tick: { fontSize: 10, fill: P.mute, fontFamily: "Sora, sans-serif" },
-    axisLine: false,
-    tickLine: false,
-  },
-  gridStroke: P.border,
-  tooltipStyle: {
-    contentStyle: {
-      background: P.surface,
-      border: `1px solid ${P.borderMid}`,
-      borderRadius: 8,
-      fontSize: 11.5,
-      fontFamily: "Sora, sans-serif",
-      boxShadow: P.shadowLg,
-      color: P.text,
-    },
-    labelStyle: { color: P.text, fontWeight: 700, marginBottom: 3 },
-    cursor: { stroke: P.borderMid, strokeWidth: 1, fill: P.hover },
-  },
-});
 
 /* Period-over-period trend badge — null delta (no prior-bucket data, or the
    very first period) renders nothing rather than a misleading "0%". */
@@ -95,14 +72,17 @@ function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaL
   );
 }
 
-function FunnelRow({ label, value, pct, drop, color, isFirst, index = 0 }) {
+function FunnelRow({ label, value, pct, step, color, isFirst, index = 0 }) {
+  const rose = step != null && step > 0;
   return (
     <div>
       <div className="mb-[5px] flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-[12px] text-ink">
           {label}
-          {!isFirst && drop != null && (
-            <span className="text-[10px] font-semibold text-red">▼ {drop.toFixed(1)}% drop</span>
+          {!isFirst && step != null && (
+            <span className={`text-[10px] font-semibold ${rose ? "text-green" : "text-red"}`}>
+              {rose ? "▲" : "▼"} {Math.abs(step).toFixed(1)}% {rose ? "rise" : "drop"}
+            </span>
           )}
         </span>
         <span className="text-[13px] font-bold" style={{ color }}>{fmtNum(value)}</span>
@@ -167,13 +147,26 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
     const from = preset === "all"
       ? new Date(Math.min(...events.map(ev => +ev.date)))
       : range.from;
-    return buildTimeSeries(events, { from, to: range.to }, chartInterval, SERIES_FIELDS);
+    // trimLeading: the line starts at the first bucket that actually has
+    // activity rather than at the left edge of the chosen window — see
+    // buildTimeSeries for why leading zeros misrepresent the trend.
+    return buildTimeSeries(events, { from, to: range.to }, chartInterval, SERIES_FIELDS, { trimLeading: true });
   }, [events, preset, range, chartInterval]);
 
   const totals = useMemo(() => {
     const sum = k => events.reduce((s, ev) => s + (ev[k] || 0), 0);
     return { imp: sum("impressions"), reach: sum("reach"), eng: sum("engagements"), clicks: sum("clicks"), spend: sum("spend") };
   }, [events]);
+
+  // How much of the period is real measurement vs follower-based estimate.
+  // Drives the footnote, so a brand can tell the two apart at a glance.
+  const measuredMix = useMemo(() => events.reduce(
+    (a, ev) => ({
+      measured: a.measured + (ev.measuredCreators || 0),
+      total: a.total + (ev.totalCreators || 0),
+    }),
+    { measured: 0, total: 0 },
+  ), [events]);
 
   // Period-over-period trend: last bucket vs the one before it, reusing the
   // series already built for the chart (no extra fetch). Skipped when either
@@ -200,27 +193,36 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
   const totalSpend = donutSlices.reduce((s, d) => s + d.value, 0);
 
-  /* Funnel order follows the backend's own definitions (server.js
-     /api/portal/analytics): reach = the creators' combined follower count,
-     impressions ≈ 12% of that — an estimate of how many of those followers
-     actually see a post. So reach is the TOP of the funnel and impressions the
-     step below it. Listing impressions first, as this did, put the smaller
-     number above the larger one and rendered a "-733% drop" on a funnel that
-     was simply upside down. */
+  /* Funnel stages run in delivery order: the creators' combined audience, how
+     many views that actually produced, how many of those engaged, and an
+     estimated click-through.
+
+     Bars are scaled to the LARGEST stage, not to reach. Reach is the follower
+     base, but impressions are now measured from the posts themselves — and a
+     reel that travels beyond its creator's followers genuinely outruns it
+     (Nike's roster: 500K followers, 3.6M views). Scaling to reach pinned that
+     bar at 730% of its track and read as a rendering fault. The step change
+     between stages is likewise signed: a stage bigger than the one above it is
+     a rise, not a "-630% drop". */
   const funnelRows = useMemo(() => {
-    const top = totals.reach || totals.imp || 1;
     const rows = [
       { label: "Reach",       value: totals.reach,  color: P.pink   },
       { label: "Impressions", value: totals.imp,    color: P.accent },
       { label: "Engagements", value: totals.eng,    color: P.amber  },
       { label: "Clicks",      value: totals.clicks, color: P.green  },
     ];
-    return rows.map((r, i) => ({
-      ...r,
-      pct: top > 0 ? (r.value / top) * 100 : 0,
-      drop: i > 0 ? (1 - r.value / (rows[i-1].value || 1)) * 100 : null,
-      isFirst: i === 0,
-    }));
+    const top = Math.max(...rows.map(r => r.value), 0) || 1;
+    return rows.map((r, i) => {
+      const prev = i > 0 ? rows[i - 1].value : null;
+      return {
+        ...r,
+        pct: (r.value / top) * 100,
+        // Positive = grew against the stage above, negative = fell away.
+        // Null when the previous stage is 0, where a ratio means nothing.
+        step: prev ? ((r.value - prev) / prev) * 100 : null,
+        isFirst: i === 0,
+      };
+    });
   }, [totals, P]);
 
   const isLoading = analytics === null && !error;
@@ -292,11 +294,46 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
             <div className="flex h-[200px] items-center justify-center text-[12px] text-mute">Loading…</div>
           ) : series.length === 0 ? (
             <div className="flex h-[200px] items-center justify-center text-[12px] text-mute">No data for the selected period</div>
+          ) : series.length === 1 ? (
+            /* One bucket is not a trend. Recharts centres a lone point in the
+               plot area, which is what produced a single dot marooned in the
+               middle of an otherwise empty panel — it reads as a broken chart
+               rather than as "this brand has run one campaign". d3's point
+               scale can't be talked out of it either: it centres at align 0.5
+               and recharts exposes no way to change that. So state the period's
+               numbers plainly, left-aligned, and say what a trend would need. */
+            <div className="flex h-[200px] flex-col justify-center gap-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                {series[0].label}
+              </div>
+              <div className="flex flex-wrap gap-10">
+                <div>
+                  <div className="text-[26px] font-bold leading-none"
+                    style={{ color: toggle === "reach" ? P.pink : P.amber }}>
+                    {fmtNum(toggle === "reach" ? series[0].reach : series[0].engagements)}
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-sub">
+                    {toggle === "reach" ? "Reach" : "Engagements"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[26px] font-bold leading-none" style={{ color: P.purple }}>
+                    {fmtINR(series[0].spend)}
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-sub">Spend</div>
+                </div>
+              </div>
+              <p className="text-[10.5px] text-mute">
+                Only one {trendUnit} of activity falls in this period — a trend line needs at least two.
+                Widen the period, or switch to a finer interval, to plot it.
+              </p>
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height={210}>
               <ComposedChart data={series} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
                 <CartesianGrid stroke={gridStroke} vertical={false} />
-                <XAxis dataKey="label" {...axisProps} minTickGap={20} interval="preserveStartEnd" />
+                <XAxis dataKey="label" {...axisProps} minTickGap={20} interval="preserveStartEnd"
+                  scale="point" padding={{ left: 0, right: 0 }} />
                 <YAxis yAxisId="left"  {...axisProps} tickFormatter={v => fmtNum(v)} width={44} />
                 <YAxis yAxisId="right" {...axisProps} orientation="right" tickFormatter={v => fmtINR(v)} width={52} />
                 <Tooltip {...tooltipStyle}
@@ -325,7 +362,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
           <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Funnel</div>
-            <p className="mb-4 text-[10.5px] text-mute">Audience → Exposure → Engagement → Click · based on campaign reach</p>
+            <p className="mb-4 text-[10.5px] text-mute">Audience → Exposure → Engagement → Click · bars scaled to the largest stage</p>
             {isLoading ? (
               <div className="flex h-[140px] items-center justify-center text-[12px] text-mute">Loading…</div>
             ) : (
@@ -374,9 +411,26 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           </div>
         </div>
 
+        {/* The old note called every number an estimate. That was true when it
+            was written and is not any more — impressions and engagements come
+            from the posts themselves wherever they have been fetched, so the
+            note now reports which of the two the reader is actually looking at
+            rather than understating real measurements. */}
         <p className="mt-3 text-[10px] text-mute">
-          Reach = creator follower sum. Impressions ≈ reach × 12%. Engagements derived from avgER.
-          Clicks ≈ engagements × 8%. All estimates — real tracking data updates when 5th Avenue refreshes post metrics.
+          Reach = creator follower sum.{" "}
+          {measuredMix.measured > 0 && (
+            <>
+              Impressions and engagements are measured from live post metrics
+              {measuredMix.measured < measuredMix.total
+                ? ` for ${measuredMix.measured} of ${measuredMix.total} creators; the rest are estimated until their posts are fetched.`
+                : " across every creator on the roster."}{" "}
+            </>
+          )}
+          {measuredMix.measured === 0 && (
+            <>Impressions ≈ reach × 12%, engagements derived from avgER — estimates until post metrics are fetched. </>
+          )}
+          Clicks ≈ engagements × 8%, always an estimate. Impressions can exceed reach when a post
+          travels beyond the creator&rsquo;s own followers.
         </p>
       </div>
     </div>

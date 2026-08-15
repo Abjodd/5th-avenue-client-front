@@ -6,8 +6,13 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import {
+  ResponsiveContainer, AreaChart, Area, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+} from "recharts";
 import { useApp } from "../../context";
 import { PHASES } from "../../lib/phases";
+import { chartTheme } from "../../lib/chartTheme";
 import { fmtNum, prettyDate } from "../../lib/format";
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
@@ -141,6 +146,145 @@ function LivePerformance({ totals, lastFetched }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ═══ GROWTH — how the campaign's live posts built up over time ═══════════════
+   One point per day that has a reading, from the append-only history the
+   backend records on every post-metrics refresh (trackingHistory.js). Until
+   that existed, each refresh overwrote the previous numbers, so this view was
+   impossible: the campaign only ever had a "now".
+
+   Cumulative totals, so the area only ever climbs — a dip would mean a creator
+   went unmeasured, which growthSeries() carries forward specifically to avoid.
+   Views and engagements share an axis-free area chart rather than a dual axis:
+   the shape of the build is the point here, and the exact numbers are one
+   hover away. */
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const dayLabel = (d) => {
+  const [, m, day] = String(d).split("-");
+  return `${MONTHS[Number(m) - 1]} ${Number(day)}`;
+};
+
+function GrowthChart({ growth, perCreator }) {
+  const P = useP();
+  const { axisProps, gridStroke, tooltipStyle } = chartTheme(P);
+  const [metric, setMetric] = useState("views");
+  const [split, setSplit] = useState(false);
+
+  const last = growth[growth.length - 1];
+  const first = growth[0];
+  const gained = last[metric] - first[metric];
+  const color = metric === "views" ? P.accent : P.pink;
+  const label = metric === "views" ? "Views" : "Engagements";
+
+  // One colour per creator. Cycled rather than hashed: a roster is small, and
+  // the legend is right there, so stable-per-name matters less than the lines
+  // being easy to tell apart.
+  const LINE_COLORS = [P.accent, P.pink, P.teal, P.amber, P.purple, P.green];
+  const canSplit = perCreator.series.length > 1;
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Total {label.toLowerCase()}</div>
+          <div className="mt-1 text-[26px] font-bold leading-none" style={{ color }}>
+            <AnimatedNumber value={last[metric]} format={fmtNum} duration={900}/>
+          </div>
+          <div className="mt-1.5 text-[11px] text-sub">
+            {/* Growth across the window we have readings for — NOT "since the
+                post went live". The first point is the first measurement, which
+                may already have been well after posting. */}
+            +{fmtNum(gained)} since {dayLabel(first.date)} · {growth.length} readings
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex rounded-full bg-well p-0.5">
+            {[["views", "Views"], ["engagements", "Engagements"]].map(([id, l]) => (
+              <button key={id} onClick={() => setMetric(id)}
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200 ${metric===id?"bg-[--color-glass] text-accent shadow-sm":"text-mute hover:text-ink"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {/* Only offered when there is more than one creator — "per creator"
+              on a single-creator roster is the same chart with extra words. */}
+          {canSplit && (
+            <div className="flex rounded-full bg-well p-0.5">
+              {[[false, "Combined"], [true, "Per creator"]].map(([id, l]) => (
+                <button key={String(id)} onClick={() => setSplit(id)}
+                  className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200 ${split===id?"bg-[--color-glass] text-accent shadow-sm":"text-mute hover:text-ink"}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={210}>
+        {split ? (
+          <LineChart data={perCreator.rows} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+            <CartesianGrid stroke={gridStroke} vertical={false}/>
+            <XAxis dataKey="date" {...axisProps} tickFormatter={dayLabel}
+              scale="point" padding={{ left: 0, right: 0 }} minTickGap={18}/>
+            <YAxis {...axisProps} tickFormatter={fmtNum} width={46}/>
+            <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v) => fmtNum(v)}/>
+            {perCreator.series.map((s, i) => (
+              <Line key={s.key} type="monotone"
+                dataKey={`${s.key}_${metric}`} name={s.name}
+                stroke={LINE_COLORS[i % LINE_COLORS.length]} strokeWidth={2.2}
+                // Gaps are real: a creator has no line before their first
+                // reading, and connectNulls would draw one from nowhere.
+                connectNulls={false}
+                dot={perCreator.rows.length <= 20 ? { r: 2.5, strokeWidth: 2, stroke: P.surface } : false}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: P.surface }}/>
+            ))}
+          </LineChart>
+        ) : (
+          <AreaChart data={growth} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+            <defs>
+              <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.28}/>
+                <stop offset="100%" stopColor={color} stopOpacity={0.02}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={gridStroke} vertical={false}/>
+            {/* scale="point" so the series starts hard against the left edge
+                instead of being inset by half a band. */}
+            <XAxis dataKey="date" {...axisProps} tickFormatter={dayLabel}
+              scale="point" padding={{ left: 0, right: 0 }} minTickGap={18}/>
+            <YAxis {...axisProps} tickFormatter={fmtNum} width={46}/>
+            <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v) => [fmtNum(v), label]}/>
+            <Area type="monotone" dataKey={metric} name={label}
+              stroke={color} strokeWidth={2.5} fill="url(#growthFill)"
+              dot={growth.length <= 20 ? { r: 3, fill: color, strokeWidth: 2, stroke: P.surface } : false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: P.surface }}/>
+          </AreaChart>
+        )}
+      </ResponsiveContainer>
+
+      {/* Legend only in split mode; one line needs no key. */}
+      {split && (
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+          {perCreator.series.map((s, i) => (
+            <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-ink">
+              <span className="inline-block h-[2px] w-5 rounded"
+                style={{ background: LINE_COLORS[i % LINE_COLORS.length] }}/>
+              {s.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-3 text-[10px] text-mute">
+        Cumulative totals {split ? "per creator" : "across every live post on this campaign"}, recorded
+        each time post metrics are refreshed. Creators measured on different days carry their
+        last known figure forward, so the line reflects reach building rather than
+        the refresh schedule.
+      </p>
     </div>
   );
 }
@@ -432,7 +576,17 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
   const engByNiche = (() => { const g = {}, c2 = {}; creators.forEach(cr => { if (cr.engRate !== "—") { const n = cr.niche; g[n] = (g[n] || 0) + parseFloat(cr.engRate); c2[n] = (c2[n] || 0) + 1; } }); return Object.entries(g).map(([k, v]) => ({ label: k, value: Math.round((v / c2[k]) * 10) / 10 })); })();
   const engBD = creators.length ? { creator: engByCreator, niche: engByNiche } : null;
 
-  const tabs = [{ id: "overview", label: "Overview" }, { id: "brief", label: "Brief" }, ...(!isAEO ? [{ id: "creators", label: "Creators", count: numCr || null }] : []), ...(c.queries ? [{ id: "queries", label: "Queries" }] : [])];
+  /* Growth needs at least two days of readings to be a line rather than a dot,
+     which growthSeries() enforces by returning [] below that — so the tab
+     appears only once there is something to plot. */
+  const growth = c.growth || [];
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "brief", label: "Brief" },
+    ...(!isAEO ? [{ id: "creators", label: "Creators", count: numCr || null }] : []),
+    ...(growth.length ? [{ id: "growth", label: "Growth" }] : []),
+    ...(c.queries ? [{ id: "queries", label: "Queries" }] : []),
+  ];
 
   return (
     <div className="fixed inset-0 z-[200] flex justify-end">
@@ -534,6 +688,11 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                     </div>
                   )}
                 </div>
+              )}
+
+              {tab === "growth" && (
+                <GrowthChart growth={growth}
+                  perCreator={c.growthPerCreator || { rows: [], series: [] }}/>
               )}
 
               {tab === "queries" && c.queries?.map((q, i) => (

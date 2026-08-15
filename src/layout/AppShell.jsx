@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
+import { AccountAPI } from "../lib/api";
 import ThemeToggle from "../components/ThemeToggle";
 
 const NAV_ITEMS = [
@@ -13,6 +14,23 @@ const NAV_ITEMS = [
   { id: "campaigns", label: "Campaigns",    icon: "▤" },
   { id: "regional",  label: "Regional Map", icon: "◯" },
 ];
+
+// The signed-in user's photo in the nav pill, falling back to their initials.
+// `avatarUrl` returns null when the record has no photo, so no request is fired
+// that is certain to 404; a photo that fails to decode degrades to initials
+// rather than leaving a broken-image glyph in the navbar.
+function NavAvatar({ user }) {
+  const [broken, setBroken] = useState(false);
+  const url = AccountAPI.avatarUrl(user);
+  const show = url && !broken;
+  return (
+    <div className="relative flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-accent to-purple text-[12px] font-semibold text-white shadow-[0_2px_8px_rgba(44,62,126,0.35)]">
+      {show
+        ? <img src={url} alt="" onError={() => setBroken(true)} className="absolute inset-0 size-full object-cover" />
+        : user?.avatar}
+    </div>
+  );
+}
 
 export default function AppShell({ children }) {
   const { page, setPage } = useApp();
@@ -113,9 +131,7 @@ export default function AppShell({ children }) {
                 page === "profile" ? "border-accent/40 ring-1 ring-accent/20" : "border-line hover:border-accent/25"
               }`}
             >
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-purple text-[12px] font-semibold text-white shadow-[0_2px_8px_rgba(44,62,126,0.35)]">
-                {user?.avatar}
-              </div>
+              <NavAvatar user={user} />
               <div className="hidden text-left sm:block">
                 <div className="text-[13px] font-semibold leading-tight text-ink">{user?.name?.split(" ")[0]}</div>
                 <div className="text-[11px] leading-tight text-sub">{user?.title}</div>

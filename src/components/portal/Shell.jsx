@@ -143,7 +143,10 @@ export function MetricSwitch({ options, value, onChange, label = "Metric" }) {
 /** Inline "nothing here yet" note for a panel that has no data to draw. */
 export function PanelEmpty({ children }) {
   return (
-    <div className="flex min-h-[120px] items-center justify-center rounded-[16px] border border-dashed border-line-mid px-5 py-8 text-center text-[12px] leading-relaxed text-mute">
+    // flex-1 so an empty panel fills the height of whatever it sits beside in a
+    // stretched grid row, rather than collapsing to its minimum and leaving the
+    // dashed box floating above a gap.
+    <div className="flex min-h-[120px] flex-1 items-center justify-center rounded-[16px] border border-dashed border-line-mid px-5 py-8 text-center text-[12px] leading-relaxed text-mute">
       {children}
     </div>
   );

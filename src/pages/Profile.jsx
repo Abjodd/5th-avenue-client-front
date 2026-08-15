@@ -11,17 +11,20 @@
  * hold renders "—", and a whole section with no data says so rather than
  * showing a grid of dashes.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { User, Palette, Building2, ArrowLeft, Mail, ExternalLink } from "lucide-react";
 
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { usePortalClient } from "../lib/usePortalData";
 import { prettyDate, initials } from "../lib/format";
+import { AccountAPI } from "../lib/api";
+import { compressAvatar, AVATAR_ACCEPT } from "../lib/avatar";
 import { Reveal, Stagger, StaggerItem, AmbientBackground } from "../components/motion/Motion";
 import { Panel, Subpanel, PanelTitle, PanelEmpty } from "../components/portal/Shell";
 import { Skeleton } from "../components/PageStates";
 import ThemeToggle from "../components/ThemeToggle";
+import ProfileCompletion from "../components/ProfileCompletion";
 
 const PANES = [
   { id: "profile", label: "Profile", Icon: User },
@@ -61,11 +64,136 @@ function FieldGrid({ fields, empty }) {
   );
 }
 
+/**
+ * The identity avatar, and the only writable control in the whole portal.
+ *
+ * Clicking the avatar picks a file; the image is downscaled to 256px and
+ * re-encoded client-side (see lib/avatar.js) before it is sent, so a 4MB phone
+ * photo travels as ~25KB. It saves IMMEDIATELY on pick rather than behind a
+ * separate button: there is exactly one field, so a Save step would be a second
+ * click that can only ever mean "yes, the thing I just chose".
+ */
+function AvatarUpload({ user, onSaved, openRef }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [broken, setBroken] = useState(false);
+  // Shown the instant a file is picked, so the new photo appears while the
+  // upload is still in flight instead of after a round trip.
+  const [pending, setPending] = useState(null);
+
+  const stored = AccountAPI.avatarUrl(user);
+  const src = pending || stored;
+  const show = !!src && !broken;
+
+  // Lets the completion panel's "Add" button open this picker directly.
+  // Handing up the opener rather than having the caller reach for a DOM node
+  // keeps the hidden <input> an implementation detail of this component.
+  //
+  // In an effect, not the render body: publishing the opener is a side effect,
+  // and it closes over `busy` — so it has to be republished whenever that
+  // changes or the guard would test a stale value.
+  useEffect(() => {
+    if (!openRef) return undefined;
+    openRef.current = () => { if (!busy) inputRef.current?.click(); };
+    return () => { openRef.current = null; };
+  }, [openRef, busy]);
+
+  const pick = async (file) => {
+    if (!file) return;
+    setErr("");
+    setBusy(true);
+    try {
+      const dataUri = await compressAvatar(file);
+      setPending(dataUri);
+      setBroken(false);
+      const updated = await AccountAPI.updatePhoto(user.id, dataUri);
+      onSaved({ hasAvatar: updated.hasAvatar, avatarUpdatedAt: updated.avatarUpdatedAt });
+      setPending(null); // stored URL now carries the new photo, with a fresh ?v=
+    } catch (e) {
+      setPending(null);
+      // The backend's own message is the useful one ("must be 2MB or smaller").
+      setErr(e.body?.error || e.message);
+    } finally {
+      setBusy(false);
+      // Lets the same file be re-picked after an error — without this, choosing
+      // it again fires no change event.
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const remove = async () => {
+    setErr(""); setBusy(true);
+    try {
+      const updated = await AccountAPI.updatePhoto(user.id, null);
+      onSaved({ hasAvatar: updated.hasAvatar, avatarUpdatedAt: updated.avatarUpdatedAt });
+      setBroken(false);
+    } catch (e) {
+      setErr(e.body?.error || e.message);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-5">
+      <button type="button" onClick={() => !busy && inputRef.current?.click()}
+        title="Change your profile photo"
+        className="relative flex size-[70px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-accent to-purple text-[24px] font-semibold text-white shadow-[0_10px_30px_rgba(44,62,126,0.35)] transition-transform duration-200 hover:scale-[1.03]">
+        {show
+          ? <img src={src} alt="" onError={() => setBroken(true)} className="absolute inset-0 size-full object-cover" />
+          : (user?.avatar || initials(user?.name))}
+        {busy && <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-[11px]">…</span>}
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate font-serif text-[26px] font-bold italic leading-tight text-ink">{user?.name || "—"}</h2>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-sub">
+          {user?.title && <span className="rounded-full bg-accent/[0.08] px-2.5 py-0.5 text-[11.5px] font-semibold text-accent">{user.title}</span>}
+          <span>{user?.clientName}</span>
+          {user?.email && (
+            <a href={`mailto:${user.email}`} className="flex items-center gap-1 text-mute transition-colors hover:text-accent">
+              <Mail size={12} /> {user.email}
+            </a>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}
+            className="rounded-full border border-line bg-[--color-glass] px-3 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
+            {show ? "Change photo" : "Upload photo"}
+          </button>
+          {show && (
+            <button type="button" disabled={busy} onClick={remove}
+              className="rounded-full border border-red/20 px-3 py-1 text-[11.5px] font-medium text-red transition-colors hover:bg-red/[0.05] disabled:opacity-50">
+              Remove
+            </button>
+          )}
+          <span className={`text-[11px] ${err ? "text-red" : "text-mute"}`}>
+            {err || "Optional · PNG, JPEG or WebP · up to 2MB"}
+          </span>
+        </div>
+      </div>
+
+      <input ref={inputRef} type="file" accept={AVATAR_ACCEPT} hidden
+        onChange={(e) => pick(e.target.files?.[0])} />
+    </div>
+  );
+}
+
 export default function Settings() {
   const { setPage } = useApp();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [pane, setPane] = useState("profile");
   const { data: company, error: companyError } = usePortalClient();
+
+  // The identity panel sits above the pane rail, so "Add a photo" from the
+  // completion list has to scroll back up to it as well as open the picker —
+  // firing the picker alone would leave the reader looking at a file dialog
+  // with no idea which control opened it.
+  const identityRef = useRef(null);
+  const openPhotoPicker = useRef(null);
+  const fixPhoto = () => {
+    identityRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    openPhotoPicker.current?.();
+  };
 
   const account = [
     { label: "Full name", value: user?.name },
@@ -104,24 +232,15 @@ export default function Settings() {
           </h1>
         </Reveal>
 
-        {/* Identity header */}
-        <Panel reveal className="mt-6 mb-5 flex flex-wrap items-center gap-5 px-7 py-6">
-          <div className="flex size-[70px] shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-accent to-purple text-[24px] font-semibold text-white shadow-[0_10px_30px_rgba(44,62,126,0.35)]">
-            {user?.avatar || initials(user?.name)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate font-serif text-[26px] font-bold italic leading-tight text-ink">{user?.name || "—"}</h2>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-sub">
-              {user?.title && <span className="rounded-full bg-accent/[0.08] px-2.5 py-0.5 text-[11.5px] font-semibold text-accent">{user.title}</span>}
-              <span>{user?.clientName}</span>
-              {user?.email && (
-                <a href={`mailto:${user.email}`} className="flex items-center gap-1 text-mute transition-colors hover:text-accent">
-                  <Mail size={12} /> {user.email}
-                </a>
-              )}
-            </div>
-          </div>
-        </Panel>
+        {/* Identity header — the avatar here is the upload control.
+            The ref lives on a wrapper because Panel is a plain function
+            component: a ref passed to it would land in ...rest and never
+            attach. */}
+        <div ref={identityRef} className="scroll-mt-28">
+          <Panel reveal className="mt-6 mb-5 px-7 py-6">
+            <AvatarUpload user={user} onSaved={updateUser} openRef={openPhotoPicker} />
+          </Panel>
+        </div>
 
         <div className="grid items-start gap-5 md:grid-cols-[minmax(0,190px)_minmax(0,1fr)]">
           {/* Pane rail */}
@@ -140,14 +259,17 @@ export default function Settings() {
 
           <div className="min-w-0">
             {pane === "profile" && (
-              <Panel reveal className="px-6 py-5">
-                <PanelTitle title="Account" hint="Issued to you by 5th Avenue and scoped to one brand." />
-                <FieldGrid fields={account} empty="No account details on file." />
-                <p className="mt-4 text-[11px] leading-relaxed text-mute">
-                  These details are managed by 5th Avenue. To change your name, contact details or access,
-                  reach out to your account manager.
-                </p>
-              </Panel>
+              <div className="flex flex-col gap-4">
+                <ProfileCompletion user={user} onFixPhoto={fixPhoto} />
+                <Panel reveal delay={0.06} className="px-6 py-5">
+                  <PanelTitle title="Account" hint="Issued to you by 5th Avenue and scoped to one brand." />
+                  <FieldGrid fields={account} empty="No account details on file." />
+                  <p className="mt-4 text-[11px] leading-relaxed text-mute">
+                    These details are managed by 5th Avenue. To change your name, contact details or access,
+                    reach out to your account manager.
+                  </p>
+                </Panel>
+              </div>
             )}
 
             {pane === "appearance" && (
