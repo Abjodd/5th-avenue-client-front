@@ -21,7 +21,7 @@ import {
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { usePortalCampaigns } from "../lib/usePortalData";
-import { fmtNum, fmtINR, prettyDate, initials } from "../lib/format";
+import { fmtNum, fmtINR, prettyDate, initials, dayLabel } from "../lib/format";
 import { phaseColors as phaseColorsFor } from "../lib/phases";
 import { INTRO_KEY } from "../lib/session";
 import { EASE, fadeUp } from "../lib/motion";
@@ -30,7 +30,7 @@ import {
   summarise, healthScore, pipeline, signals, groupBy, availableMetrics,
   GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
   platformPerformance, livePosts, activityFeed, needsYou,
-  greeting, heroSummary,
+  greeting, heroSummary, growthAcross,
 } from "../lib/portalMetrics";
 
 import { Dot } from "../components/Dot";
@@ -39,7 +39,7 @@ import PerformanceSection from "../components/PerformanceSection";
 import { Stagger, AmbientBackground } from "../components/motion/Motion";
 import { Panel, Subpanel, Section, PanelTitle, KPI, MetricSwitch, PanelEmpty } from "../components/portal/Shell";
 import { ProgressRing } from "../components/primitives/ProgressRing";
-import { BarList, ColumnChart, Podium, ScatterPlot } from "../components/charts";
+import { BarList, ColumnChart, Podium, ScatterPlot, LineChart } from "../components/charts";
 
 /* Brand-story intro is its own chunk — most sessions load it once per login */
 const BrandIntro = lazy(() => import("../components/intro/BrandIntro"));
@@ -197,19 +197,94 @@ function GroupedPanel({ title, hint, rows, chart, color, delay = 0 }) {
   const avg = items.length ? items.reduce((s, i) => s + i.value, 0) / items.length : undefined;
 
   return (
-    <Panel reveal delay={delay} className="px-6 py-5">
+    // h-full + flex so this panel matches the one beside it. The chart area
+    // takes the leftover space and centres in it: a "By follower tier" list
+    // holding one bar would otherwise pin that bar to the top of a card as
+    // tall as the eight-bar niche chart next to it, which looks like a
+    // rendering fault rather than a short list.
+    <Panel reveal delay={delay} className="flex h-full flex-col px-6 py-5">
       <PanelTitle
         title={title}
         hint={`${hint} · ${metric.hint}`}
         action={<MetricSwitch label={title} options={metrics} value={metric.id} onChange={setMetricId} />}
       />
-      {items.length === 0 ? (
-        <PanelEmpty>No creators match the current filters.</PanelEmpty>
-      ) : chart === "column" ? (
-        <ColumnChart items={items} avg={avg} height={190} />
-      ) : (
-        <BarList items={items} avg={avg} />
-      )}
+      <div className="flex flex-1 flex-col justify-center">
+        {items.length === 0 ? (
+          <PanelEmpty>No creators match the current filters.</PanelEmpty>
+        ) : chart === "column" ? (
+          <ColumnChart items={items} avg={avg} height={190} />
+        ) : (
+          <BarList items={items} avg={avg} />
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GROWTH — every live post the brand has, as one cumulative build
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const GROWTH_METRICS = [
+  { id: "views", label: "Views" },
+  { id: "engagements", label: "Engagements" },
+];
+
+/**
+ * The account-wide version of the Growth tab in a campaign's detail drawer.
+ * Same numbers, same carry-forward rule — growthAcross() and growthSeries()
+ * share one basis, so this panel and that tab can never disagree.
+ *
+ * Deliberately no per-creator split: a roster spanning every campaign the brand
+ * runs is far too many lines to read, and "whose post is carrying this" is a
+ * question about one campaign, which is where that control lives.
+ */
+function AccountGrowth({ growth, palette }) {
+  const [metricId, setMetricId] = useState("views");
+  const { points, creators, campaigns } = growth;
+
+  // Two readings are needed before there is a shape to draw. The panel says so
+  // rather than plotting a lone dot, and reports what IS being tracked so an
+  // empty chart reads as "not yet" instead of "nothing is measured".
+  if (points.length < 2) {
+    return (
+      <Panel reveal className="px-6 py-5">
+        <PanelTitle title="Total views" hint="Cumulative across every live post we're tracking" />
+        <PanelEmpty>
+          {creators === 0
+            ? "Live-post growth appears here once posts are live and their metrics have been fetched."
+            : `Tracking ${creators} post${creators === 1 ? "" : "s"} across ${campaigns} campaign${campaigns === 1 ? "" : "s"} — the curve appears after a second reading.`}
+        </PanelEmpty>
+      </Panel>
+    );
+  }
+
+  const metric = GROWTH_METRICS.find((m) => m.id === metricId) ?? GROWTH_METRICS[0];
+  const color = metric.id === "views" ? palette.accent : palette.pink;
+  const first = points[0];
+  const last = points[points.length - 1];
+
+  return (
+    <Panel reveal className="px-6 py-5">
+      <PanelTitle
+        title={`Total ${metric.label.toLowerCase()}`}
+        // "since the first reading", NOT "since the post went live" — the first
+        // point is the first measurement, which may be well after posting.
+        hint={`${fmtNum(last[metric.id])} · +${fmtNum(last[metric.id] - first[metric.id])} since ${dayLabel(first.date)} · ${creators} post${creators === 1 ? "" : "s"} across ${campaigns} campaign${campaigns === 1 ? "" : "s"}`}
+        action={<MetricSwitch label="Growth" options={GROWTH_METRICS} value={metric.id} onChange={setMetricId} />}
+      />
+      <LineChart
+        // Full labels: LineChart thins the axis itself (maxTicks) and needs
+        // every date intact for the hover readout.
+        labels={points.map((p) => dayLabel(p.date))}
+        primary={{
+          label: metric.label,
+          color,
+          values: points.map((p) => p[metric.id]),
+          format: fmtNum,
+        }}
+        height={230}
+      />
     </Panel>
   );
 }
@@ -259,6 +334,11 @@ export default function OverviewDashboard() {
   const queues = useMemo(() => needsYou(list, allCreators), [list, allCreators]);
 
   const goals = useMemo(() => serviceGroups(list, allCreators), [list, allCreators]);
+  // Off the RAW campaigns, not allCreators: flattenCreators projects a creator
+  // down to the fields the filter panels need and drops tracking.history, which
+  // is the whole input here. Account-wide by design — this is the brand's total
+  // build, so the creator filter above must not narrow it.
+  const growth = useMemo(() => growthAcross(list), [list]);
   const ranked = useMemo(() => rankCampaigns(list, creators), [list, creators]);
   const byNiche = useMemo(() => groupBy(creators, "niche"), [creators]);
   const bySize = useMemo(() => groupBy(creators, "size"), [creators]);
@@ -452,10 +532,14 @@ export default function OverviewDashboard() {
             </div>
           )}
 
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-            <Panel reveal className="px-6 py-5">
+          {/* items-stretch + h-full on both: a five-row pipeline next to a
+              one-bar podium sized each card to its own content, so the pair
+              read as two unrelated boxes at different heights instead of one
+              row of the page. Same treatment as the Content section below. */}
+          <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+            <Panel reveal className="flex h-full flex-col px-6 py-5">
               <PanelTitle title="Campaign pipeline" hint="Where each campaign stands" />
-              <div className="flex flex-col gap-3.5">
+              <div className="flex flex-1 flex-col justify-center gap-3.5">
                 {phases.map((p, i) => (
                   <div key={p.id}>
                     <div className="mb-[5px] flex justify-between">
@@ -479,7 +563,7 @@ export default function OverviewDashboard() {
               </div>
             </Panel>
 
-            <Panel reveal delay={0.06} className="px-6 py-5">
+            <Panel reveal delay={0.06} className="flex h-full flex-col px-6 py-5">
               <PanelTitle title="Top campaigns" hint={`Ranked by audience reached · ${ranked.length} campaign${ranked.length === 1 ? "" : "s"}`} />
               {ranked.length ? (
                 <Podium
@@ -513,7 +597,7 @@ export default function OverviewDashboard() {
             title="Who moves the needle"
             hint="Your roster grouped two ways. Switch the metric to compare on engagement, audience or measured views; the dashed line is the group average and ↑↓ flags a group behaving unlike the rest."
           >
-            <div className="grid items-start gap-4 lg:grid-cols-2">
+            <div className="grid items-stretch gap-4 lg:grid-cols-2">
               <GroupedPanel
                 title="By niche"
                 hint="Grouped by content niche"
@@ -532,6 +616,20 @@ export default function OverviewDashboard() {
             </div>
           </Section>
         )}
+
+        {/* ── AUDIENCE ─────────────────────────────────────────────────── */}
+        {/* Sits ahead of CONTENT because it answers the broader question — how
+            the work built overall — before that section breaks it down per
+            post. Mirrors the same section on the internal Summary page so both
+            sides quote the brand one story. */}
+        <Section
+          id="growth"
+          eyebrow="Audience"
+          title="What the work did once it was live."
+          hint="This curve fills in as live posts are refreshed — two readings are needed before there is a shape to draw."
+        >
+          <AccountGrowth growth={growth} palette={P} />
+        </Section>
 
         {/* ── CONTENT ──────────────────────────────────────────────────── */}
         <Section
@@ -617,8 +715,8 @@ export default function OverviewDashboard() {
 
         {/* ── ACTIVITY ─────────────────────────────────────────────────── */}
         <Section id="activity" eyebrow="Activity" title="Latest & pending">
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-            <Panel reveal className="px-6 py-5">
+          <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <Panel reveal className="flex h-full flex-col px-6 py-5">
               <PanelTitle title="Recent activity" hint="Dated events across your campaigns" />
               {activity.length ? (
                 <div className="flex flex-col">
@@ -650,7 +748,7 @@ export default function OverviewDashboard() {
               )}
             </Panel>
 
-            <Panel reveal delay={0.06} className="px-6 py-5">
+            <Panel reveal delay={0.06} className="flex h-full flex-col px-6 py-5">
               <PanelTitle
                 title="Needs you"
                 hint="Creators sitting in your court"

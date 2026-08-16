@@ -136,8 +136,12 @@ export function toViewCampaign(c) {
     objective: brief.objective || "", targetAudience: brief.audience || "",
     keyMessages: brief.messages || "", deliverables: brief.deliverables || "",
     budget: brief.budget || fmtINR(Number(c.budget) || null), timeline: brief.timeline || "",
-    vars: Object.fromEntries(["objective","targetAudience","keyMessages","deliverables","budget","timeline"]
-      .map(k => [k, briefLocked ? "approved" : "pending"])),
+    // No per-field status here. It used to carry a `vars` map, but every entry
+    // was the same value derived from `briefLocked` — so the drawer painted six
+    // identical status glyphs that said exactly what its own banner said. The
+    // brief is approved as one document; if per-field sign-off ever becomes
+    // real, it has to come from the backend rather than be fanned out from one
+    // boolean.
   } : null;
 
   /* Real aggregates over creators that actually have tracking data */

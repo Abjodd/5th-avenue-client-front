@@ -15,18 +15,26 @@ const NAV_ITEMS = [
   { id: "regional",  label: "Regional Map", icon: "◯" },
 ];
 
-// The signed-in user's photo in the nav pill, falling back to their initials.
-// `avatarUrl` returns null when the record has no photo, so no request is fired
-// that is certain to 404; a photo that fails to decode degrades to initials
-// rather than leaving a broken-image glyph in the navbar.
+// The signed-in user's photo in the nav pill: their own if they've set one,
+// otherwise the brand's logo, otherwise their initials. Both URL builders
+// return null when there is nothing to fetch, so no request is fired that is
+// certain to 404; an image that fails to decode degrades to initials rather
+// than leaving a broken-image glyph in the navbar.
+//
+// Same order as the Settings page's avatar, so the picture a member sees of
+// themselves is the same one in both places.
 function NavAvatar({ user }) {
   const [broken, setBroken] = useState(false);
-  const url = AccountAPI.avatarUrl(user);
+  const own = AccountAPI.avatarUrl(user);
+  const url = own || AccountAPI.brandLogoUrl(user);
   const show = url && !broken;
   return (
     <div className="relative flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-accent to-purple text-[12px] font-semibold text-white shadow-[0_2px_8px_rgba(44,62,126,0.35)]">
+      {/* A logo is contained on white so a wordmark isn't cropped to a circle;
+          a portrait fills the frame. */}
       {show
-        ? <img src={url} alt="" onError={() => setBroken(true)} className="absolute inset-0 size-full object-cover" />
+        ? <img src={url} alt="" onError={() => setBroken(true)}
+            className={`absolute inset-0 size-full ${own ? "object-cover" : "bg-white object-contain p-0.5"}`} />
         : user?.avatar}
     </div>
   );

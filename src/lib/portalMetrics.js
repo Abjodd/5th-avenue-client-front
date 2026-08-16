@@ -808,3 +808,30 @@ export function growthByCreator(creators = []) {
   });
   return { rows, series };
 }
+
+/**
+ * Account-level growth: every tracked post the brand has, across campaigns, as
+ * one cumulative series for the Overview page.
+ *
+ * Built by flattening the rosters and handing them to growthSeries() rather
+ * than by summing each campaign's own series — same reason growthSeries and
+ * growthByCreator share carriedByDay(). Carrying a value forward has to happen
+ * per CREATOR, before anything is added up: summing per-campaign series would
+ * carry forward at the campaign level and double-count a campaign whose second
+ * creator was first measured on a later day. One basis, one answer.
+ *
+ * `campaigns` comes straight from GET /api/portal/campaigns, which already
+ * excludes deleted campaigns — so there is nothing to filter out here.
+ *
+ * Returns points: [] below two days of readings, plus the counts either way, so
+ * the empty state can still say how much is being tracked.
+ */
+export function growthAcross(campaigns = []) {
+  const hasHistory = (cr) => cr?.tracking?.history?.length;
+  const creators = campaigns.flatMap((c) => c.creators || []);
+  return {
+    points: growthSeries(creators),
+    creators: creators.filter(hasHistory).length,
+    campaigns: campaigns.filter((c) => (c.creators || []).some(hasHistory)).length,
+  };
+}

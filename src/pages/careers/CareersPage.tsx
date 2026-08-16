@@ -8,7 +8,7 @@ import { prefersReducedMotion } from "../../motion/reducedMotion";
 import { useReveal } from "../../motion/useReveal";
 import { OPENINGS, DEPTS, type Opening } from "../../lib/marketing/data/careers";
 import { Button, Input, Select, Badge, Icon } from "../../components/primitives";
-import { submitForm, CONTACT_EMAIL } from "../../lib/submitForm";
+import { CONTACT_EMAIL, submitCareerRequest } from "../../lib/clientRequests";
 import { cx } from "../../lib/cx";
 
 const VALUES: { icon: LucideIcon; title: string; body: string }[] = [
@@ -271,12 +271,16 @@ function ApplicationForm({
                 if (!valid || submitting) return;
                 setSubmitting(true);
                 setError(null);
-                const res = await submitForm("careers", {
-                  Role: selectedTitle,
-                  Name: name,
-                  Email: email,
-                  "Portfolio / LinkedIn": link,
-                  "Why 5th Avenue?": note,
+                // Stored as a CareerRequest on the backend (which also emails
+                // the founder), not just mailed — the same route every other
+                // public form takes. See lib/clientRequests.ts.
+                const res = await submitCareerRequest({
+                  name,
+                  email,
+                  roleId: selectedId,
+                  roleTitle: selectedTitle,
+                  link,
+                  note,
                 });
                 setSubmitting(false);
                 if (res.ok) setSubmitted(true);

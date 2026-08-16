@@ -4,8 +4,7 @@ import { ArrowLeft, Check } from "lucide-react";
 import { gsap, useGSAP } from "../../motion/gsap";
 import { DUR, EASE } from "../../motion/tokens";
 import { Button, Input, Select, Icon } from "../../components/primitives";
-import { CONTACT_EMAIL } from "../../lib/submitForm";
-import { submitClientRequest } from "../../lib/clientRequests";
+import { CONTACT_EMAIL, submitClientRequest } from "../../lib/clientRequests";
 import { cx } from "../../lib/cx";
 
 const ROLES = [

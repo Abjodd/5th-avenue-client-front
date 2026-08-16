@@ -8,12 +8,16 @@
 // bundler. It's phase logic, so it lives with the phases; api.js re-exports it
 // for the modules that already imported it from there.
 
+// Identity and order only. The glyph for each phase lives in lib/phaseIcons.js
+// — it is presentation, and keeping it out means this module (and everything
+// pure that imports it, like portalMetrics.js and its node:test suite) never
+// has to pull in a React icon library to answer "what phase is this?".
 export const PHASES = [
-  { id: "brief",      label: "Brief & Strategy", short: "Brief",        icon: "📋" },
-  { id: "shortlist",  label: "Shortlisting",     short: "Shortlisting", icon: "🔍" },
-  { id: "production", label: "Production",       short: "Production",   icon: "🎬" },
-  { id: "live",       label: "Live",             short: "Live",         icon: "🟢" },
-  { id: "completed",  label: "Completed",        short: "Completed",    icon: "✅" },
+  { id: "brief",      label: "Brief & Strategy", short: "Brief" },
+  { id: "shortlist",  label: "Shortlisting",     short: "Shortlisting" },
+  { id: "production", label: "Production",       short: "Production" },
+  { id: "live",       label: "Live",             short: "Live" },
+  { id: "completed",  label: "Completed",        short: "Completed" },
 ];
 
 export const PHASE_LABELS = Object.fromEntries(PHASES.map(p => [p.id, p.short]));

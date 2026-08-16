@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { growthSeries, growthByCreator } from "./portalMetrics.js";
+import { growthSeries, growthByCreator, growthAcross } from "./portalMetrics.js";
 
 const pt = (day, views, likes = 0) => ({
   at: `${day}T20:00:00.000Z`, views, likes, comments: 0, forwards: 0, posts: 1,
@@ -173,4 +173,45 @@ test("per-creator series sum to the combined series", () => {
 test("no history yields an empty split, matching growthSeries", () => {
   assert.deepEqual(growthByCreator([]), { rows: [], series: [] });
   assert.deepEqual(growthByCreator([creator("A", [pt("2026-08-01", 5)])]), { rows: [], series: [] });
+});
+
+/* ── growthAcross: the Overview page's account-wide roll-up ───────────────── */
+
+const campaign = (id, creators) => ({ id, creators });
+
+test("account growth carries forward per creator, not per campaign", () => {
+  // The bug this pins: summing each campaign's own series would carry B's
+  // campaign forward from its first measured day only, so day 1 would count
+  // B at 0 and day 2 would jump by B's whole total — inventing a spike. Per
+  // creator, B simply has no reading until the 2nd and A holds its 100.
+  const across = growthAcross([
+    campaign("c1", [creator("A", [pt("2026-08-01", 100), pt("2026-08-03", 300)])]),
+    campaign("c2", [creator("B", [pt("2026-08-02", 40), pt("2026-08-03", 60)])]),
+  ]);
+  assert.deepEqual(across.points.map(p => p.date), ["2026-08-01", "2026-08-02", "2026-08-03"]);
+  assert.deepEqual(across.points.map(p => p.views), [100, 140, 360]);
+  assert.equal(across.creators, 2);
+  assert.equal(across.campaigns, 2);
+});
+
+test("account growth matches growthSeries over one campaign's roster", () => {
+  // The Overview and a campaign's own Growth tab must never disagree when the
+  // brand has exactly one campaign.
+  const creators = [
+    creator("A", [pt("2026-08-01", 100), pt("2026-08-02", 250)]),
+    creator("B", [pt("2026-08-01", 10), pt("2026-08-02", 30)]),
+  ];
+  assert.deepEqual(growthAcross([campaign("c1", creators)]).points, growthSeries(creators));
+});
+
+test("account growth reports counts even with nothing to plot yet", () => {
+  // One day of readings: no chart, but the panel still says what is tracked
+  // rather than claiming nothing is.
+  const across = growthAcross([campaign("c1", [creator("A", [pt("2026-08-01", 100)])])]);
+  assert.deepEqual(across.points, []);
+  assert.equal(across.creators, 1);
+  assert.equal(across.campaigns, 1);
+
+  const none = growthAcross([]);
+  assert.deepEqual(none, { points: [], creators: 0, campaigns: 0 });
 });

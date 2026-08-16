@@ -11,8 +11,8 @@
  * hold renders "—", and a whole section with no data says so rather than
  * showing a grid of dashes.
  */
-import { useEffect, useRef, useState } from "react";
-import { User, Palette, Building2, ArrowLeft, Mail, ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { User, Palette, Building2, ArrowLeft, Mail, ExternalLink, Pencil, Lock } from "lucide-react";
 
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
@@ -32,12 +32,17 @@ const PANES = [
   { id: "company", label: "Company", Icon: Building2 },
 ];
 
-/** label · value · optional link. Empty renders "—", never a guess. */
-function Field({ label, value, href }) {
+/** label · value · optional link. Empty renders "—", never a guess.
+ *  `lockedReason` marks a field that deliberately CANNOT be edited, so it reads
+ *  as a decision rather than as an oversight next to the ones that can. */
+function Field({ label, value, href, lockedReason }) {
   const empty = value == null || value === "";
   return (
     <StaggerItem className="rounded-[16px] border border-line bg-[--color-glass] px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</div>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+        {label}
+        {lockedReason && <Lock size={10} strokeWidth={2.2} className="text-donetxt" aria-label={lockedReason} />}
+      </div>
       {href && !empty ? (
         <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer"
           className="mt-1 flex items-center gap-1 truncate text-[15px] font-semibold text-accent no-underline hover:underline">
@@ -53,13 +58,126 @@ function Field({ label, value, href }) {
   );
 }
 
+/**
+ * The same card as Field, but editable — and it has to SAY so.
+ *
+ * The first cut was an always-live input styled exactly like a read-only card:
+ * identical border, identical type, no cursor change and no control. It was
+ * indistinguishable from the fields you cannot edit sitting next to it, so the
+ * capability was invisible — and worse, an empty Phone rendered its
+ * placeholder in the same grey a real "—" uses, which reads as a value rather
+ * than as an empty box.
+ *
+ * So editing is now an explicit mode: a pencil that appears on the card, a
+ * ring and a real input while you're in it, and Save/Cancel you can actually
+ * see. Enter saves and Escape cancels for anyone who'd rather not reach for
+ * them.
+ *
+ * The write goes straight to the shared backend, so a change here is the same
+ * record the agency's internal Auth page reads — there is one account, not a
+ * portal copy of one.
+ */
+function EditableField({ label, value, onSave, type = "text", placeholder }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const inputRef = useRef(null);
+
+  // Opening the editor starts from whatever is saved right now, so a cancelled
+  // edit leaves nothing behind for the next one to inherit.
+  const open = () => { setDraft(value ?? ""); setErr(""); setEditing(true); };
+  const cancel = () => { setDraft(value ?? ""); setErr(""); setEditing(false); };
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const commit = async () => {
+    const next = draft.trim();
+    if (next === (value ?? "").trim()) return setEditing(false); // nothing changed
+    setBusy(true);
+    setErr("");
+    try {
+      await onSave(next);
+      setEditing(false);
+    } catch (e) {
+      setErr(e.body?.error || e.message);       // stay open so it can be fixed
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const empty = value == null || value === "";
+
+  return (
+    <StaggerItem
+      className={`group relative rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 ${
+        editing ? "border-accent/50 shadow-[0_0_0_3px_rgba(44,62,126,0.08)]" : "border-line hover:-translate-y-px hover:border-accent/30 hover:shadow-md"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</span>
+        {/* Occupies its space whenever the field is idle and only fades in on
+            hover, focus or keyboard tab — so the row never reflows as it
+            appears, and a grid of cards isn't a grid of pencils at rest. */}
+        {!editing && (
+          <button type="button" onClick={open} aria-label={`Edit ${label.toLowerCase()}`}
+            className="-my-1 flex items-center gap-1 rounded-full px-2 py-1 text-[10.5px] font-medium text-accent opacity-0 transition-opacity duration-150 hover:bg-accent/[0.08] focus:opacity-100 focus:outline-none group-hover:opacity-100">
+            <Pencil size={11} strokeWidth={2.2} /> Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <>
+          <input
+            ref={inputRef}
+            type={type}
+            value={draft}
+            disabled={busy}
+            placeholder={placeholder}
+            onChange={(e) => { setDraft(e.target.value); setErr(""); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") cancel();
+            }}
+            className="mt-1 w-full rounded-[8px] border border-line bg-[--color-input] px-2 py-1 text-[15px] font-semibold text-ink outline-none placeholder:font-normal placeholder:text-donetxt disabled:opacity-50"
+          />
+          <div className="mt-2 flex items-center gap-1.5">
+            <button type="button" onClick={commit} disabled={busy}
+              className="rounded-full bg-accent px-3 py-1 text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+              {busy ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={cancel} disabled={busy}
+              className="rounded-full border border-line px-3 py-1 text-[11px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        // Clicking the value opens the editor too — the pencil is the signpost,
+        // but the value is the bigger target and the one people reach for.
+        <button type="button" onClick={open}
+          className={`mt-1 block w-full truncate text-left text-[15px] font-semibold ${empty ? "italic text-donetxt" : "text-ink"}`}>
+          {empty ? "Not set" : value}
+        </button>
+      )}
+
+      {err && <div className="mt-1.5 text-[11px] text-red">{err}</div>}
+    </StaggerItem>
+  );
+}
+
 /** A grid of fields, or nothing at all when none of them have a value. */
 function FieldGrid({ fields, empty }) {
-  const filled = fields.filter((f) => f.value != null && f.value !== "");
-  if (!filled.length) return <PanelEmpty>{empty}</PanelEmpty>;
+  // An editable field counts as something to show even when it is empty: it is
+  // a control, not a value, and hiding it would hide the way to fill it in.
+  const anything = fields.some((f) => f.onSave || (f.value != null && f.value !== ""));
+  if (!anything) return <PanelEmpty>{empty}</PanelEmpty>;
   return (
     <Stagger animate="show" stagger={0.05} className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-      {fields.map((f) => <Field key={f.label} {...f} />)}
+      {fields.map((f) => (f.onSave
+        ? <EditableField key={f.label} {...f} />
+        : <Field key={f.label} {...f} />))}
     </Stagger>
   );
 }
@@ -83,8 +201,16 @@ function AvatarUpload({ user, onSaved, openRef }) {
   const [pending, setPending] = useState(null);
 
   const stored = AccountAPI.avatarUrl(user);
-  const src = pending || stored;
+  // Falls back to the brand's logo when there is no personal photo — see
+  // AccountAPI.brandLogoUrl for why the absence IS the choice rather than a
+  // stored flag. `own` is tracked separately from `src` because the two differ
+  // in what the controls should offer: with a personal photo you can remove it
+  // (returning to the logo); on the logo there is nothing of yours to remove.
+  const brandLogo = AccountAPI.brandLogoUrl(user);
+  const own = pending || stored;
+  const src = own || brandLogo;
   const show = !!src && !broken;
+  const usingBrandLogo = !own && !!brandLogo && !broken;
 
   // Lets the completion panel's "Add" button open this picker directly.
   // Handing up the opener rather than having the caller reach for a DOM node
@@ -136,10 +262,14 @@ function AvatarUpload({ user, onSaved, openRef }) {
   return (
     <div className="flex flex-wrap items-center gap-5">
       <button type="button" onClick={() => !busy && inputRef.current?.click()}
-        title="Change your profile photo"
+        title={usingBrandLogo ? "Upload your own photo" : "Change your profile photo"}
         className="relative flex size-[70px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-accent to-purple text-[24px] font-semibold text-white shadow-[0_10px_30px_rgba(44,62,126,0.35)] transition-transform duration-200 hover:scale-[1.03]">
+        {/* A portrait should fill the frame (cover); a logo must not be cropped
+            to it, so it is contained on white — a wordmark sliced down its
+            middle reads as a rendering fault, not as a brand. */}
         {show
-          ? <img src={src} alt="" onError={() => setBroken(true)} className="absolute inset-0 size-full object-cover" />
+          ? <img src={src} alt="" onError={() => setBroken(true)}
+              className={`absolute inset-0 size-full ${usingBrandLogo ? "bg-white object-contain p-2" : "object-cover"}`} />
           : (user?.avatar || initials(user?.name))}
         {busy && <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-[11px]">…</span>}
       </button>
@@ -158,16 +288,22 @@ function AvatarUpload({ user, onSaved, openRef }) {
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}
             className="rounded-full border border-line bg-[--color-glass] px-3 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
-            {show ? "Change photo" : "Upload photo"}
+            {own ? "Change photo" : "Upload your own"}
           </button>
-          {show && (
+          {/* Labelled "Use brand logo" rather than "Remove", because that is
+              what it actually does when the brand has one — the two-way choice
+              between your face and your company's mark, without a third state
+              to keep in sync. */}
+          {!!own && (
             <button type="button" disabled={busy} onClick={remove}
-              className="rounded-full border border-red/20 px-3 py-1 text-[11.5px] font-medium text-red transition-colors hover:bg-red/[0.05] disabled:opacity-50">
-              Remove
+              className="rounded-full border border-line bg-[--color-glass] px-3 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
+              {brandLogo ? "Use brand logo" : "Remove"}
             </button>
           )}
           <span className={`text-[11px] ${err ? "text-red" : "text-mute"}`}>
-            {err || "Optional · PNG, JPEG or WebP · up to 2MB"}
+            {err || (usingBrandLogo
+              ? `Showing ${user?.clientName || "your brand"}'s logo · upload your own to replace it`
+              : "Optional · PNG, JPEG or WebP · up to 2MB")}
           </span>
         </div>
       </div>
@@ -195,13 +331,37 @@ export default function Settings() {
     openPhotoPicker.current?.();
   };
 
+  /**
+   * Saves one account field and folds the server's answer back into the
+   * session, so the shell's avatar and greeting update without a reload.
+   *
+   * The response is merged, not the local draft: the backend trims the value
+   * and recomputes the stored initials when the name changes, and those are
+   * what the rest of the app renders.
+   */
+  const saveField = useCallback((key) => async (value) => {
+    const updated = await AccountAPI.updateProfile(user.id, { [key]: value });
+    updateUser({
+      name: updated.name,
+      title: updated.title,
+      phone: updated.phone,
+      avatar: updated.avatar,
+    });
+  }, [user?.id, updateUser]);
+
+  // Email is the login identity — changing it here would let someone lock
+  // themselves out of the portal, and the backend refuses it for that reason
+  // (PORTAL_EDITABLE in routes/auth.js). Account ID and Member since aren't
+  // profile fields at all: one is the record's primary key, the other is a
+  // fact about when it was created.
   const account = [
-    { label: "Full name", value: user?.name },
-    { label: "Role", value: user?.title },
-    { label: "Email", value: user?.email, href: user?.email ? `mailto:${user.email}` : undefined },
-    { label: "Phone", value: user?.phone, href: user?.phone ? `tel:${user.phone}` : undefined },
-    { label: "Account ID", value: user?.id },
-    { label: "Member since", value: user?.createdAt ? prettyDate(user.createdAt) : null },
+    { label: "Full name", value: user?.name, onSave: saveField("name"), placeholder: "Your name" },
+    { label: "Role", value: user?.title, onSave: saveField("title"), placeholder: "e.g. Marketing Head" },
+    { label: "Email", value: user?.email, href: user?.email ? `mailto:${user.email}` : undefined,
+      lockedReason: "Your email is your sign-in — your account manager changes it" },
+    { label: "Phone", value: user?.phone, onSave: saveField("phone"), type: "tel", placeholder: "+91 98765 43210" },
+    { label: "Account ID", value: user?.id, lockedReason: "Set by 5th Avenue" },
+    { label: "Member since", value: user?.createdAt ? prettyDate(user.createdAt) : null, lockedReason: "Set by 5th Avenue" },
   ];
 
   const p = company?.profile ?? {};
@@ -262,11 +422,10 @@ export default function Settings() {
               <div className="flex flex-col gap-4">
                 <ProfileCompletion user={user} onFixPhoto={fixPhoto} />
                 <Panel reveal delay={0.06} className="px-6 py-5">
-                  <PanelTitle title="Account" hint="Issued to you by 5th Avenue and scoped to one brand." />
+                  <PanelTitle title="Account" hint="Hover a field and hit Edit to change it. Locked fields are set by 5th Avenue." />
                   <FieldGrid fields={account} empty="No account details on file." />
                   <p className="mt-4 text-[11px] leading-relaxed text-mute">
-                    These details are managed by 5th Avenue. To change your name, contact details or access,
-                    reach out to your account manager.
+                    Saved changes reach your 5th Avenue team straight away.
                   </p>
                 </Panel>
               </div>
