@@ -9,6 +9,7 @@ import { useApp } from "../context";
 import { usePortalCampaigns } from "../lib/usePortalData";
 import { fmtINR } from "../lib/format";
 import { PHASES, phaseColors as phaseColorsFor } from "../lib/phases";
+import { PHASE_ICONS } from "../lib/phaseIcons";
 import { Dot } from "../components/Dot";
 import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import { AmbientBackground, Magnetic } from "../components/motion/Motion";
@@ -20,6 +21,12 @@ import NewReqModal from "../components/campaigns/NewReqModal";
 
 /* Stable mapper reference so the fetch hook doesn't re-run on re-render */
 const mapCampaigns = (data) => data.map(toViewCampaign);
+
+/* Column-header glyph for a phase, inheriting the header's own tint. */
+const PhaseIcon = ({ phase }) => {
+  const Icon = PHASE_ICONS[phase];
+  return Icon ? <Icon size={13} strokeWidth={2} /> : null;
+};
 
 export default function CampaignsPage() {
   const { P, navParams } = useApp();
@@ -49,7 +56,7 @@ export default function CampaignsPage() {
       start: "—", end: "—", budget: `₹${form.budget}L`, budgetNum: form.budget * 100000,
       numReq: null, lockedCount: 0, liveCount: 0, waiting: 0, trackTotals: null, avgPositivity: null, lastFetched: null,
       brief: form.description || "", lockedBrief: null, status: "pending", creators: [], topAssets: [],
-      pendingBrief: { objective: form.description || "", targetAudience: "", keyMessages: "", deliverables: "", budget: `₹${form.budget}L`, timeline: "", vars: { objective: "pending", targetAudience: "waiting", keyMessages: "waiting", deliverables: "waiting", budget: "pending", timeline: "waiting" } },
+      pendingBrief: { objective: form.description || "", targetAudience: "", keyMessages: "", deliverables: "", budget: `₹${form.budget}L`, timeline: "" },
     }, ...(p || [])]);
     setShowNewReq(false); setToast("Requirement submitted!"); setTimeout(() => setToast(""), 3000);
   };
@@ -153,7 +160,7 @@ export default function CampaignsPage() {
                   <div className="mb-2 rounded-[14px] border bg-[--color-glass] px-3 py-2 backdrop-blur-sm" style={{ borderColor: `${color}25` }}>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ color }}>
-                        <span className="text-[12px]">{phase.icon}</span>{phase.label}
+                        <PhaseIcon phase={phase.id} />{phase.label}
                       </span>
                       <span className="flex size-[18px] items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: items.length ? color : P.doneTxt }}>{items.length}</span>
                     </div>

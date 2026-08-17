@@ -18,9 +18,23 @@ interface LineChartProps {
       (small multiples — never a second y-axis on the same plot). */
   secondary?: LineSeries;
   height?: number;
+  /** Most x-axis labels to draw. Long series (the growth curve keeps up to 240
+      daily points) would otherwise overlap into an unreadable smear. Thinning
+      happens here rather than in the caller because `labels` also feeds the
+      hover tooltip — a caller that blanked entries to thin the axis would
+      leave the tooltip with no date to show. */
+  maxTicks?: number;
 }
 
 const PAD = { t: 12, r: 14, b: 22, l: 44 };
+
+/** Evenly spaced label indices, always including the first and the last. */
+function tickIndices(count: number, maxTicks: number) {
+  if (count <= maxTicks) return null; // null = draw them all
+  return new Set(
+    Array.from({ length: maxTicks }, (_, i) => Math.round((i * (count - 1)) / (maxTicks - 1))),
+  );
+}
 
 function niceMax(v: number) {
   if (v <= 0) return 1;
@@ -37,6 +51,7 @@ function Panel({
   h,
   showX,
   animate,
+  maxTicks,
 }: {
   series: LineSeries;
   labels: string[];
@@ -44,6 +59,7 @@ function Panel({
   h: number;
   showX: boolean;
   animate: boolean;
+  maxTicks: number;
 }) {
   const uid = useId().replace(/:/g, "");
   const lineRef = useRef<SVGPathElement>(null);
@@ -76,6 +92,8 @@ function Panel({
   );
 
   const ticks = [0, 0.5, 1].map((f) => f * max);
+  // null when every label fits — see tickIndices.
+  const xTicks = tickIndices(labels.length, maxTicks);
 
   return (
     <svg
@@ -109,11 +127,13 @@ function Panel({
       <path ref={lineRef} d={line} fill="none" stroke={series.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
       {showX &&
-        labels.map((lb, i) => (
-          <text key={i} x={x(i)} y={h - 6} textAnchor="middle" className="fill-[var(--text-3)] font-mono" fontSize={9}>
-            {lb}
-          </text>
-        ))}
+        labels.map((lb, i) =>
+          xTicks && !xTicks.has(i) ? null : (
+            <text key={i} x={x(i)} y={h - 6} textAnchor="middle" className="fill-[var(--text-3)] font-mono" fontSize={9}>
+              {lb}
+            </text>
+          ),
+        )}
 
       {hover !== null && (
         <g>
@@ -132,13 +152,13 @@ function Panel({
 
 /** Single-axis area+line chart. When a secondary series is supplied it is
     shown as a separate stacked companion panel (small multiples). */
-export function LineChart({ labels, primary, secondary, height = 200 }: LineChartProps) {
+export function LineChart({ labels, primary, secondary, height = 200, maxTicks = 8 }: LineChartProps) {
   const w = 620;
   if (!secondary) {
     return (
       <div>
         <Legend series={[primary]} />
-        <Panel series={primary} labels={labels} w={w} h={height} showX animate />
+        <Panel series={primary} labels={labels} w={w} h={height} showX animate maxTicks={maxTicks} />
       </div>
     );
   }
@@ -147,8 +167,8 @@ export function LineChart({ labels, primary, secondary, height = 200 }: LineChar
   return (
     <div>
       <Legend series={[primary, secondary]} />
-      <Panel series={primary} labels={labels} w={w} h={topH} showX={false} animate />
-      <Panel series={secondary} labels={labels} w={w} h={botH + 8} showX animate />
+      <Panel series={primary} labels={labels} w={w} h={topH} showX={false} animate maxTicks={maxTicks} />
+      <Panel series={secondary} labels={labels} w={w} h={botH + 8} showX animate maxTicks={maxTicks} />
     </div>
   );
 }

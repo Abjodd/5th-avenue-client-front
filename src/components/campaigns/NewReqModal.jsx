@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
+import { MessagesSquare, ClipboardList } from "lucide-react";
 import { useApp } from "../../context";
 import { popModal, overlayFade } from "../../lib/motion";
 import { chipOn, chipOff, inputCls, labelCls, closeBtnCls } from "./mapping";
@@ -198,10 +199,10 @@ export default function NewReqModal({ onClose, onSubmit }) {
           {!mode && (
             <div className="flex gap-3 py-5">
               <div onClick={() => setMode("chat")} className={modeCard}>
-                <div className="mb-2.5 text-2xl">💬</div><div className="mb-1 text-[13.5px] font-semibold text-ink">Guided Brief</div><div className="text-[12px] leading-normal text-sub">Answer step-by-step questions. We'll build the brief for you.</div>
+                <MessagesSquare size={22} strokeWidth={1.8} className="mb-2.5 text-accent" /><div className="mb-1 text-[13.5px] font-semibold text-ink">Guided Brief</div><div className="text-[12px] leading-normal text-sub">Answer step-by-step questions. We'll build the brief for you.</div>
               </div>
               <div onClick={() => setMode("form")} className={modeCard}>
-                <div className="mb-2.5 text-2xl">📋</div><div className="mb-1 text-[13.5px] font-semibold text-ink">Manual Form</div><div className="text-[12px] leading-normal text-sub">Fill each field yourself.</div>
+                <ClipboardList size={22} strokeWidth={1.8} className="mb-2.5 text-accent" /><div className="mb-1 text-[13.5px] font-semibold text-ink">Manual Form</div><div className="text-[12px] leading-normal text-sub">Fill each field yourself.</div>
               </div>
             </div>
           )}

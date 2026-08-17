@@ -3,6 +3,7 @@
 // view model (mapping.js); missing values render "—" or hide the row entirely.
 
 import { motion } from "motion/react";
+import { AlertTriangle } from "lucide-react";
 import { useApp } from "../../context";
 import { prettyDate } from "../../lib/format";
 import { phaseColors as phaseColorsFor } from "../../lib/phases";
@@ -119,7 +120,7 @@ export default function CampaignCard({ campaign: c, onClick }) {
           {pending && <span className="rounded-full bg-amber/[0.1] px-2 py-0.5 text-[10px] font-semibold uppercase text-amber shadow-sm">Pending</span>}
           {c.waiting > 0 && (
             <span className="flex items-center gap-1 rounded-full border border-amber/25 bg-amber/[0.08] px-2 py-0.5 text-[10px] font-semibold text-amber shadow-sm">
-              ⚠ {c.waiting} waiting on you
+              <AlertTriangle size={11} strokeWidth={2.2} /> {c.waiting} waiting on you
             </span>
           )}
         </div>

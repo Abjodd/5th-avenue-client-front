@@ -10,10 +10,15 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
+import {
+  Target, Users, MessageSquareQuote, Package, IndianRupee, CalendarRange,
+  FileText, Eye, Heart, MessageCircle, Share2, FileSignature, Clapperboard, Check,
+} from "lucide-react";
 import { useApp } from "../../context";
 import { PHASES } from "../../lib/phases";
+import { PHASE_ICONS } from "../../lib/phaseIcons";
 import { chartTheme } from "../../lib/chartTheme";
-import { fmtNum, prettyDate } from "../../lib/format";
+import { fmtNum, prettyDate, dayLabel } from "../../lib/format";
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
@@ -31,15 +36,18 @@ function PhaseTracker({ currentPhase }) {
       <div className="flex items-center">
         {PHASES.map((p, i) => {
           const isCur = i === idx, isDone = i < idx;
+          const Icon = PHASE_ICONS[p.id];
           return (
             <div key={p.id} className="flex flex-1 items-center">
               <div className="relative flex flex-1 flex-col items-center gap-[6px]">
                 <motion.div
                   initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: i * 0.06, type: "spring", stiffness: 340, damping: 24 }}
-                  className={`flex size-10 items-center justify-center rounded-[12px] border-2 text-[17px] ${isDone?"border-green bg-green/[0.08]":isCur?"border-accent bg-accent/[0.08]":"border-ink/5 bg-well"}`}
+                  className={`flex size-10 items-center justify-center rounded-[12px] border-2 ${isDone?"border-green bg-green/[0.08] text-green":isCur?"border-accent bg-accent/[0.08] text-accent":"border-ink/5 bg-well text-mute"}`}
                   style={{ boxShadow: isCur ? `0 0 16px ${P.accent}35` : isDone ? `0 2px 8px ${P.green}20` : "none" }}>
-                  {isDone ? "✓" : p.icon}
+                  {/* A cleared phase becomes a tick; the rest keep their own
+                      mark, tinted by state rather than by an emoji's palette. */}
+                  {isDone ? <Check size={18} strokeWidth={2.6} /> : <Icon size={18} strokeWidth={1.9} />}
                 </motion.div>
                 <span className={`text-center text-[10.5px] uppercase tracking-[0.04em] ${isCur?"font-bold text-ink":isDone?"font-medium text-green":"font-normal text-mute"}`}>{p.label}</span>
                 {isCur && <div className="pulse absolute -top-1 right-[20%] size-2 rounded-full bg-accent"/>}
@@ -161,12 +169,6 @@ function LivePerformance({ totals, lastFetched }) {
    Views and engagements share an axis-free area chart rather than a dual axis:
    the shape of the build is the point here, and the exact numbers are one
    hover away. */
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const dayLabel = (d) => {
-  const [, m, day] = String(d).split("-");
-  return `${MONTHS[Number(m) - 1]} ${Number(day)}`;
-};
-
 function GrowthChart({ growth, perCreator }) {
   const P = useP();
   const { axisProps, gridStroke, tooltipStyle } = chartTheme(P);
@@ -476,8 +478,8 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
             <div className="mt-1.5 flex flex-col gap-1 border-t border-line pt-2">
               <div className="flex flex-wrap gap-2.5 text-[11px] text-sub"><span>Niche: <b className="text-ink">{cr.niche}</b></span><span>Size: <b className="text-ink">{cr.size}</b></span><span>State: <b className="text-ink">{cr.region}</b></span><span>Language: <b className="text-ink">{cr.language}</b></span></div>
               <div className="mt-0.5 flex flex-wrap gap-3.5 text-[12px]">
-                <span className="text-mute">Brief: {cr.briefDoc ? <a href={cr.briefDoc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-accent no-underline hover:underline">📄 {cr.briefDoc.name}</a> : <em>Not uploaded</em>}</span>
-                <span className="text-mute">Video: {cr.videoDoc ? <a href={cr.videoDoc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-accent no-underline hover:underline">🎬 {cr.videoDoc.name}</a> : <em>Not uploaded</em>}</span>
+                <span className="text-mute">Brief: {cr.briefDoc ? <a href={cr.briefDoc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 align-middle text-accent no-underline hover:underline"><FileSignature size={13} strokeWidth={1.9} />{cr.briefDoc.name}</a> : <em>Not uploaded</em>}</span>
+                <span className="text-mute">Video: {cr.videoDoc ? <a href={cr.videoDoc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 align-middle text-accent no-underline hover:underline"><Clapperboard size={13} strokeWidth={1.9} />{cr.videoDoc.name}</a> : <em>Not uploaded</em>}</span>
               </div>
               {/* Live block — only when this creator's post is actually up */}
               {cr.live && (
@@ -494,12 +496,16 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
                       </span>
                     )}
                   </div>
+                  {/* Line icons, not emoji: these four sit in a row, and an
+                      emoji set renders at its own size and colour on every
+                      platform — so the row arrived ragged, in whatever hues the
+                      OS font shipped. */}
                   {t && (t.views || t.likes || t.comments || t.forwards) ? (
                     <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-sub">
-                      {t.views != null && <span>👁 <b className="text-ink">{fmtNum(t.views)}</b> views</span>}
-                      {t.likes != null && <span>♥ <b className="text-ink">{fmtNum(t.likes)}</b> likes</span>}
-                      {t.comments != null && <span>💬 <b className="text-ink">{fmtNum(t.comments)}</b> comments</span>}
-                      {t.forwards != null && <span>↗ <b className="text-ink">{fmtNum(t.forwards)}</b> shares</span>}
+                      {t.views != null && <Metric Icon={Eye} value={t.views} label="views" />}
+                      {t.likes != null && <Metric Icon={Heart} value={t.likes} label="likes" />}
+                      {t.comments != null && <Metric Icon={MessageCircle} value={t.comments} label="comments" />}
+                      {t.forwards != null && <Metric Icon={Share2} value={t.forwards} label="shares" />}
                     </div>
                   ) : null}
                   {t?.commentAnalysis && <div className="mt-1.5 text-[11px] italic leading-normal text-ink">"{t.commentAnalysis}"</div>}
@@ -518,25 +524,67 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
   );
 }
 
-/* ═══ BRIEF PAGE — with variable-level status ═══ */
+/* One measured number on a live post: icon, value, unit. Shared so the four
+   never drift apart in size or spacing. */
+function Metric({ Icon, value, label }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Icon size={13} strokeWidth={1.9} className="text-mute" />
+      <b className="text-ink">{fmtNum(value)}</b> {label}
+    </span>
+  );
+}
+
+/* ═══ BRIEF PAGE ═══
+   One icon per field, and it names the FIELD, not its status.
+
+   There used to be a status glyph beside every label — an hourglass on all six
+   rows while a brief was pending, a tick on all six once it locked. It could
+   never say anything else: mapping.js derives `vars` from the single
+   `briefLocked` flag, so all six were identical to each other and identical to
+   the banner directly above them. Six copies of one fact, in an emoji that
+   renders differently on every platform.
+
+   These icons earn their place instead: they make the brief scannable, so
+   someone hunting for the budget finds it by shape rather than by reading six
+   uppercase labels. Status stays in exactly one place — the banner. */
+const BRIEF_FIELDS = [
+  ["Objective",       "objective",      Target],
+  ["Target Audience", "targetAudience", Users],
+  ["Key Messages",    "keyMessages",    MessageSquareQuote],
+  ["Deliverables",    "deliverables",   Package],
+  ["Budget",          "budget",         IndianRupee],
+  ["Timeline",        "timeline",       CalendarRange],
+];
+
 function BriefPage({ lockedBrief, pendingBrief }) {
   const P = useP();
   const brief = lockedBrief || pendingBrief;
-  if (!brief) return (<div className="px-5 py-9 text-center text-mute"><div className="mb-[5px] text-[26px] opacity-15">📋</div><div className="text-[13px]">No brief created yet</div></div>);
-  const isLocked = !!lockedBrief; const vars = brief.vars || {};
-  const statusIcon = (s) => s === "approved" ? { icon: "✓", color: P.green } : s === "rejected" ? { icon: "✗", color: P.red } : s === "pending" ? { icon: "⏳", color: P.amber } : { icon: "…", color: P.mute };
+  if (!brief) return (
+    <div className="px-5 py-12 text-center text-mute">
+      <FileText size={26} strokeWidth={1.5} className="mx-auto mb-2 opacity-30" />
+      <div className="text-[13px]">No brief created yet</div>
+    </div>
+  );
+  const isLocked = !!lockedBrief;
   return (
     <div>
       <div className={`mb-3 flex items-center gap-1.5 rounded-[12px] border px-3 py-2 backdrop-blur-sm ${isLocked?"border-green/[0.12] bg-green/[0.03]":"border-amber/[0.12] bg-amber/[0.03]"}`}>
         <Dot color={isLocked ? P.green : P.amber}/><span className={`text-[12px] font-medium ${isLocked?"text-green":"text-amber"}`}>{isLocked ? `Locked ${brief.approvedOn}` : "Waiting — under review by 5th Avenue"}</span>
         <span className="ml-auto text-[10.5px] italic text-mute">{isLocked ? "Read-only" : "Pending approval"}</span>
       </div>
-      {[["Objective","objective"],["Target Audience","targetAudience"],["Key Messages","keyMessages"],["Deliverables","deliverables"],["Budget","budget"],["Timeline","timeline"]].map(([label, key]) => {
-        const val = brief[key]; const si = statusIcon(vars[key]);
+      {BRIEF_FIELDS.map(([label, key, Icon]) => {
+        const val = brief[key];
         return (
-          <div key={key} className="mb-1.5 flex items-start gap-2 rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-2.5 shadow-sm backdrop-blur-sm">
-            <div className="flex-1">
-              <div className="mb-[3px] flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">{label}<span className="text-[11px]" style={{ color: si.color }}>{si.icon}</span></div>
+          <div key={key} className="group mb-1.5 flex items-start gap-3 rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-sm transition-colors duration-200 hover:border-accent/25">
+            {/* The icon tile picks up the accent on hover — the row reads as a
+                thing you can look at, without animating on a page someone is
+                trying to read. */}
+            <span className="mt-[2px] flex size-7 shrink-0 items-center justify-center rounded-[9px] bg-well/70 text-mute transition-colors duration-200 group-hover:bg-accent/[0.08] group-hover:text-accent">
+              <Icon size={14} strokeWidth={1.9} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="mb-[3px] text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">{label}</div>
               <div className={`text-[13px] leading-normal ${val?"text-ink":"italic text-mute"}`}>{val || "Awaiting input"}</div>
             </div>
           </div>
@@ -681,10 +729,16 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                     <span className="text-[10.5px] text-sub">Viewing as</span><span className="rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">{userRole === "management" ? "Mgmt" : "Exec"}</span>
                     <div className="ml-auto"><StatusLegend/></div>
                   </div>
+                  {/* Empty roster: was three bouncing 👤 emoji. A campaign that
+                      hasn't been cast yet is a normal state, not a moment that
+                      wants a jiggling animation — and it left the reader
+                      without the one thing worth saying, which is what happens
+                      next. */}
                   {creators.length > 0 ? creators.map((cr, i) => <CreatorRow key={i} cr={cr} idx={i} userRole={userRole} onUpdateApproval={updateApproval}/>) : (
                     <div className="px-5 py-[34px] text-center">
-                      <div className="mb-1.5 text-2xl opacity-[0.12]">{["👤","👤","👤"].map((e, i) => (<span key={i} className="bounce-1 mx-px inline-block" style={{ animationDelay: `${i*0.15}s` }}>{e}</span>))}</div>
-                      <div className="text-[12.5px] text-sub">No creators yet</div>
+                      <Users size={24} strokeWidth={1.5} className="mx-auto mb-2 text-mute opacity-40" />
+                      <div className="text-[12.5px] font-medium text-ink">No creators yet</div>
+                      <div className="mt-1 text-[11.5px] text-mute">We're building the shortlist — they'll appear here as each one is confirmed.</div>
                     </div>
                   )}
                 </div>

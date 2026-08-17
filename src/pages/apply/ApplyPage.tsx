@@ -6,8 +6,7 @@ import { DUR, EASE } from "../../motion/tokens";
 import { STATES_META } from "../../lib/marketing/data/map-data";
 import { NICHES } from "../../lib/marketing/data/niches";
 import { Button, Input, Select, Chip, Icon } from "../../components/primitives";
-import { CONTACT_EMAIL } from "../../lib/submitForm";
-import { submitCreatorRequest } from "../../lib/clientRequests";
+import { CONTACT_EMAIL, submitCreatorRequest } from "../../lib/clientRequests";
 import { cx } from "../../lib/cx";
 
 const PLATFORMS = ["Instagram", "YouTube", "Facebook", "X (Twitter)", "LinkedIn"];

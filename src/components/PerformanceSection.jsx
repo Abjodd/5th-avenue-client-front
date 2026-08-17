@@ -29,7 +29,24 @@ import { fmtNum, fmtINR } from "../lib/format";
 import { PortalAPI } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
-const SERIES_FIELDS = ["spend", "reach", "engagements", "impressions", "clicks"];
+// `totalCreators` is bucketed alongside the metrics so a period can be asked
+// whether it had a ROSTER at all — see audienceKnown below. Without it a
+// campaign that is booked but not yet cast is indistinguishable from one whose
+// audience genuinely measured zero.
+const SERIES_FIELDS = ["spend", "reach", "engagements", "impressions", "clicks", "totalCreators"];
+
+/**
+ * Does this bucket have an audience figure at all?
+ *
+ * Spend is committed the moment a campaign is booked, but reach only exists
+ * once creators are on it. A month holding one un-cast campaign therefore
+ * reports real spend and a reach of zero — which the chart drew as a line
+ * diving to the floor and the tile reported as "▼100%", i.e. a total collapse
+ * in audience, on a campaign that simply hasn't started. Those buckets are
+ * left out of the audience line and out of the audience trend instead; spend,
+ * which really did happen, still counts.
+ */
+const audienceKnown = (row) => (row?.totalCreators || 0) > 0;
 
 // Service→colour for the donut — reuses the app's palette (see context.js).
 function serviceColor(name, P) {
@@ -153,6 +170,15 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
     return buildTimeSeries(events, { from, to: range.to }, chartInterval, SERIES_FIELDS, { trimLeading: true });
   }, [events, preset, range, chartInterval]);
 
+  // What the chart plots: the same buckets, with the audience metrics blanked
+  // out wherever there was no roster to measure. Spend is untouched — it was
+  // committed whether or not anyone has been cast yet.
+  const chartRows = useMemo(() => series.map(row => (
+    audienceKnown(row)
+      ? row
+      : { ...row, reach: null, engagements: null, impressions: null, clicks: null }
+  )), [series]);
+
   const totals = useMemo(() => {
     const sum = k => events.reduce((s, ev) => s + (ev[k] || 0), 0);
     return { imp: sum("impressions"), reach: sum("reach"), eng: sum("engagements"), clicks: sum("clicks"), spend: sum("spend") };
@@ -177,7 +203,16 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
     const last = series[series.length - 1], prev = series[series.length - 2];
     if (!last.count || !prev.count) return null;
     const pct = k => (prev[k] > 0 ? ((last[k] - prev[k]) / prev[k]) * 100 : null);
-    return { imp: pct("impressions"), reach: pct("reach"), eng: pct("engagements"), clicks: pct("clicks"), spend: pct("spend") };
+    // Audience deltas need a roster on BOTH sides of the comparison. Comparing
+    // a measured month against a booked-but-uncast one produces a −100% that
+    // describes the calendar, not the work.
+    const audience = audienceKnown(last) && audienceKnown(prev);
+    const pctAudience = k => (audience ? pct(k) : null);
+    return {
+      imp: pctAudience("impressions"), reach: pctAudience("reach"),
+      eng: pctAudience("engagements"), clicks: pctAudience("clicks"),
+      spend: pct("spend"),
+    };
   }, [series]);
 
   const intervalLabel = INTERVALS.find(iv => iv.id === chartInterval)?.label.toLowerCase() || chartInterval;
@@ -330,7 +365,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={210}>
-              <ComposedChart data={series} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
+              <ComposedChart data={chartRows} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
                 <CartesianGrid stroke={gridStroke} vertical={false} />
                 <XAxis dataKey="label" {...axisProps} minTickGap={20} interval="preserveStartEnd"
                   scale="point" padding={{ left: 0, right: 0 }} />
@@ -344,6 +379,9 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                   name={toggle === "reach" ? "Reach" : "Engagements"}
                   stroke={toggle === "reach" ? P.pink : P.amber}
                   strokeWidth={2.5}
+                  // A month with no roster has no audience figure, so the line
+                  // stops rather than being drawn down to zero and back.
+                  connectNulls={false}
                   dot={showDots ? { r: 4, fill: toggle==="reach" ? P.pink : P.amber, strokeWidth: 2, stroke: "#fff" } : false}
                   activeDot={{ r: 6, strokeWidth: 2, stroke: "#fff" }} />
                 <Line yAxisId="right" type="monotone"

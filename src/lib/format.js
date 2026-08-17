@@ -49,6 +49,19 @@ export const fmtINR = (n) => {
 export const initials = (name) =>
   (name || "?").split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 
+// Compact axis label for a growth point's "YYYY-MM-DD" date, e.g. "Aug 16".
+// Deliberately not prettyDate: an axis tick has no room for a year, and every
+// point on one of these charts is inside the same few weeks anyway.
+//
+// Shared because the campaign drawer's Growth tab and the Overview's
+// account-wide curve plot the same series — two copies of this is how their
+// axes start disagreeing about how a day is written.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const dayLabel = (d) => {
+  const [, m, day] = String(d).split("-");
+  return `${MONTHS[Number(m) - 1]} ${Number(day)}`;
+};
+
 // Campaign start/end are stored as ISO ("YYYY-MM-DD") — pretty-print for
 // display, passing anything else (e.g. the "TBD" sentinel, or legacy
 // non-ISO strings not yet migrated) through unchanged.

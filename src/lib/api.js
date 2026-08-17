@@ -69,6 +69,17 @@ export const AccountAPI = {
       body: JSON.stringify({ avatarImage }),
     }),
 
+  // The member's own details (name, title, phone). Goes to a portal-specific
+  // route, not the founder's credential PATCH: that one accepts `brandId`,
+  // which is the field that decides whose data this login can read. The server
+  // holds the real allowlist — see PORTAL_EDITABLE in routes/auth.js — this is
+  // just the matching client.
+  updateProfile: (id, patch) =>
+    request(`/api/portal/account/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+
   // Null when the record has no photo, so the caller renders initials instead
   // of firing a request that is certain to 404. `?v=` busts the image's
   // one-year immutable cache the moment the photo changes.
@@ -79,6 +90,25 @@ export const AccountAPI = {
       ? `?v=${encodeURIComponent(account.avatarUpdatedAt)}`
       : "";
     return `${BASE}/api/brand-credentials/${encodeURIComponent(id)}/avatar${v}`;
+  },
+
+  /**
+   * The BRAND's logo, which stands in for a member who hasn't set a photo of
+   * their own — so a colleague at Nike shows the Nike mark rather than two
+   * grey initials, and the two of them are visibly from the same company.
+   *
+   * That inheritance is the choice itself: there is no stored "use the brand
+   * logo" flag, because the absence of a personal photo already means exactly
+   * that. Uploading one overrides it, removing it returns to the logo, and
+   * neither can drift out of step with a separate boolean.
+   *
+   * `brandHasLogo` / `brandLogoUpdatedAt` ride the login payload (see
+   * portal-login in routes/auth.js), so this costs no extra request.
+   */
+  brandLogoUrl: (user) => {
+    if (!user?.brandId || !user?.brandHasLogo) return null;
+    const v = user.brandLogoUpdatedAt ? `?v=${encodeURIComponent(user.brandLogoUpdatedAt)}` : "";
+    return `${BASE}/api/clients/${encodeURIComponent(user.brandId)}/avatar${v}`;
   },
 };
 
