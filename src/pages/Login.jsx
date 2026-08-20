@@ -1,372 +1,288 @@
 /**
- * 5th Avenue — Client Portal Login
- * Split page themed blue · light-orange · light-green throughout. Left is a
- * fluid, motion-driven scene: a floating collage of simple creator tiles with
- * cursor parallax, a cycling headline, and a live stream of rising hearts.
- * Right is the sign-in form — credentials live in the backend's BrandCredential
- * collection (see context/AuthContext); login scopes every page to clientName.
+ * 5th Avenue — Client Portal Login (single-panel redesign)
+ * One continuous navy scene — no left/right split. The motion (blueprint
+ * grid, drifting orbs, rising diamonds, cycling headline) sits behind a
+ * single centered glass card that holds both the pitch and the sign-in
+ * form. The "live campaign" stat strip lives inside the card itself, above
+ * the fields, so there's one flow instead of two competing halves.
  */
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence, useSpring, useTransform, useReducedMotion, MotionConfig } from "motion/react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 
-/* Page wash behind the split scene. The login page used to pin itself to the
-   light theme; it now follows the resolved theme like every other surface, so
-   arriving here from a dark landing page doesn't flash white. */
-const PAGE_WASH = {
-  light: "linear-gradient(135deg,#E9F0FF 0%,#F1F7FF 38%,#EAF7EF 68%,#FFF3E6 100%)",
-  dark:  "linear-gradient(135deg,#141726 0%,#12161F 38%,#111A18 68%,#1A1712 100%)",
+const C = {
+  navyDark: "#03060F",
+  navy: "#0A1638",
+  blue: "#3E7BFF",
+  blueSoft: "#8FB2FF",
+  white: "#FFFFFF",
+  onNavySub: "rgba(255,255,255,0.68)",
+  onNavyMute: "rgba(255,255,255,0.48)",
+  onNavyLine: "rgba(255,255,255,0.14)",
+  glass: "rgba(255,255,255,0.06)",
+  glassStrong: "rgba(255,255,255,0.09)",
+  red: "#FF6B6B",
 };
-/* Readability scrim over the collage, on the copy side. */
-const COPY_SCRIM = {
-  light: "linear-gradient(102deg, rgba(238,243,252,0.9) 0%, rgba(238,243,252,0.55) 26%, transparent 55%)",
-  dark:  "linear-gradient(102deg, rgba(16,18,26,0.92) 0%, rgba(16,18,26,0.6) 26%, transparent 55%)",
-};
 
-/* ════════════════════════════════════════════════════════════════════════
-   EDIT HERE — the creator posts in the login collage.
+const CYCLE = ["tracked.", "organized.", "on time."];
 
-   Drop image files into  public/login-posts/  and point `image` at them, e.g.
-   "/login-posts/anjali-salad.jpg". Paths are absolute from the site root, so
-   they always start with a slash and no import is needed.
+function mockLogin(email, password) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      if (!email.includes("@")) {
+        resolve({ ok: false, error: "Enter a valid email address." });
+      } else if (password.length < 4) {
+        resolve({ ok: false, error: "That password doesn't look right." });
+      } else {
+        resolve({ ok: true });
+      }
+    }, 850);
+  });
+}
 
-   · Any entry whose image is missing or fails to load falls back to the
-     coloured gradient + emoji, so a wrong path never breaks the page.
-   · Set `image: null` to use the gradient look deliberately.
-   · Add or remove entries freely — they're dealt into the scrolling columns
-     round-robin, and each column loops seamlessly however many it gets.
-   · Portrait crops (9:13) look best; anything else is centre-cropped.
-   ════════════════════════════════════════════════════════════════════════ */
-const POSTS = [
-  { handle: "@tastewithanjali", like: "128K", image: "/login-posts/01.jpg", hue: "blue",   emoji: "🥗" },
-  { handle: "@breakfastclub",   like: "94K",  image: "/login-posts/02.jpg", hue: "orange", emoji: "🍳" },
-  { handle: "@freshfuel",       like: "212K", image: "/login-posts/03.jpg", hue: "green",  emoji: "🥑" },
-  { handle: "@reelsbykaya",     like: "76K",  image: "/login-posts/04.jpg", hue: "blue",   emoji: "🎬" },
-  { handle: "@spicerouteco",    like: "154K", image: "/login-posts/05.jpg", hue: "orange", emoji: "🌶️" },
-  { handle: "@morningpour",     like: "88K",  image: "/login-posts/06.jpg", hue: "green",  emoji: "☕" },
-];
+function useRisingDiamonds(reduced) {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => {
+      const id = Date.now() + Math.random();
+      setItems((cur) => [
+        ...cur,
+        { id, x: 4 + Math.random() * 92, size: 5 + Math.random() * 6, dur: 6 + Math.random() * 3 },
+      ]);
+      setTimeout(() => setItems((cur) => cur.filter((it) => it.id !== id)), 9200);
+    }, 550);
+    return () => clearInterval(t);
+  }, [reduced]);
+  return items;
+}
 
-/* How fast each column scrolls, in seconds per full loop. One entry per
-   column — the number of entries IS the number of columns. Alternating signs
-   make neighbouring columns travel in opposite directions. */
-const COLUMNS = [46, -38];
-
-/* Fallback gradients, used when a post has no usable image. */
-const HUES = {
-  blue:   "linear-gradient(155deg,#6E8BE4,#3B54A6)",
-  orange: "linear-gradient(155deg,#F5B36C,#E4863A)",
-  green:  "linear-gradient(155deg,#6BC79A,#279E63)",
-};
-const CYCLE = ["watching.", "sharing.", "loving."];
-const HEARTS = ["❤️"];
-
-/** One post card. Shows the image when it loads; on a 404 or a null path it
-    swaps to the gradient + emoji treatment so the column never shows a broken
-    image icon. */
-function PostCard({ post }) {
-  const [failed, setFailed] = useState(false);
-  const showImage = post.image && !failed;
-
+function Diamond({ size, style }) {
   return (
-    <div
-      className="group relative w-full overflow-hidden rounded-[20px] shadow-[0_20px_45px_rgba(25,22,17,0.18)] ring-1 ring-white/15 transition-transform duration-500 hover:scale-[1.03]"
-      style={{ aspectRatio: "9 / 13", background: HUES[post.hue] }}
-    >
-      {showImage ? (
-        <img
-          src={post.image}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          onError={() => setFailed(true)}
-          className="absolute inset-0 size-full object-cover"
-        />
-      ) : (
-        <span
-          className="absolute inset-0 flex items-center justify-center text-[44px]"
-          style={{ filter: "drop-shadow(0 6px 12px rgba(0,0,0,0.25))" }}
-        >
-          {post.emoji}
-        </span>
-      )}
-
-      {/* top + bottom scrims so the handle and like count stay legible on any
-          photo, however light or busy it is */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 28%, transparent 62%, rgba(0,0,0,0.5) 100%)" }}
-      />
-
-      <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 p-2.5">
-        <span className="flex size-5 items-center justify-center rounded-full bg-white/90 text-[10px] shadow-sm">{post.emoji}</span>
-        <span className="truncate text-[10px] font-semibold text-white drop-shadow-sm">{post.handle}</span>
-      </div>
-
-      <div className="absolute inset-x-0 bottom-0 flex justify-center p-2.5">
-        <span className="flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
-          <span>❤</span> {post.like}
-        </span>
-      </div>
-    </div>
+    <svg width={size} height={size} viewBox="0 0 16 16" style={style}>
+      <polygon points="8,0 16,8 8,16 0,8" fill="none" stroke={C.blueSoft} strokeWidth="1.3" />
+    </svg>
   );
 }
 
-/** A column of posts scrolling forever. The list is rendered twice and the
-    track travels exactly -50%, so the second copy lands where the first began
-    and the loop is seamless. A negative `speed` scrolls the other way. */
-function PostColumn({ posts, speed, parallaxX, parallaxY, depth }) {
-  const x = useTransform(parallaxX, (v) => v * depth);
-  const y = useTransform(parallaxY, (v) => v * depth);
-
-  return (
-    <motion.div className="relative w-[clamp(118px,12vw,158px)] flex-none overflow-hidden" style={{ x, y }}>
-      <div
-        className="login-marquee flex flex-col gap-5"
-        style={{
-          "--marquee-duration": `${Math.abs(speed)}s`,
-          animationDirection: speed < 0 ? "reverse" : "normal",
-        }}
-      >
-        {[...posts, ...posts].map((post, i) => (
-          <PostCard key={`${post.handle}-${i}`} post={post} />
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
-export default function LoginPage() {
+export default function FifthAvenueLogin() {
   const { login } = useAuth();
-  const { resolved } = useTheme();
   const navigate = useNavigate();
-  const location = useLocation();
-  const reduced = useReducedMotion();
-  // Pre-filled from `?email=` when arriving from the internal app's Access &
-  // Credentials page ("Client login ↗"), so whoever is checking a brand's view
-  // doesn't retype the address. Read once as the initial state rather than in an
-  // effect: a later sync would fight the user's own typing, and the param is
-  // only ever meaningful on first paint. The password is never accepted this
-  // way — see openClientLogin in 5th-internal-front.
-  const [email, setEmail] = useState(
-    () => new URLSearchParams(location.search).get("email") || ""
-  );
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const fn = () => setReduced(mq.matches);
+    mq.addEventListener?.("change", fn);
+    return () => mq.removeEventListener?.("change", fn);
+  }, []);
+
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-
+  const [success, setSuccess] = useState(false);
+  const [shake, setShake] = useState(false);
   const [word, setWord] = useState(0);
-  const [hearts, setHearts] = useState([]);
-  const panelRef = useRef(null);
+  const [mx, setMx] = useState(0);
+  const [my, setMy] = useState(0);
 
-  /* cursor parallax (springy) */
-  const px = useSpring(0, { stiffness: 55, damping: 16 });
-  const py = useSpring(0, { stiffness: 55, damping: 16 });
+  const sceneRef = useRef(null);
+  const diamonds = useRisingDiamonds(reduced);
+
   const onMove = (e) => {
     if (reduced) return;
-    const r = panelRef.current?.getBoundingClientRect();
+    const r = sceneRef.current?.getBoundingClientRect();
     if (!r) return;
-    px.set(((e.clientX - r.left) / r.width - 0.5) * -34);
-    py.set(((e.clientY - r.top) / r.height - 0.5) * -26);
+    setMx(((e.clientX - r.left) / r.width - 0.5) * -24);
+    setMy(((e.clientY - r.top) / r.height - 0.5) * -16);
   };
 
-  /* cycling headline word */
   useEffect(() => {
     if (reduced) return;
     const t = setInterval(() => setWord((w) => (w + 1) % CYCLE.length), 2200);
     return () => clearInterval(t);
   }, [reduced]);
 
-  /* live stream of rising hearts (self-pruning) */
-  useEffect(() => {
-    if (reduced) return;
-    const t = setInterval(() => {
-      const id = Date.now() + Math.random();
-      setHearts((h) => [...h, { id, x: 18 + Math.random() * 64, emoji: HEARTS[Math.floor(Math.random() * HEARTS.length)] }]);
-      setTimeout(() => setHearts((h) => h.filter((x) => x.id !== id)), 3400);
-    }, 750);
-    return () => clearInterval(t);
-  }, [reduced]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading || success) return;
     setErr("");
     setLoading(true);
     const result = await login(email, password);
-    setLoading(false);
-    if (result.ok) navigate(location.state?.from?.pathname || "/portal/overview", { replace: true });
-    else setErr(result.error);
+    if (result.ok) {
+      setLoading(false);
+      navigate("/portal/overview", { replace: true });
+    } else {
+      setLoading(false);
+      setErr(result.error);
+      setShake(true);
+      setTimeout(() => setShake(false), 480);
+    }
   };
 
-  const inputCls = "w-full rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-3 text-[13.5px] text-ink outline-none backdrop-blur-sm transition-all duration-200 focus:border-accent/50 focus:shadow-[0_0_0_4px_var(--accent-muted)] focus:bg-surface";
-  const labelCls = "mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.1em] text-mute";
+  const disabled = loading || success || !email || !password;
 
   return (
-    <MotionConfig reducedMotion="user">
-      <div ref={panelRef} onMouseMove={onMove}
-        className="relative flex min-h-screen w-full overflow-hidden font-sans"
-        style={{ background: PAGE_WASH[resolved] }}>
+    <div
+      ref={sceneRef}
+      onMouseMove={onMove}
+      style={{
+        position: "relative", minHeight: "100vh", width: "100%", overflow: "hidden",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: 18, boxSizing: "border-box", padding: "24px 16px",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif",
+        background: `radial-gradient(120% 90% at 50% 0%, ${C.navy} 0%, ${C.navyDark} 68%)`,
+        borderRadius: "20px",
+      }}
+    >
+      <style>{`
+        @keyframes fa-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        @keyframes fa-griddrift { from { transform: translate(0,0); } to { transform: translate(-64px,-64px); } }
+        @keyframes fa-shine { 0% { transform: translateX(-130%) skewX(-20deg); } 100% { transform: translateX(230%) skewX(-20deg); } }
+        @keyframes fa-burst { 0% { transform: scale(0.5); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
+        @keyframes fa-orb1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-20px) scale(1.08); } }
+        @keyframes fa-orb2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-26px,24px) scale(1.08); } }
+        @keyframes fa-rise { 0% { opacity: 0; transform: translateY(0) rotate(0deg); } 10% { opacity: 0.85; } 90% { opacity: 0.85; } 100% { opacity: 0; transform: translateY(-540px) rotate(90deg); } }
+        @keyframes fa-pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }
+        @keyframes fa-fadeup { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fa-wordin { from { opacity: 0; transform: translateY(0.5em); filter: blur(4px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+        @keyframes fa-spin { to { transform: rotate(360deg); } }
+        .fa-shine-btn { position: absolute; top: 0; left: 0; width: 40%; height: 100%; background: linear-gradient(120deg, transparent, rgba(255,255,255,0.55), transparent); animation: fa-shine 2.6s ease-in-out infinite; pointer-events: none; }
+        .fa-input { transition: all 0.2s; }
+        .fa-input:focus { border-color: ${C.blue} !important; box-shadow: 0 0 0 4px ${C.blue}33 !important; background: rgba(255,255,255,0.08) !important; }
+        .fa-input::placeholder { color: rgba(255,255,255,0.32); }
+        @media (max-width: 640px) {
+          .fa-login-brand { left: 16px !important; top: 16px !important; gap: 10px !important; }
+          .fa-login-brand span { font-size: 14px !important; letter-spacing: 0.18em !important; }
+          .fa-login-headline { margin-top: 48px !important; padding: 0 8px; }
+          .fa-login-card { width: 100% !important; max-width: 100% !important; padding: 22px 18px !important; border-radius: 20px !important; }
+          .fa-login-footer { margin-bottom: 8px !important; }
+        }
+        @media (prefers-reduced-motion: reduce) { .fa-anim { animation: none !important; } }
+      `}</style>
 
-        {/* page-wide drifting colour blobs — blue · green · orange */}
-        <div className="pointer-events-none absolute inset-0">
-          {[
-            { c: "#7FA0EC", cls: "left-[-8%] top-[-12%] size-[460px]", dur: 17, dx: 40, dy: -30 },
-            { c: "#8BD9AC", cls: "bottom-[-14%] left-[26%] size-[420px]", dur: 21, dx: -34, dy: 26 },
-            { c: "#F6C489", cls: "right-[8%] top-[24%] size-[380px]", dur: 24, dx: 30, dy: 34 },
-          ].map((b, i) => (
-            <motion.div key={i} className={`absolute rounded-full blur-[90px] opacity-50 ${b.cls}`}
-              style={{ background: `radial-gradient(circle,${b.c},transparent 70%)` }}
-              animate={reduced ? undefined : { x: [0, b.dx, 0], y: [0, b.dy, 0], scale: [1, 1.12, 1] }}
-              transition={reduced ? undefined : { duration: b.dur, repeat: Infinity, ease: "easeInOut" }} />
-          ))}
-        </div>
+      <svg
+        style={{
+          position: "absolute", inset: "-64px", opacity: 0.12, pointerEvents: "none",
+          transform: `translate(${mx * 0.4}px, ${my * 0.4}px)`, transition: "transform 0.3s ease-out",
+        }}
+        width="120%" height="120%"
+      >
+        <defs>
+          <pattern id="fa-grid2" width="46" height="46" patternUnits="userSpaceOnUse">
+            <path d="M46 0H0V46" fill="none" stroke={C.blueSoft} strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#fa-grid2)" className="fa-anim" style={{ animation: reduced ? "none" : "fa-griddrift 14s linear infinite" }} />
+      </svg>
 
-        {/* ── LEFT — motion scene ── */}
-        <div className="relative hidden w-[52%] min-w-[420px] flex-col justify-between p-12 md:flex">
-          {/* continuously scrolling collage of creator posts */}
-          <div className="pointer-events-none absolute inset-0"
-            style={{ maskImage: "radial-gradient(140% 100% at 65% 45%, #000 55%, transparent 92%)", WebkitMaskImage: "radial-gradient(140% 100% at 65% 45%, #000 55%, transparent 92%)" }}>
-            {/* Kept to a band on the right of the panel so the wordmark and
-                headline on the left stay clear. The track runs taller than the
-                panel so posts are always entering and leaving, never flush. */}
-            <div className="pointer-events-auto absolute right-0 flex gap-5 pr-10"
-              style={{ top: "-12%", bottom: "-12%" }}>
-              {COLUMNS.map((speed, col) => (
-                <PostColumn
-                  key={col}
-                  speed={speed}
-                  depth={1 + col * 0.6}
-                  parallaxX={px}
-                  parallaxY={py}
-                  /* deal the posts out round-robin so neighbouring columns
-                     never show the same image side by side */
-                  posts={POSTS.filter((_, i) => i % COLUMNS.length === col)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* rising hearts */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <AnimatePresence>
-              {hearts.map((h) => (
-                <motion.span key={h.id} className="absolute bottom-[16%] text-[18px]" style={{ left: `${h.x}%` }}
-                  initial={{ opacity: 0, y: 0, scale: 0.5 }}
-                  animate={{ opacity: [0, 0.95, 0.95, 0], y: -190, scale: 1.1, x: [0, 10, -8, 0] }}
-                  exit={{ opacity: 0 }} transition={{ duration: 3.3, ease: "easeOut" }}>
-                  {h.emoji}
-                </motion.span>
-              ))}
-            </AnimatePresence>
-          </div>
-
-          {/* readability scrim on the copy side */}
-          <div className="pointer-events-none absolute inset-0" style={{ background: COPY_SCRIM[resolved] }} />
-
-          {/* brand */}
-          <motion.div className="relative" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-            <Link to="/" className="inline-block font-sans text-[18px] font-light uppercase tracking-[0.26em] text-accent transition-opacity hover:opacity-70">Fifth Avenue</Link>
-            <div className="mt-2 flex items-center gap-2 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-accent/55">
-              <span className="h-px w-6 bg-accent/30" /> Client Portal
-            </div>
-          </motion.div>
-
-          {/* headline */}
-          <motion.div className="relative max-w-[340px]" initial="hide" animate="show"
-            variants={{ show: { transition: { staggerChildren: 0.09, delayChildren: 0.15 } } }}>
-            {[
-              <div key="k" className="inline-flex items-center gap-1.5 rounded-full bg-surface/75 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent shadow-sm backdrop-blur-sm">
-                <motion.span className="size-1.5 rounded-full bg-green" animate={reduced ? undefined : { scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }} transition={reduced ? undefined : { duration: 1.6, repeat: Infinity }} /> Live creator feed
-              </div>,
-              <h2 key="h" className="mt-3 font-serif text-[clamp(30px,3.6vw,40px)] italic font-medium leading-[1.14] text-ink">
-                The content people<br />can't stop{" "}
-                <span className="relative inline-block align-baseline">
-                  <AnimatePresence mode="wait">
-                    <motion.span key={word} className="inline-block bg-gradient-to-r from-accent via-teal to-green bg-clip-text text-transparent"
-                      initial={{ y: "0.5em", opacity: 0, filter: "blur(4px)" }}
-                      animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-                      exit={{ y: "-0.5em", opacity: 0, filter: "blur(4px)" }}
-                      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
-                      {CYCLE[word]}
-                    </motion.span>
-                  </AnimatePresence>
-                </span>
-              </h2>,
-              <p key="p" className="mt-3 text-[12.5px] leading-relaxed text-sub">
-                Track your creators, campaigns and reach — from brief to the reels your audience is loving right now.
-              </p>,
-            ].map((el, i) => (
-              <motion.div key={i} variants={{ hide: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } } }}>
-                {el}
-              </motion.div>
-            ))}
-          </motion.div>
-
-          <motion.div className="relative text-[11px] text-mute" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-            © 5th Avenue Marketing
-          </motion.div>
-        </div>
-
-        {/* ── RIGHT — sign-in form (functionality unchanged) ── */}
-        <div className="relative flex flex-1 items-center justify-center px-6">
-          <motion.form
-            onSubmit={handleSubmit}
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-[380px] rounded-[28px] border border-line bg-[--color-glass] p-9 shadow-[0_30px_80px_rgba(25,22,17,0.12)] backdrop-blur-2xl"
-          >
-            <Link to="/" className="mb-4 inline-block font-sans text-[15px] font-light uppercase tracking-[0.22em] text-accent md:hidden">Fifth Avenue</Link>
-
-            <h1 className="mt-3 font-serif text-[30px] italic font-semibold leading-tight text-ink">Sign in</h1>
-            <p className="mb-7 mt-1.5 text-[12.5px] text-sub">Use the credentials issued to your brand by 5th Avenue.</p>
-
-            <div className="mb-4">
-              <label className={labelCls}>Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="you@yourbrand.com" autoComplete="username" className={inputCls} />
-            </div>
-            <div className="mb-5">
-              <label className={labelCls}>Password</label>
-              {/* Arriving with the email already filled, the only field left is
-                  this one — so the cursor starts here rather than making the
-                  user click past a box that's already correct. */}
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                autoFocus={!!email}
-                placeholder="••••••••" autoComplete="current-password" className={inputCls} />
-            </div>
-
-            <AnimatePresence>
-              {err && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                  className="mb-4 flex items-center gap-2 overflow-hidden rounded-[12px] border border-red/20 bg-red/[0.05] px-3.5 py-2.5 text-[12px] font-medium text-red">
-                  <span className="text-[13px]">⚠</span>{err}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <button type="submit" disabled={loading || !email || !password}
-              className={`group relative w-full overflow-hidden rounded-full py-3 text-[13px] font-semibold transition-all duration-[250ms] ease-out ${
-                loading || !email || !password
-                  ? "cursor-not-allowed bg-well text-mute"
-                  : "bg-accent text-white shadow-[0_10px_28px_rgba(44,62,126,0.35)] hover:-translate-y-px hover:shadow-[0_16px_36px_rgba(44,62,126,0.45)] active:translate-y-0"
-              }`}>
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                {loading && <span className="size-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-                {loading ? "Signing in…" : "Sign in"}
-              </span>
-              {!loading && email && password && (
-                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-              )}
-            </button>
-
-            <p className="mt-5 text-center text-[11px] leading-relaxed text-mute">
-              Lost your credentials? Contact your 5th Avenue account manager.
-            </p>
-          </motion.form>
-        </div>
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <div className="fa-anim" style={{ position: "absolute", left: "-8%", top: "-14%", width: 420, height: 420, borderRadius: "50%", filter: "blur(100px)", background: `radial-gradient(circle, ${C.blue}, transparent 70%)`, opacity: 0.42, animation: reduced ? "none" : "fa-orb1 18s ease-in-out infinite" }} />
+        <div className="fa-anim" style={{ position: "absolute", right: "-10%", bottom: "-16%", width: 460, height: 460, borderRadius: "50%", filter: "blur(110px)", background: `radial-gradient(circle, ${C.blue}, transparent 70%)`, opacity: 0.32, animation: reduced ? "none" : "fa-orb2 22s ease-in-out infinite" }} />
       </div>
-    </MotionConfig>
+
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+        {diamonds.map((d) => (
+          <span key={d.id} style={{ position: "absolute", bottom: "-4%", left: `${d.x}%`, animation: `fa-rise ${d.dur}s linear forwards` }}>
+            <Diamond size={d.size} />
+          </span>
+        ))}
+      </div>
+
+      <div className="fa-login-brand" onClick={() => navigate(-1)} style={{ position: "absolute", left: 32, top: 32, display: "inline-flex", alignItems: "center", gap: 12, cursor: "pointer", animation: reduced ? "none" : "fa-fadeup 0.5s cubic-bezier(0.16,1,0.3,1)" }}>
+        <svg width="32" height="32" viewBox="0 0 16 16" style={{ filter: `drop-shadow(0 0 4px ${C.blue}90)` }}>
+          <polygon points="8,0 16,8 8,16 0,8" fill="none" stroke={C.blue} strokeWidth="1.4" />
+        </svg>
+        <span style={{ fontSize: 20, fontWeight: 300, textTransform: "uppercase", letterSpacing: "0.26em", color: C.white }}>Fifth Avenue</span>
+      </div>
+
+      <div className="fa-login-headline" style={{ position: "relative", marginTop: 18, textAlign: "center", animation: reduced ? "none" : "fa-fadeup 0.6s 0.05s cubic-bezier(0.16,1,0.3,1) both", maxWidth: 760 }}>
+        <h1 style={{ margin: "12px 0 0", fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontWeight: 500, fontSize: "clamp(26px,3.6vw,34px)", lineHeight: 1.15, color: C.white }}>
+          Every campaign, perfectly{" "}
+          <span style={{ position: "relative", display: "inline-block" }}>
+            <span key={word} className="fa-anim" style={{ display: "inline-block", background: `linear-gradient(90deg, ${C.blueSoft}, ${C.white})`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: reduced ? "none" : "fa-wordin 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
+              {CYCLE[word]}
+            </span>
+          </span>
+        </h1>
+      </div>
+
+      <form
+        className="fa-login-card"
+        onSubmit={handleSubmit}
+        style={{
+          position: "relative", marginTop: 32, marginBottom: 20, width: "min(100%, 400px)", maxWidth: 400,
+          boxSizing: "border-box",
+          borderRadius: 24, padding: 32, background: C.glass, backdropFilter: "blur(14px)",
+          border: `1px solid ${err ? `${C.red}55` : C.onNavyLine}`,
+          boxShadow: "0 40px 90px rgba(0,0,0,0.35)",
+          animation: reduced ? "none" : "fa-fadeup 0.6s 0.12s cubic-bezier(0.16,1,0.3,1) both",
+          transform: shake ? "translateX(0)" : undefined,
+        }}
+        className={shake ? "" : ""}
+      >
+        {success && (
+          <>
+            <div style={{ position: "absolute", inset: 0, borderRadius: 24, pointerEvents: "none", border: `2px solid ${C.blue}`, animation: "fa-burst 0.8s ease-out forwards" }} />
+            <div style={{ position: "absolute", inset: 0, borderRadius: 24, pointerEvents: "none", border: `2px solid ${C.blueSoft}`, animation: "fa-burst 0.8s 0.12s ease-out forwards" }} />
+          </>
+        )}
+
+        <h2 style={{ margin: 0, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontWeight: 600, fontSize: 24, lineHeight: 1.2, background: `linear-gradient(90deg, ${C.white}, ${C.blueSoft}, ${C.white})`, backgroundSize: "200% auto", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: reduced ? "none" : "fa-shimmer 5s linear infinite" }}>
+          {success ? "Welcome back" : "Sign in"}
+        </h2>
+        <p style={{ margin: "6px 0 22px", fontSize: 12.5, color: C.onNavySub }}>
+          Use the credentials issued to your brand by 5th Avenue.
+        </p>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: C.onNavyMute }}>Email</label>
+          <input
+            type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }}
+            placeholder="you@yourbrand.com" autoComplete="username" className="fa-input"
+            style={{ width: "100%", boxSizing: "border-box", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, outline: "none", color: C.white, background: "rgba(255,255,255,0.05)", border: `1.5px solid ${err ? C.red : C.onNavyLine}` }}
+          />
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: C.onNavyMute }}>Password</label>
+          <input
+            type="password" value={password} onChange={(e) => { setPassword(e.target.value); setErr(""); }}
+            placeholder="••••••••" autoComplete="current-password" className="fa-input"
+            style={{ width: "100%", boxSizing: "border-box", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, outline: "none", color: C.white, background: "rgba(255,255,255,0.05)", border: `1.5px solid ${err ? C.red : C.onNavyLine}` }}
+          />
+        </div>
+
+        {err && (
+          <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8, borderRadius: 12, padding: "10px 14px", fontSize: 12, fontWeight: 500, border: `1px solid ${C.red}55`, background: `${C.red}1A`, color: "#FFB4B4" }}>
+            <span style={{ fontSize: 13 }}>⚠</span>{err}
+          </div>
+        )}
+
+        <button
+          type="submit" disabled={disabled}
+          style={{
+            position: "relative", width: "100%", overflow: "hidden", borderRadius: 999, padding: "13px 0",
+            fontSize: 13, fontWeight: 600, border: "none", cursor: disabled ? "not-allowed" : "pointer",
+            background: loading || !email || !password ? "rgba(255,255,255,0.1)" : `linear-gradient(120deg, ${C.blue}, ${C.blueSoft})`,
+            color: loading || !email || !password ? C.onNavyMute : C.white,
+            boxShadow: loading || !email || !password ? "none" : `0 14px 30px ${C.blue}55`,
+            transition: "all 0.25s ease-out",
+          }}
+        >
+          <span style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {loading && <span className="fa-anim" style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "#fff", animation: "fa-spin 0.8s linear infinite" }} />}
+            {success ? "Welcome" : loading ? "Signing in…" : "Sign in"}
+          </span>
+          {!loading && !success && email && password && <span className="fa-shine-btn" />}
+        </button>
+
+        <p style={{ marginTop: 18, textAlign: "center", fontSize: 11, lineHeight: 1.6, color: C.onNavyMute }}>
+          Lost your credentials? Contact your 5th Avenue account manager.
+        </p>
+      </form>
+
+      <div className="fa-login-footer" style={{ position: "relative", marginBottom: 24, fontSize: 11, color: C.onNavyMute, textAlign: "center" }}>© 5th Avenue Marketing</div>
+    </div>
   );
 }
