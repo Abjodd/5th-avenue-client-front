@@ -46,6 +46,12 @@ export const fmtINR = (n) => {
   return `${sign}₹${a.toLocaleString("en-IN")}`;
 };
 
+// Cost per view, in rupees and paise. fmtINR's lakh/crore scale is useless
+// here — an external CPV lives between ₹0.05 and ₹5, where the two decimals
+// ARE the number.
+export const fmtCPV = (n) =>
+  n == null || !Number.isFinite(Number(n)) ? "—" : `₹${Number(n).toFixed(2)}`;
+
 export const initials = (name) =>
   (name || "?").split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 
@@ -53,7 +59,7 @@ export const initials = (name) =>
 // Deliberately not prettyDate: an axis tick has no room for a year, and every
 // point on one of these charts is inside the same few weeks anyway.
 //
-// Shared because the campaign drawer's Growth tab and the Overview's
+// Shared because the campaign's Growth tab and the Overview's
 // account-wide curve plot the same series — two copies of this is how their
 // axes start disagreeing about how a day is written.
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

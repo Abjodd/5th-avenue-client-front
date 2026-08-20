@@ -21,6 +21,7 @@ import {
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { usePortalCampaigns } from "../lib/usePortalData";
+import { usePersistentState } from "../lib/usePersistentState";
 import { fmtNum, fmtINR, prettyDate, initials, dayLabel } from "../lib/format";
 import { phaseColors as phaseColorsFor } from "../lib/phases";
 import { INTRO_KEY } from "../lib/session";
@@ -231,17 +232,26 @@ const GROWTH_METRICS = [
 ];
 
 /**
- * The account-wide version of the Growth tab in a campaign's detail drawer.
+ * The account-wide version of the Growth tab in a campaign's detail view.
  * Same numbers, same carry-forward rule — growthAcross() and growthSeries()
  * share one basis, so this panel and that tab can never disagree.
  *
- * Deliberately no per-creator split: a roster spanning every campaign the brand
- * runs is far too many lines to read, and "whose post is carrying this" is a
- * question about one campaign, which is where that control lives.
+ * The chart sits beside a per-post breakdown rather than being stretched over
+ * the full width of the page. Full-width it was a 480px-tall wash with a line
+ * pinned along the top: a cumulative total that grew 8.5M → 9.2M has nowhere
+ * to go on a zero-based axis, and the panel spent its space on the 90% of the
+ * plot nothing ever enters. The breakdown answers the question that empty
+ * space never did — which post is carrying this — and reads whichever day the
+ * cursor is on, so the two halves always describe the same moment.
  */
 function AccountGrowth({ growth, palette }) {
   const [metricId, setMetricId] = useState("views");
-  const { points, creators, campaigns } = growth;
+  // Which reading the breakdown describes. Hover previews, a click pins it so
+  // the list can be read without holding the cursor on the chart, and with
+  // neither the panel shows the most recent reading.
+  const [hovered, setHovered] = useState(null);
+  const [pinned, setPinned] = useState(null);
+  const { points, byPost, creators, campaigns } = growth;
 
   // Two readings are needed before there is a shape to draw. The panel says so
   // rather than plotting a lone dot, and reports what IS being tracked so an
@@ -264,6 +274,27 @@ function AccountGrowth({ growth, palette }) {
   const first = points[0];
   const last = points[points.length - 1];
 
+  const at = Math.min(hovered ?? pinned ?? points.length - 1, points.length - 1);
+  const row = byPost.rows[at] || {};
+  const prevRow = at > 0 ? byPost.rows[at - 1] || {} : null;
+  const total = points[at][metric.id] || 0;
+
+  // One line per post, biggest first. A post with no reading yet on this day
+  // is left out rather than listed at zero — the same rule the curve follows.
+  const breakdown = byPost.series
+    .map((post) => {
+      const value = row[`${post.key}_${metric.id}`];
+      const prev = prevRow?.[`${post.key}_${metric.id}`];
+      return {
+        ...post,
+        value,
+        gain: value != null && prev != null ? value - prev : null,
+        share: total > 0 && value != null ? (value / total) * 100 : 0,
+      };
+    })
+    .filter((p) => p.value != null)
+    .sort((a, b) => b.value - a.value);
+
   return (
     <Panel reveal className="px-6 py-5">
       <PanelTitle
@@ -273,18 +304,62 @@ function AccountGrowth({ growth, palette }) {
         hint={`${fmtNum(last[metric.id])} · +${fmtNum(last[metric.id] - first[metric.id])} since ${dayLabel(first.date)} · ${creators} post${creators === 1 ? "" : "s"} across ${campaigns} campaign${campaigns === 1 ? "" : "s"}`}
         action={<MetricSwitch label="Growth" options={GROWTH_METRICS} value={metric.id} onChange={setMetricId} />}
       />
-      <LineChart
-        // Full labels: LineChart thins the axis itself (maxTicks) and needs
-        // every date intact for the hover readout.
-        labels={points.map((p) => dayLabel(p.date))}
-        primary={{
-          label: metric.label,
-          color,
-          values: points.map((p) => p[metric.id]),
-          format: fmtNum,
-        }}
-        height={230}
-      />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_270px]">
+        <LineChart
+          // Full labels: LineChart thins the axis itself (maxTicks) and needs
+          // every date intact for the hover readout.
+          labels={points.map((p) => dayLabel(p.date))}
+          primary={{ label: metric.label, color, values: points.map((p) => p[metric.id]), format: fmtNum }}
+          height={220}
+          fit
+          activeIndex={pinned}
+          onHover={setHovered}
+          onSelect={(i) => setPinned((cur) => (cur === i ? null : i))}
+        />
+
+        <div className="min-w-0 lg:border-l lg:border-line lg:pl-5">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="microlabel">{dayLabel(points[at].date)}</span>
+            {pinned != null ? (
+              <button onClick={() => setPinned(null)} className="text-[10px] font-semibold text-accent hover:underline">
+                unpin
+              </button>
+            ) : (
+              <span className="text-[10px] text-mute">
+                {hovered != null ? "click to pin" : "latest"}
+              </span>
+            )}
+          </div>
+          <div className="tnum mt-1 text-[24px] font-bold leading-none" style={{ color }}>{fmtNum(total)}</div>
+          <div className="mt-1 text-[11px] text-mute">
+            {breakdown.length} post{breakdown.length === 1 ? "" : "s"} measured by this day
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2.5 border-t border-line pt-3">
+            {breakdown.map((post) => (
+              <div key={post.key}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate text-[12px] font-medium text-ink">{post.name}</span>
+                  <span className="tnum shrink-0 text-[12px] font-semibold text-ink">{fmtNum(post.value)}</span>
+                </div>
+                <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate text-[10px] text-mute">{post.campaign || "—"}</span>
+                  {/* The day's gain, not the running total — the one number
+                      that says whether this post is still moving. */}
+                  {post.gain != null && post.gain > 0 && (
+                    <span className="tnum shrink-0 text-[10px] font-semibold text-green">+{fmtNum(post.gain)}</span>
+                  )}
+                </div>
+                <div className="mt-1.5 h-[4px] overflow-hidden rounded-full bg-well">
+                  <div className="h-full rounded-full transition-[width] duration-300"
+                    style={{ width: `${post.share}%`, background: color, opacity: 0.75 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </Panel>
   );
 }
@@ -303,7 +378,9 @@ export default function OverviewDashboard() {
   const firstName = user?.name?.split(/\s+/)[0] || clientName;
 
   const { data: campaigns, error, retry } = usePortalCampaigns(); // null = loading
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  // Persisted: a filter holds until it is cleared, not until you look at
+  // another page. "Clear all" in the filter bar is the way out.
+  const [filters, setFilters] = usePersistentState("overview.filters", EMPTY_FILTERS);
 
   const introSeen = sessionStorage.getItem(INTRO_KEY) === "1";
   const [introDone, setIntroDone] = useState(introSeen);     // gates the dashboard cascade

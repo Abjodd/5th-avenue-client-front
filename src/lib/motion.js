@@ -27,17 +27,11 @@ export const staggerParent = (stagger = 0.06, delayChildren = 0) => ({
   show: { transition: { staggerChildren: stagger, delayChildren } },
 });
 
-/* ── Overlay / drawer variants ── */
+/* ── Overlay / modal variants ── */
 export const overlayFade = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { duration: 0.25, ease: "easeOut" } },
   exit: { opacity: 0, transition: { duration: 0.2, ease: "easeIn" } },
-};
-
-export const drawerRight = {
-  hidden: { x: "104%" },
-  show: { x: 0, transition: { type: "spring", stiffness: 300, damping: 32 } },
-  exit: { x: "104%", transition: { duration: 0.25, ease: [0.4, 0, 1, 1] } },
 };
 
 export const popModal = {

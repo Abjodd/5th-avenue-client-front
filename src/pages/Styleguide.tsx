@@ -108,9 +108,9 @@ function Inner() {
           <CardTitle title="By niche" />
           <BarList avg={5} items={[{ label: "Food", value: 6.2, display: "6.2%", color: "var(--viz-blue)", flag: "high" }, { label: "Fitness", value: 5.4, display: "5.4%", color: "var(--viz-green)" }, { label: "Lifestyle", value: 3.0, display: "3.0%", color: "var(--viz-purple)", flag: "low" }]} />
         </Card>
-        <Card className="w-80">
+        <Card className="w-96">
           <CardTitle title="Funnel" />
-          <Funnel stages={[{ stage: "Impressions", value: 100, display: "17M", color: "var(--viz-blue)" }, { stage: "Reach", value: 65, display: "6.6M", color: "var(--viz-purple)" }, { stage: "Engagements", value: 22, display: "310K", color: "var(--viz-pink)" }, { stage: "Clicks", value: 8, display: "45K", color: "var(--viz-green)" }]} />
+          <Funnel stages={[{ stage: "Reach", value: 65, display: "6.6M", color: "var(--viz-purple)" }, { stage: "Views", value: 100, display: "17M", color: "var(--viz-blue)" }, { stage: "Engagements", value: 22, display: "310K", color: "var(--viz-pink)" }]} />
         </Card>
         <Card className="w-full max-w-md">
           <CardTitle title="By campaign" />

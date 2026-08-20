@@ -3,7 +3,7 @@
  * tooltips flip with light/dark rather than being hardcoded.
  *
  * Lives here because more than one panel draws charts now (the Overview's
- * PerformanceSection and the campaign drawer's growth chart). It was local to
+ * PerformanceSection and the campaign's growth chart). It was local to
  * PerformanceSection; copying it to the second caller would have left two
  * definitions to keep in step, and the first theme tweak would have silently
  * applied to one chart and not the other.
