@@ -1,8 +1,8 @@
-// src/components/campaigns/DetailPanel.jsx — slide-in campaign drawer.
-// Overview / Brief / Creators / Queries tabs. New in the redesign (all real
-// backend data that was previously discarded): a Live Performance section
-// (tracking views/likes/comments/shares), a comment-sentiment strip
-// (positivityScore + commentAnalysis), and live-post links per creator.
+// src/components/campaigns/CampaignDetail.jsx — a campaign, opened in the
+// main view rather than in a drawer over the board. Overview / Brief /
+// Creators / Growth / Queries tabs. A campaign carries a roster, a brief, a
+// sentiment read and several charts; 680px of drawer over a blurred board was
+// never enough room for any of it, and it hid the page you came from.
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -18,12 +18,11 @@ import { useApp } from "../../context";
 import { PHASES } from "../../lib/phases";
 import { PHASE_ICONS } from "../../lib/phaseIcons";
 import { chartTheme } from "../../lib/chartTheme";
-import { fmtNum, prettyDate, dayLabel } from "../../lib/format";
+import { fmtNum, fmtCPV, prettyDate, dayLabel } from "../../lib/format";
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
-import { drawerRight, overlayFade } from "../../lib/motion";
-import { STATUS_MAP, ACTIONABLE_STATUSES, BCOLORS, chipOn, closeBtnCls } from "./mapping";
+import { STATUS_MAP, ACTIONABLE_STATUSES, BCOLORS, chipOn } from "./mapping";
 
 const useP = () => useApp().P;
 
@@ -127,30 +126,35 @@ function MetricCard({ label, value, breakdowns, suffix = "" }) {
   );
 }
 
-/* ═══ LIVE PERFORMANCE — real tracking totals (views/likes/comments/shares) ═══ */
+/* ═══ LIVE PERFORMANCE — real tracking totals (views/likes/comments/shares) ═══
+   Styled as a plain portal panel. It used to be a green-bordered, green-washed
+   card holding four boxed tiles in four different hues — five colours and a
+   frame the rest of the page never uses, which made the loudest block on the
+   screen out of the one section that is only reporting numbers. The single
+   green dot carries "live"; the figures carry themselves. */
 function LivePerformance({ totals, lastFetched }) {
   const P = useP();
   if (!totals) return null;
   const tiles = [
-    ["Views", totals.views, P.accent], ["Likes", totals.likes, P.pink],
-    ["Comments", totals.comments, P.teal], ["Shares", totals.forwards, P.purple],
+    ["Views", totals.views], ["Likes", totals.likes],
+    ["Comments", totals.comments], ["Shares", totals.forwards],
   ].filter(([, v]) => v > 0);
   if (!tiles.length) return null;
   return (
-    <div className="mb-3 mt-2 rounded-[16px] border border-green/[0.15] bg-green/[0.02] px-4 py-3.5 shadow-sm backdrop-blur-md">
-      <div className="mb-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Dot color={P.green}/><span className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-green">Live Performance</span>
-        </div>
+    <div className="mb-3 mt-2 overflow-hidden rounded-[16px] border border-line bg-[--color-glass] shadow-sm backdrop-blur-md">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+        <span className="flex items-center gap-1.5">
+          <Dot color={P.green} sz={6}/><span className="microlabel">Live performance</span>
+        </span>
         {lastFetched && <span className="text-[10px] text-mute">updated {prettyDate(lastFetched)}</span>}
       </div>
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(tiles.length, 4)}, 1fr)` }}>
-        {tiles.map(([l, v, c]) => (
-          <div key={l} className="rounded-[12px] border border-line bg-[--color-glass] px-3 py-2.5 text-center shadow-sm">
-            <div className="text-[17px] font-bold leading-tight" style={{ color: c }}>
+      <div className="grid divide-x divide-line" style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
+        {tiles.map(([l, v]) => (
+          <div key={l} className="px-4 py-3">
+            <div className="tnum text-[19px] font-bold leading-none text-ink">
               <AnimatedNumber value={v} format={fmtNum} duration={900}/>
             </div>
-            <div className="mt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">{l}</div>
+            <div className="mt-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">{l}</div>
           </div>
         ))}
       </div>
@@ -483,10 +487,11 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
               </div>
               {/* Live block — only when this creator's post is actually up */}
               {cr.live && (
-                <div className="mt-1.5 rounded-[12px] border border-green/[0.15] bg-green/[0.03] px-3 py-2">
+                <div className="mt-1.5 rounded-[12px] border border-line bg-well/50 px-3 py-2">
                   <div className="flex flex-wrap items-center gap-2.5 text-[11.5px]">
+                    <span className="flex items-center gap-1.5"><Dot color={P.green} sz={5}/><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Live</span></span>
                     <a href={cr.live.postUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                      className="rounded-full bg-green/[0.1] px-2.5 py-0.5 font-semibold text-green no-underline hover:bg-green/[0.16]">View post ↗</a>
+                      className="rounded-full border border-line bg-[--color-glass] px-2.5 py-0.5 font-semibold text-accent no-underline transition-colors hover:border-accent/30">View post ↗</a>
                     {cr.live.postedDate && <span className="text-mute">posted {prettyDate(cr.live.postedDate)}</span>}
                     {cr.tracking?.positivityScore != null && (
                       <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold shadow-sm"
@@ -594,8 +599,8 @@ function BriefPage({ lockedBrief, pendingBrief }) {
   );
 }
 
-/* ═══ DETAIL PANEL ═══ */
-export default function DetailPanel({ campaign: c, onClose, userRole }) {
+/* ═══ CAMPAIGN DETAIL ═══ */
+export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const P = useP();
   const [tab, setTab] = useState("overview");
   const [creators, setCreators] = useState(c.creators || []);
@@ -637,19 +642,17 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end">
-      <motion.div variants={overlayFade} initial="hidden" animate="show" exit="exit"
-        onClick={onClose} className="absolute inset-0 bg-[rgba(3,6,16,0.45)] backdrop-blur-[8px]"/>
-      <motion.div variants={drawerRight} initial="hidden" animate="show" exit="exit"
-        className="glass-panel relative flex w-[min(680px,94vw)] flex-col overflow-hidden border-l shadow-[-24px_0_60px_rgba(25,22,17,0.12)]">
-        <div className="shrink-0 border-b border-line px-6 pt-5">
-          <div className="mb-2.5 flex items-start justify-between">
-            <div className="flex-1">
-              <h2 className="font-serif text-[22px] italic font-semibold text-ink">{c.name}</h2>
-              <span className="text-[11px] font-medium uppercase tracking-[0.05em] text-accent">{c.service}</span>
-              <p className="mt-1 text-[12px] leading-normal text-sub">{c.brief}</p>
-            </div>
-            <button onClick={onClose} className={`${closeBtnCls} shrink-0`}>✕</button>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }} className="pb-10">
+      <div className="glass-panel overflow-hidden rounded-[20px]">
+        <div className="border-b border-line px-6 pt-5">
+          <button onClick={onClose} className="mb-3 flex items-center gap-1 rounded-full border border-line bg-well/70 px-3 py-1.5 text-[11px] text-sub transition-all duration-150 hover:-translate-x-0.5 hover:text-ink">
+            ← All campaigns
+          </button>
+          <div className="mb-2.5">
+            <h2 className="font-serif text-[26px] italic font-semibold text-ink">{c.name}</h2>
+            <span className="text-[11px] font-medium uppercase tracking-[0.05em] text-accent">{c.service}</span>
+            <p className="mt-1 max-w-3xl text-[12.5px] leading-normal text-sub">{c.brief}</p>
           </div>
           {needsAction.length > 0 && (
             <div className="mb-2 flex items-center gap-1.5 rounded-[12px] border border-amber/[0.12] bg-amber/[0.04] px-3 py-2 backdrop-blur-sm">
@@ -668,7 +671,7 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
+        <div className="px-6 pb-6 pt-4">
           <AnimatePresence mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.16, ease: "easeOut" }}>
               {tab === "overview" && (
@@ -676,14 +679,17 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
                   <PhaseTracker currentPhase={c.phase}/>
                   <LivePerformance totals={c.trackTotals} lastFetched={c.lastFetched}/>
                   <SentimentStrip avgPositivity={c.avgPositivity} creators={creators}/>
-                  <div className="mb-2 grid grid-cols-3 gap-2">
+                  <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <BudgetCard value={c.budget} creators={creators}/>
-                    {/* Reach and Impressions are gone: nothing measures either
-                        one. Both were hardcoded "—" cards that could never
-                        fill in, so a third of the brand's headline metrics
-                        were permanently blank. Views is measured, so it stays. */}
-                    <MetricCard label="Views" value={c.views} breakdowns={bd}/>
-                    <MetricCard label="Creators" value={`${numCr}`}/>
+                    {/* Views are stated once, in Live Performance above — a
+                        second card repeating the same figure was the only
+                        thing this slot ever said. External CPV is what the
+                        budget and those views mean together. */}
+                    <MetricCard label="External CPV" value={fmtCPV(c.cpv)}/>
+                    {/* Breakdowns belong to the count they break down: niche /
+                        tier / state are cuts of the ROSTER, and they sat under
+                        a Views card reading as if they split the views. */}
+                    <MetricCard label="Creators" value={`${numCr}`} breakdowns={bd}/>
                     {/* "n / N" — posts live against posts committed. A bare
                         total hid the only part a brand acts on: how much of
                         what they paid for has actually gone out. */}
@@ -760,7 +766,7 @@ export default function DetailPanel({ campaign: c, onClose, userRole }) {
             </motion.div>
           </AnimatePresence>
         </div>
-      </motion.div>
-    </div>
+      </div>
+    </motion.div>
   );
 }

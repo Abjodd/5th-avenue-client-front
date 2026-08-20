@@ -25,7 +25,7 @@ import { stateCode, STATES_META } from "./geo.js";
 /* ── Creator status vocabulary ───────────────────────────────────────────────
    Lives here rather than in components/campaigns/mapping.js (which re-exports
    it) because the Overview's filters, the board's "waiting on you" badge and
-   the detail drawer must all agree on what a status means. `t` is the
+   the campaign detail view must all agree on what a status means. `t` is the
    client-facing tier rendered by components/StatusPill. */
 export const STATUS_MAP = {
   yet_to_pick:      { label: "Yet to Pick",   t: "neutral"  },
@@ -75,6 +75,15 @@ export const erOf = (likes, comments, views) =>
     ? (((likes || 0) + (comments || 0)) / views) * 100
     : null;
 
+/* ── EXTERNAL CPV ────────────────────────────────────────────────────────────
+   What the brand paid per measured view: committed budget ÷ views on live
+   posts. "External" because it is the client-facing rate — the agency's own
+   per-creator cost never leaves the internal app, so this is the only cost per
+   view the portal can state truthfully. Null unless both sides are real, so a
+   campaign that hasn't gone live shows "—" rather than an infinite rate. */
+export const cpvOf = (spend, views) =>
+  spend > 0 && views > 0 ? spend / views : null;
+
 /** Numeric-or-null: never coerces a missing metric into a zero. */
 const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
@@ -93,7 +102,7 @@ const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null 
        inventory is how the client portal's total drifts from the internal one.
 
    The client portal previously hardcoded `deliverables: "—"` on every creator
-   and then summed the digits out of that string, so the campaign drawer's
+   and then summed the digits out of that string, so the campaign's
    "Deliverables" tile read 0 for every campaign ever loaded. */
 
 /** Is this creator locked in? `status` is the negotiation state and stays
@@ -711,7 +720,13 @@ export function heroSummary({ kpis, health, signalRows, date = new Date() }) {
  */
 function carriedByDay(creators = []) {
   const tracked = creators
-    .map((cr, i) => ({ name: cr.name || `Creator ${i + 1}`, points: cr.tracking?.history }))
+    .map((cr, i) => ({
+      name: cr.name || `Creator ${i + 1}`,
+      // Set only by growthAcross, which spans campaigns and therefore has to
+      // say which one a post belongs to. Within one campaign it is redundant.
+      campaign: cr.campaignName || null,
+      points: cr.tracking?.history,
+    }))
     .filter((c) => Array.isArray(c.points) && c.points.length);
   if (!tracked.length) return null;
 
@@ -741,7 +756,7 @@ function carriedByDay(creators = []) {
     }),
   );
 
-  return { names: tracked.map((t) => t.name), days, grid };
+  return { posts: tracked.map((t) => ({ name: t.name, campaign: t.campaign })), days, grid };
 }
 
 const metricsOf = (p) => {
@@ -792,7 +807,7 @@ export function growthByCreator(creators = []) {
   const basis = carriedByDay(creators);
   if (!basis) return { rows: [], series: [] };
 
-  const series = basis.names.map((name, i) => ({ key: `c${i}`, name }));
+  const series = basis.posts.map(({ name, campaign }, i) => ({ key: `c${i}`, name, campaign }));
   const rows = basis.days.map((date, d) => {
     const row = { date };
     basis.grid[d].forEach((p, i) => {
@@ -828,9 +843,16 @@ export function growthByCreator(creators = []) {
  */
 export function growthAcross(campaigns = []) {
   const hasHistory = (cr) => cr?.tracking?.history?.length;
-  const creators = campaigns.flatMap((c) => c.creators || []);
+  // Tagged with their campaign so the account-level breakdown can name both
+  // the post and the work it belongs to.
+  const creators = campaigns.flatMap((c) =>
+    (c.creators || []).map((cr) => ({ ...cr, campaignName: c.name })),
+  );
   return {
     points: growthSeries(creators),
+    // The same carried-forward basis as `points`, split per post — so a
+    // breakdown can never add up to something other than the curve above it.
+    byPost: growthByCreator(creators),
     creators: creators.filter(hasHistory).length,
     campaigns: campaigns.filter((c) => (c.creators || []).some(hasHistory)).length,
   };

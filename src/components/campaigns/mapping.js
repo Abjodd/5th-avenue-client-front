@@ -10,7 +10,7 @@ import { STATES_META, stateCode } from "../../lib/geo";
 // would leave two import paths for one registry.
 import { phaseOf, progressOf } from "../../lib/phases";
 import {
-  STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf,
+  STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf, cpvOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
   growthSeries, growthByCreator,
 } from "../../lib/portalMetrics";
@@ -137,7 +137,7 @@ export function toViewCampaign(c) {
     keyMessages: brief.messages || "", deliverables: brief.deliverables || "",
     budget: brief.budget || fmtINR(Number(c.budget) || null), timeline: brief.timeline || "",
     // No per-field status here. It used to carry a `vars` map, but every entry
-    // was the same value derived from `briefLocked` — so the drawer painted six
+    // was the same value derived from `briefLocked` — so the detail view painted six
     // identical status glyphs that said exactly what its own banner said. The
     // brief is approved as one document; if per-field sign-off ever becomes
     // real, it has to come from the backend rather than be fanned out from one
@@ -162,7 +162,7 @@ export function toViewCampaign(c) {
   const positivities = creators.map(cr => cr.tracking?.positivityScore).filter(v => v != null);
   const avgPositivity = positivities.length ? positivities.reduce((a, b) => a + b, 0) / positivities.length : null;
   const lastFetched = creators.map(cr => cr.tracking?.lastFetched).filter(Boolean).sort().pop() || null;
-  // Empty until at least two days of readings exist; the drawer hides the tab
+  // Empty until at least two days of readings exist; the detail view hides the tab
   // rather than showing a chart with one point in it. The per-creator split
   // shares the same basis, so the two views can never disagree.
   const growth = growthSeries(creators);
@@ -182,6 +182,9 @@ export function toViewCampaign(c) {
     engagement: avgER,
     engRate: avgER,
     views: views ? fmtNum(views) : "—",
+    // External CPV — committed budget per measured view. Null until the
+    // campaign has both, so the card reads "—" rather than an invented rate.
+    cpv: cpvOf(Number(c.budget) || 0, views),
     start: c.start || "—",
     end: c.end || "—",
     budget: fmtINR(Number(c.budget) || null),

@@ -10,6 +10,7 @@
  */
 import { createContext, useContext, useState, useCallback } from "react";
 import { INTRO_KEY, USER_KEY } from "../lib/session";
+import { clearPersistedState } from "../lib/usePersistentState";
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -60,6 +61,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     setUser(null);
     sessionStorage.removeItem(USER_KEY);
+    // Filters and view choices are scoped to the brand that made them.
+    clearPersistedState();
   }, []);
 
   return (

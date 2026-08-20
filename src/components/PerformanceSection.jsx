@@ -2,7 +2,7 @@
  * PerformanceSection — Analytics panel for the client portal Overview page.
  * Three panels:
  *   1. Reach vs Spend dual-axis line chart (toggles to Engagement vs Spend)
- *   2. Funnel — horizontal bars: Impressions → Reach → Engagements → Clicks
+ *   2. Funnel — the fluid Reach → Views → Engagements stream
  *   3. Spend Split — donut chart by service
  *
  * Data flows from /api/portal/analytics (real MongoDB campaigns) — filtered
@@ -13,7 +13,6 @@
  * tooltips, is derived from the active palette (see chartTheme() / P below).
  */
 import { useMemo, useState, useEffect } from "react";
-import { motion } from "motion/react";
 import {
   ResponsiveContainer,
   ComposedChart, Line,
@@ -25,7 +24,9 @@ import AnimatedNumber from "./AnimatedNumber";
 import { useApp } from "../context";
 import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/dates";
 import { chartTheme } from "../lib/chartTheme";
-import { fmtNum, fmtINR } from "../lib/format";
+import { fmtNum, fmtINR, fmtCPV } from "../lib/format";
+import { cpvOf } from "../lib/portalMetrics";
+import { Funnel } from "./charts";
 import { PortalAPI } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -33,7 +34,7 @@ import { useAuth } from "../context/AuthContext";
 // whether it had a ROSTER at all — see audienceKnown below. Without it a
 // campaign that is booked but not yet cast is indistinguishable from one whose
 // audience genuinely measured zero.
-const SERIES_FIELDS = ["spend", "reach", "engagements", "impressions", "clicks", "totalCreators"];
+const SERIES_FIELDS = ["spend", "reach", "engagements", "views", "totalCreators"];
 
 /**
  * Does this bucket have an audience figure at all?
@@ -47,6 +48,10 @@ const SERIES_FIELDS = ["spend", "reach", "engagements", "impressions", "clicks",
  * which really did happen, still counts.
  */
 const audienceKnown = (row) => (row?.totalCreators || 0) > 0;
+
+// Ring diameter. Radii derive from it so the donut stays in proportion at any
+// size, and it is big enough to hold the period total at a readable weight.
+const DONUT = 220;
 
 // Service→colour for the donut — reuses the app's palette (see context.js).
 function serviceColor(name, P) {
@@ -89,34 +94,6 @@ function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaL
   );
 }
 
-function FunnelRow({ label, value, pct, step, color, isFirst, index = 0 }) {
-  const rose = step != null && step > 0;
-  return (
-    <div>
-      <div className="mb-[5px] flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[12px] text-ink">
-          {label}
-          {!isFirst && step != null && (
-            <span className={`text-[10px] font-semibold ${rose ? "text-green" : "text-red"}`}>
-              {rose ? "▲" : "▼"} {Math.abs(step).toFixed(1)}% {rose ? "rise" : "drop"}
-            </span>
-          )}
-        </span>
-        <span className="text-[13px] font-bold" style={{ color }}>{fmtNum(value)}</span>
-      </div>
-      <div className="relative h-[18px] overflow-hidden rounded-sm bg-well">
-        <motion.div className="absolute inset-y-0 left-0 rounded-sm"
-          initial={{ width: 0 }} whileInView={{ width: `${Math.min(pct, 100)}%` }}
-          viewport={{ once: true }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: index * 0.1 }}
-          style={{ background: color, opacity: 0.85 }}/>
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-ink">
-          {pct.toFixed(1)}%
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export default function PerformanceSection({ clientName: clientNameProp }) {
   const { P } = useApp();
   const { axisProps, gridStroke, tooltipStyle } = chartTheme(P);
@@ -130,6 +107,9 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const [toggle, setToggle]   = useState("reach");  // "reach" | "engagement"
   const [analytics, setAnalytics] = useState(null);  // null = loading
   const [error, setError]     = useState(null);
+  // Which service the cursor is on — the ring and the legend drive it both
+  // ways, so pointing at either one reads the same slice.
+  const [hoverSvc, setHoverSvc] = useState(null);
 
   const range = useMemo(() => rangeFor(preset), [preset]);
 
@@ -153,7 +133,9 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   // Weekly / Monthly toggle re-slices instantly without refetching.
   const events = useMemo(() =>
     (analytics?.events || [])
-      .map(ev => ({ ...ev, date: parsePortalDate(ev.date) }))
+      // The backend still calls measured post views "impressions"; the
+      // portal says views, so the rename lives here and nowhere else.
+      .map(ev => ({ ...ev, views: ev.impressions, date: parsePortalDate(ev.date) }))
       .filter(ev => ev.date)
   , [analytics]);
 
@@ -176,12 +158,13 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const chartRows = useMemo(() => series.map(row => (
     audienceKnown(row)
       ? row
-      : { ...row, reach: null, engagements: null, impressions: null, clicks: null }
+      : { ...row, reach: null, engagements: null, views: null }
   )), [series]);
 
   const totals = useMemo(() => {
     const sum = k => events.reduce((s, ev) => s + (ev[k] || 0), 0);
-    return { imp: sum("impressions"), reach: sum("reach"), eng: sum("engagements"), clicks: sum("clicks"), spend: sum("spend") };
+    const spend = sum("spend"), views = sum("views");
+    return { views, reach: sum("reach"), eng: sum("engagements"), spend, cpv: cpvOf(spend, views) };
   }, [events]);
 
   // How much of the period is real measurement vs follower-based estimate.
@@ -209,11 +192,17 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
     const audience = audienceKnown(last) && audienceKnown(prev);
     const pctAudience = k => (audience ? pct(k) : null);
     return {
-      imp: pctAudience("impressions"), reach: pctAudience("reach"),
-      eng: pctAudience("engagements"), clicks: pctAudience("clicks"),
-      spend: pct("spend"),
+      views: pctAudience("views"), reach: pctAudience("reach"),
+      eng: pctAudience("engagements"), spend: pct("spend"),
     };
   }, [series]);
+
+  // Audience metrics are blanked wherever no creators were cast (see
+  // audienceKnown), so the left-hand line can have fewer points than the
+  // spend line — one point draws as a lone dot with nothing to join it to.
+  // Counted here so the chart can say that outright instead of leaving the
+  // reader to wonder what the stray marker is.
+  const plottedAudience = series.reduce((n, row) => n + (audienceKnown(row) ? 1 : 0), 0);
 
   const intervalLabel = INTERVALS.find(iv => iv.id === chartInterval)?.label.toLowerCase() || chartInterval;
   const trendUnit = { daily: "day", weekly: "week", monthly: "month" }[chartInterval] || intervalLabel;
@@ -227,38 +216,20 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   , [spendByService, P]);
 
   const totalSpend = donutSlices.reduce((s, d) => s + d.value, 0);
+  const active = donutSlices.find(s => s.name === hoverSvc) || null;
 
-  /* Funnel stages run in delivery order: the creators' combined audience, how
-     many views that actually produced, how many of those engaged, and an
-     estimated click-through.
+  /* Funnel stages in delivery order: the creators' combined audience, how
+     many views that produced, and how many of those viewers engaged.
 
-     Bars are scaled to the LARGEST stage, not to reach. Reach is the follower
-     base, but impressions are now measured from the posts themselves — and a
-     reel that travels beyond its creator's followers genuinely outruns it
-     (Nike's roster: 500K followers, 3.6M views). Scaling to reach pinned that
-     bar at 730% of its track and read as a rendering fault. The step change
-     between stages is likewise signed: a stage bigger than the one above it is
-     a rise, not a "-630% drop". */
-  const funnelRows = useMemo(() => {
-    const rows = [
-      { label: "Reach",       value: totals.reach,  color: P.pink   },
-      { label: "Impressions", value: totals.imp,    color: P.accent },
-      { label: "Engagements", value: totals.eng,    color: P.amber  },
-      { label: "Clicks",      value: totals.clicks, color: P.green  },
-    ];
-    const top = Math.max(...rows.map(r => r.value), 0) || 1;
-    return rows.map((r, i) => {
-      const prev = i > 0 ? rows[i - 1].value : null;
-      return {
-        ...r,
-        pct: (r.value / top) * 100,
-        // Positive = grew against the stage above, negative = fell away.
-        // Null when the previous stage is 0, where a ratio means nothing.
-        step: prev ? ((r.value - prev) / prev) * 100 : null,
-        isFirst: i === 0,
-      };
-    });
-  }, [totals, P]);
+     Scaled to the LARGEST stage, not to reach. Reach is the follower base, but
+     views are measured from the posts themselves — a reel that travels beyond
+     its creator's followers genuinely outruns it (500K followers, 3.6M views),
+     and scaling to reach pinned that stage at 730% of the track. */
+  const funnelStages = useMemo(() => [
+    { stage: "Reach",       value: totals.reach, display: fmtNum(totals.reach), color: P.pink   },
+    { stage: "Views",       value: totals.views, display: fmtNum(totals.views), color: P.accent },
+    { stage: "Engagements", value: totals.eng,   display: fmtNum(totals.eng),   color: P.amber  },
+  ], [totals, P]);
 
   const isLoading = analytics === null && !error;
 
@@ -287,10 +258,12 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
             down, not just what the flat total is. */}
         <div className="mb-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
           <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.pink}   delta={trend?.reach}  deltaLabel={trendUnit} P={P}/>
-          <StatTile label="Impressions"    value={totals.imp}    loading={isLoading} color={P.accent} delta={trend?.imp}    deltaLabel={trendUnit} P={P}/>
+          <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.accent} delta={trend?.views}  deltaLabel={trendUnit} P={P}/>
           <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber}  delta={trend?.eng}    deltaLabel={trendUnit} P={P}/>
-          <StatTile label="Clicks (est.)"  value={totals.clicks} loading={isLoading} color={P.green}  delta={trend?.clicks} deltaLabel={trendUnit} P={P}/>
           <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple} delta={trend?.spend} deltaLabel={trendUnit} P={P}/>
+          {/* No trend badge on CPV: a falling cost per view is the good
+              outcome, and the shared badge paints every drop red. */}
+          <StatTile label="External CPV"   value={totals.cpv}    format={fmtCPV} loading={isLoading} color={P.green} P={P}/>
         </div>
 
         {/* Row 1: Dual-axis line chart */}
@@ -317,11 +290,11 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           <div className="mb-3 flex gap-5">
             <span className="flex items-center gap-1.5 text-[11px] text-ink">
               <span className="inline-block h-px w-6 rounded" style={{ background: toggle==="reach" ? P.pink : P.amber, height: 2 }}/>
-              {toggle === "reach" ? "Reach (M) · left axis" : "Engagements · left axis"}
+              {toggle === "reach" ? "Reach · left axis" : "Engagements · left axis"}
             </span>
             <span className="flex items-center gap-1.5 text-[11px] text-ink">
               <span className="inline-block h-px w-6 rounded" style={{ background: P.purple, height: 2 }}/>
-              Spend (₹L) · right axis
+              Spend · right axis
             </span>
           </div>
 
@@ -393,6 +366,15 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
               </ComposedChart>
             </ResponsiveContainer>
           )}
+
+          {series.length > 1 && plottedAudience < series.length && (
+            <p className="mt-2 text-[10px] text-mute">
+              {toggle === "reach" ? "Reach" : "Engagements"} is plotted for {plottedAudience} of {series.length}{" "}
+              {trendUnit}s — the {series.length - plottedAudience} without a creator on them yet have spend but no
+              audience to measure, so the line stops rather than dropping to zero.
+              {plottedAudience === 1 && " With a single point there is nothing to join it to, so it shows as one marker."}
+            </p>
+          )}
         </div>
 
         {/* Row 2: Funnel + Spend Split side by side */}
@@ -400,14 +382,10 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
           <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Funnel</div>
-            <p className="mb-4 text-[10.5px] text-mute">Audience → Exposure → Engagement → Click · bars scaled to the largest stage</p>
-            {isLoading ? (
-              <div className="flex h-[140px] items-center justify-center text-[12px] text-mute">Loading…</div>
-            ) : (
-              <div className="flex flex-col gap-3.5">
-                {funnelRows.map((r, i) => <FunnelRow key={r.label} {...r} index={i} />)}
-              </div>
-            )}
+            <p className="mb-4 text-[10.5px] text-mute">Audience → Exposure → Engagement · width scaled to the largest stage</p>
+            {isLoading
+              ? <div className="flex h-[140px] items-center justify-center text-[12px] text-mute">Loading…</div>
+              : <Funnel stages={funnelStages} />}
           </div>
 
           <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
@@ -415,33 +393,62 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
             <p className="mb-2 text-[10.5px] text-mute">By service · selected period</p>
 
             {isLoading ? (
-              <div className="flex h-[180px] items-center justify-center text-[12px] text-mute">Loading…</div>
+              <div className="flex h-[240px] items-center justify-center text-[12px] text-mute">Loading…</div>
             ) : donutSlices.length === 0 ? (
-              <div className="flex h-[180px] items-center justify-center text-[12px] text-mute">No spend data</div>
+              <div className="flex h-[240px] items-center justify-center text-[12px] text-mute">No spend data</div>
             ) : (
-              <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
-                <div className="relative flex-shrink-0">
-                  <PieChart width={160} height={160}>
-                    <Pie data={donutSlices} cx={75} cy={75} innerRadius={48} outerRadius={72}
-                      dataKey="value" paddingAngle={2} strokeWidth={0}>
-                      {donutSlices.map((s, i) => <Cell key={i} fill={s.color} />)}
+              /* justify-center on both axes: the ring used to be pinned left
+                 of a legend that was usually one line long, which left the
+                 panel visibly lopsided against the funnel beside it. */
+              <div className="flex flex-col items-center justify-center gap-6 py-2 sm:flex-row sm:gap-8">
+                <div className="relative shrink-0">
+                  {/* No cx/cy: Recharts centres on the box by default, and the
+                      old hardcoded 75,75 inside a 160px box sat the ring two
+                      pixels up and left of its own label. */}
+                  <PieChart width={DONUT} height={DONUT}>
+                    <Pie data={donutSlices} innerRadius={DONUT * 0.31} outerRadius={DONUT * 0.46}
+                      dataKey="value" paddingAngle={2} strokeWidth={0}
+                      onMouseEnter={(_, i) => setHoverSvc(donutSlices[i].name)}
+                      onMouseLeave={() => setHoverSvc(null)}>
+                      {donutSlices.map(s => (
+                        <Cell key={s.name} fill={s.color}
+                          opacity={!hoverSvc || hoverSvc === s.name ? 1 : 0.28}
+                          style={{ transition: "opacity 200ms" }}/>
+                      ))}
                     </Pie>
                   </PieChart>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="text-[19px] font-bold leading-none text-ink">{fmtINR(totalSpend)}</div>
-                    <div className="mt-1 text-[8.5px] font-semibold uppercase tracking-[0.1em] text-mute">TOTAL</div>
+                  {/* The hole answers whatever the cursor is asking: the
+                      period's total, or the service under the pointer. */}
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+                    <div className="text-[22px] font-bold leading-none" style={{ color: active?.color || "var(--color-ink)" }}>
+                      {fmtINR(active ? active.value : totalSpend)}
+                    </div>
+                    <div className="mt-1.5 line-clamp-2 text-[8.5px] font-semibold uppercase leading-tight tracking-[0.1em] text-mute">
+                      {active ? active.name : "Total"}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-2.5">
                   {donutSlices.map(s => (
-                    <div key={s.name} className="flex items-center justify-between gap-6">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-[3px]" style={{ background: s.color }}/>
+                    <button key={s.name} type="button"
+                      // Focus as well as hover: the row is a focusable control,
+                      // so tabbing to it has to light the same slice a cursor
+                      // would rather than leaving a dead stop in the order.
+                      onMouseEnter={() => setHoverSvc(s.name)} onMouseLeave={() => setHoverSvc(null)}
+                      onFocus={() => setHoverSvc(s.name)} onBlur={() => setHoverSvc(null)}
+                      className={`flex items-center justify-between gap-6 rounded-lg px-2 py-1 text-left transition-colors duration-200 ${hoverSvc === s.name ? "bg-accent/[0.06]" : ""}`}>
+                      <span className="flex items-center gap-2">
+                        <span className="inline-block size-2.5 shrink-0 rounded-[3px]" style={{ background: s.color }}/>
                         <span className="text-[11.5px] text-ink">{s.name}</span>
-                      </div>
-                      <span className="text-[12px] font-semibold text-ink">{fmtINR(s.value)}</span>
-                    </div>
+                      </span>
+                      <span className="text-right">
+                        <span className="tnum block text-[12px] font-semibold text-ink">{fmtINR(s.value)}</span>
+                        {/* Share of period spend — the reason to draw a ring
+                            rather than a list in the first place. */}
+                        <span className="tnum block text-[9.5px] text-mute">{((s.value / totalSpend) * 100).toFixed(0)}%</span>
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -449,25 +456,19 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           </div>
         </div>
 
-        {/* The old note called every number an estimate. That was true when it
-            was written and is not any more — impressions and engagements come
-            from the posts themselves wherever they have been fetched, so the
-            note now reports which of the two the reader is actually looking at
-            rather than understating real measurements. */}
         <p className="mt-3 text-[10px] text-mute">
           Reach = creator follower sum.{" "}
-          {measuredMix.measured > 0 && (
+          {measuredMix.measured > 0 ? (
             <>
-              Impressions and engagements are measured from live post metrics
+              Views and engagements are measured from live post metrics
               {measuredMix.measured < measuredMix.total
                 ? ` for ${measuredMix.measured} of ${measuredMix.total} creators; the rest are estimated until their posts are fetched.`
                 : " across every creator on the roster."}{" "}
             </>
+          ) : (
+            <>Views and engagements are estimated from follower counts and avgER until post metrics are fetched. </>
           )}
-          {measuredMix.measured === 0 && (
-            <>Impressions ≈ reach × 12%, engagements derived from avgER — estimates until post metrics are fetched. </>
-          )}
-          Clicks ≈ engagements × 8%, always an estimate. Impressions can exceed reach when a post
+          External CPV = committed spend ÷ views. Views can exceed reach when a post
           travels beyond the creator&rsquo;s own followers.
         </p>
       </div>

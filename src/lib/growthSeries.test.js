@@ -177,7 +177,9 @@ test("no history yields an empty split, matching growthSeries", () => {
 
 /* ── growthAcross: the Overview page's account-wide roll-up ───────────────── */
 
-const campaign = (id, creators) => ({ id, creators });
+// Named after its id unless a name is given — growthAcross tags each post
+// with `campaign.name` so the account breakdown can print it.
+const campaign = (id, creators, name = id) => ({ id, name, creators });
 
 test("account growth carries forward per creator, not per campaign", () => {
   // The bug this pins: summing each campaign's own series would carry B's
@@ -204,6 +206,27 @@ test("account growth matches growthSeries over one campaign's roster", () => {
   assert.deepEqual(growthAcross([campaign("c1", creators)]).points, growthSeries(creators));
 });
 
+test("the per-post split adds up to the curve above it, and names its campaign", () => {
+  // The Overview's growth panel draws the total and lists each post beside it.
+  // They come off one basis, so on every day the parts must equal the whole —
+  // otherwise a brand reads a breakdown that contradicts the line it explains.
+  const across = growthAcross([
+    campaign("Diwali", [creator("A", [pt("2026-08-01", 100), pt("2026-08-02", 250)])]),
+    campaign("Monsoon", [creator("B", [pt("2026-08-01", 10), pt("2026-08-02", 30)])]),
+  ]);
+
+  assert.deepEqual(
+    across.byPost.series.map((s) => [s.name, s.campaign]),
+    [["A", "Diwali"], ["B", "Monsoon"]],
+  );
+
+  across.points.forEach((point, d) => {
+    const row = across.byPost.rows[d];
+    const summed = across.byPost.series.reduce((t, s) => t + (row[`${s.key}_views`] || 0), 0);
+    assert.equal(summed, point.views, `day ${point.date}`);
+  });
+});
+
 test("account growth reports counts even with nothing to plot yet", () => {
   // One day of readings: no chart, but the panel still says what is tracked
   // rather than claiming nothing is.
@@ -213,5 +236,5 @@ test("account growth reports counts even with nothing to plot yet", () => {
   assert.equal(across.campaigns, 1);
 
   const none = growthAcross([]);
-  assert.deepEqual(none, { points: [], creators: 0, campaigns: 0 });
+  assert.deepEqual(none, { points: [], byPost: { rows: [], series: [] }, creators: 0, campaigns: 0 });
 });

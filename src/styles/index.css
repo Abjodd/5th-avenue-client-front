@@ -572,6 +572,33 @@
   to   { transform: translate3d(-24px, 20px, 0) scale(0.97); }
 }
 
+/* Funnel stream — each wash swells a hair about the centreline on its own
+   period, so the shape reads as flowing rather than as a frozen silhouette.
+   Amplitude and duration come from the component (see charts/Funnel.tsx), and
+   the global reduced-motion block below stops it. */
+.funnel-layer {
+  animation: funnel-swell var(--funnel-dur, 9s) ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform;
+}
+@keyframes funnel-swell {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(var(--funnel-swell, 1.04)); }
+}
+
+/* …and a band of light travels its length. Distance is in viewBox user units
+   (CSS px on an SVG child = one user unit), covering the 720-wide stream plus
+   the sheen's own width at either end. */
+.funnel-sheen {
+  animation: funnel-sweep 6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: transform;
+}
+@keyframes funnel-sweep {
+  from { transform: translateX(0); }
+  to   { transform: translateX(1010px); }
+}
+
 /* ==================================================================== */
 /*  Marketing-site animations (fa-* namespace)                          */
 /* ==================================================================== */
@@ -776,7 +803,7 @@
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   /* motion/react handles its own via MotionConfig; this covers CSS animation */
-  .au, .anim-up, .fi, .fade-in, .slide-in, .pulse, .bounce-1, .ambient-blob { animation: none !important; }
+  .au, .anim-up, .fi, .fade-in, .slide-in, .pulse, .bounce-1, .ambient-blob, .funnel-layer, .funnel-sheen { animation: none !important; }
   /* hold the login collage still rather than snapping it to the loop's end */
   .login-marquee { animation: none !important; }
   .fa-toast { animation: none; }

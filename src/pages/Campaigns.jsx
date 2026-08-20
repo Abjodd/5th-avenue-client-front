@@ -1,4 +1,4 @@
-// src/pages/Campaigns.jsx — campaigns board/grid + detail drawer.
+// src/pages/Campaigns.jsx — campaigns board/grid, and the campaign itself.
 // Data flow: GET /api/portal/campaigns → toViewCampaign (components/campaigns/
 // mapping.js) → board columns per portal phase. All numbers are real backend
 // data; missing values render "—" rather than being invented.
@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "../context";
 import { usePortalCampaigns } from "../lib/usePortalData";
+import { usePersistentState } from "../lib/usePersistentState";
 import { fmtINR } from "../lib/format";
 import { PHASES, phaseColors as phaseColorsFor } from "../lib/phases";
 import { PHASE_ICONS } from "../lib/phaseIcons";
@@ -16,7 +17,7 @@ import { AmbientBackground, Magnetic } from "../components/motion/Motion";
 import AnimatedNumber from "../components/AnimatedNumber";
 import { toViewCampaign } from "../components/campaigns/mapping";
 import CampaignCard from "../components/campaigns/CampaignCard";
-import DetailPanel from "../components/campaigns/DetailPanel";
+import CampaignDetail from "../components/campaigns/CampaignDetail";
 import NewReqModal from "../components/campaigns/NewReqModal";
 
 /* Stable mapper reference so the fetch hook doesn't re-run on re-render */
@@ -32,11 +33,13 @@ export default function CampaignsPage() {
   const { P, navParams } = useApp();
   const { data: campaigns, setData: setCampaigns, error, retry } = usePortalCampaigns(mapCampaigns);
   const [selected, setSelected] = useState(null);
-  const [view, setView] = useState("board");
-  const [search, setSearch] = useState("");
+  // Board/grid, search and the service filter are held for the session — the
+  // "All" chip and an empty search box are the manual way back.
+  const [view, setView] = usePersistentState("campaigns.view", "board");
+  const [search, setSearch] = usePersistentState("campaigns.search", "");
   const [showNewReq, setShowNewReq] = useState(false);
   const [toast, setToast] = useState("");
-  const [svcFilter, setSvcFilter] = useState("all");
+  const [svcFilter, setSvcFilter] = usePersistentState("campaigns.service", "all");
   const userRole = "management"; // client-side approvals default to the management view
 
   // Auto-open campaign when navigated from another page
@@ -46,6 +49,11 @@ export default function CampaignsPage() {
       if (match) setSelected(match);
     }
   }, [navParams?.campaignId, campaigns]);
+
+  // A campaign takes over the main view, so it starts where a page would.
+  useEffect(() => {
+    if (selected) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [selected]);
 
   // New requirements are local-only until a portal submission endpoint exists
   // on the backend — they show as "Pending" but won't survive a refresh.
@@ -88,6 +96,16 @@ export default function CampaignsPage() {
       <AmbientBackground variant="b"/>
 
       <div className="mx-auto max-w-[1600px] px-5 sm:px-9">
+        {/* An open campaign replaces the board: it is the main view, not a
+            drawer floating over a blurred copy of the page you came from. The
+            page shell around it is the same one either way, so the background
+            doesn't rebuild as you open and close a campaign. */}
+        {selected ? (
+          <div className="pt-9">
+            <CampaignDetail campaign={selected} onClose={() => setSelected(null)} userRole={userRole}/>
+          </div>
+        ) : (
+        <>
         <header className="pb-4 pt-9">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -187,11 +205,10 @@ export default function CampaignsPage() {
             </AnimatePresence>
           </motion.div>
         )}
+        </>
+        )}
       </div>
 
-      <AnimatePresence>
-        {selected && <DetailPanel key="panel" campaign={selected} onClose={() => setSelected(null)} userRole={userRole}/>}
-      </AnimatePresence>
       <AnimatePresence>
         {showNewReq && <NewReqModal key="newreq" onClose={() => setShowNewReq(false)} onSubmit={handleSubmit}/>}
       </AnimatePresence>
