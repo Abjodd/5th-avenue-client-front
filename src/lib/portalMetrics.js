@@ -718,6 +718,20 @@ export function heroSummary({ kpis, health, signalRows, date = new Date() }) {
  * must be. Both growthSeries() and growthByCreator() are built on this, so the
  * combined line and the per-creator lines can never disagree.
  */
+/** Every calendar day from `from` to `to` inclusive, as YYYY-MM-DD.
+    UTC throughout, since the day keys are the UTC date of each reading and
+    stepping in local time would drop or repeat a day across a DST edge.
+    Returns null on an implausible span, so one corrupt `at` can't expand a
+    campaign's chart into thousands of points. */
+function calendarDays(from, to) {
+  const end = Date.parse(`${to}T00:00:00Z`);
+  const start = Date.parse(`${from}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end - start > 370 * 86400000) return null;
+  const out = [];
+  for (let t = start; t <= end; t += 86400000) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+
 function carriedByDay(creators = []) {
   const tracked = creators
     .map((cr, i) => ({
@@ -734,16 +748,40 @@ function carriedByDay(creators = []) {
 
   // Per creator: the last reading recorded on each day (a day may hold several
   // refreshes; the last one is that day's standing total).
+  // A field absent from a reading means that refresh didn't report it, NOT
+  // that the count dropped to zero — the same distinction the day-level carry
+  // forward makes, one level down. Readings do come back partial: a post that
+  // had reported forwards on five straight refreshes returned `forwards: null`
+  // on the sixth, and scoring that as 0 took its whole share count off the
+  // campaign, so cumulative engagements FELL between two days. A total that
+  // can only climb must never do that. `??` and not `||`, so a genuine zero
+  // still reads as zero.
+  const FIELDS = ["views", "likes", "comments", "forwards"];
   const byDay = tracked.map(({ points }) => {
     const m = new Map();
+    let running = null;
     for (const p of [...points].sort((a, b) => String(a.at).localeCompare(String(b.at)))) {
-      m.set(dayOf(p.at), p);
+      running = Object.fromEntries(FIELDS.map((f) => [f, p?.[f] ?? running?.[f] ?? null]));
+      m.set(dayOf(p.at), running);
     }
     return m;
   });
 
-  const days = [...new Set(byDay.flatMap((m) => [...m.keys()]))].sort();
-  if (days.length < 2) return null;
+  const observed = [...new Set(byDay.flatMap((m) => [...m.keys()]))].sort();
+  if (observed.length < 2) return null;
+
+  // The x-axis is a calendar, not a list of refresh events. Plotting only the
+  // days that happen to hold a reading drew a four-day stretch (Aug 13 → 17,
+  // when the refresh didn't run) at the same width as the one-day step after
+  // it, so the curve's slope described the refresh schedule rather than the
+  // campaign. Filling the gaps costs nothing: an unmeasured day takes the same
+  // carry-forward the sampled days already use.
+  //
+  // Only the INTERIOR is filled. Past the last reading the total is genuinely
+  // unknown, and running a flat line out to today would assert that nothing
+  // has happened since — the gap at the right-hand end is the honest signal
+  // that the data has gone stale.
+  const days = calendarDays(observed[0], observed[observed.length - 1]) || observed;
 
   // days × creators, already carried forward. null = this creator had not been
   // measured yet on that day, which is NOT the same as zero and is left out

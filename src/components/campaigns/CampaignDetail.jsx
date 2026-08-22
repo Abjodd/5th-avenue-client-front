@@ -94,16 +94,28 @@ function HBars({ data }) {
   );
 }
 
-/* ═══ METRIC CARD — optional expandable breakdown; suffix ("%") for rates ═══ */
-function MetricCard({ label, value, breakdowns, suffix = "" }) {
+/* ═══ METRIC CARD ════════════════════════════════════════════════════════════
+   A figure, and optionally one of two ways to go deeper: an inline breakdown
+   (`breakdowns`) or a jump elsewhere (`onOpen`).
+
+   Only a card that OWNS its row gets the inline breakdown. In a three-up grid
+   the expansion stretches its two neighbours to match, so opening the roster
+   split left Budget and Deliverables as tall empty boxes — which is why
+   Creators now sends you to the Creators tab, where the same roster is listed
+   in full rather than as three bars. */
+function MetricCard({ label, value, breakdowns, onOpen, suffix = "" }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState(breakdowns ? Object.keys(breakdowns)[0] : null);
-  const has = breakdowns && Object.keys(breakdowns).length > 0 && value !== "—" && value !== "0";
+  const live = value !== "—" && value !== "0";
+  const has = breakdowns && Object.keys(breakdowns).length > 0 && live;
+  const jumps = !!onOpen && live;
   return (
-    <div className={`rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has?"cursor-pointer":""}`} onClick={() => has && setOpen(!open)}>
+    <div className={`rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has||jumps?"group cursor-pointer":""}`}
+      onClick={jumps ? onOpen : () => has && setOpen(!open)}>
       <div className="flex items-center justify-between">
         <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</div>
         {has && <span className="text-[9px] text-accent">{open ? "▴" : "▾"}</span>}
+        {jumps && <span className="text-[11px] text-accent opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100">→</span>}
       </div>
       <div className={`mt-1 text-[18px] font-bold ${value==="—"||value==="0"?"text-donetxt":"text-ink"}`}>{value}</div>
       <AnimatePresence initial={false}>
@@ -126,22 +138,40 @@ function MetricCard({ label, value, breakdowns, suffix = "" }) {
   );
 }
 
-/* ═══ LIVE PERFORMANCE — real tracking totals (views/likes/comments/shares) ═══
-   Styled as a plain portal panel. It used to be a green-bordered, green-washed
-   card holding four boxed tiles in four different hues — five colours and a
-   frame the rest of the page never uses, which made the loudest block on the
-   screen out of the one section that is only reporting numbers. The single
-   green dot carries "live"; the figures carry themselves. */
-function LivePerformance({ totals, lastFetched }) {
+/* ═══ LIVE PERFORMANCE — the three figures a brand actually reads ═══════════
+   Views, what they earned, and what a view cost — on one line.
+
+   It used to spread views / likes / comments / shares across four equal tiles,
+   which gave three components of a single number the same standing as the
+   number itself, and then restated External CPV in a detached card below,
+   away from the views it is computed from. Likes, comments and shares haven't
+   gone anywhere: they're one hover inside the total they add up to. */
+function LivePerformance({ totals, lastFetched, cpv }) {
   const P = useP();
+  const [openBd, setOpenBd] = useState(false);
   if (!totals) return null;
-  const tiles = [
-    ["Views", totals.views], ["Likes", totals.likes],
-    ["Comments", totals.comments], ["Shares", totals.forwards],
+
+  const parts = [
+    ["Likes", totals.likes, Heart],
+    ["Comments", totals.comments, MessageCircle],
+    ["Shares", totals.forwards, Share2],
   ].filter(([, v]) => v > 0);
+  const eng = parts.reduce((sum, [, v]) => sum + v, 0);
+
+  const tiles = [
+    totals.views > 0 && { label: "Views", node: <AnimatedNumber value={totals.views} format={fmtNum} duration={900}/> },
+    eng > 0 && { label: "Engagements", node: <AnimatedNumber value={eng} format={fmtNum} duration={900}/>, parts },
+    // cpv is null until the campaign has both a budget and measured views, so
+    // this drops out on its own rather than printing an invented rate.
+    cpv != null && { label: "External CPV", node: fmtCPV(cpv) },
+  ].filter(Boolean);
   if (!tiles.length) return null;
+
   return (
-    <div className="mb-3 mt-2 overflow-hidden rounded-[16px] border border-line bg-[--color-glass] shadow-sm backdrop-blur-md">
+    // z-20 is what makes the breakdown readable: the cards below carry
+    // backdrop-blur, so in DOM order they painted over a popover that had only
+    // a local z-index inside this panel's own blur-induced stacking context.
+    <div className="relative z-20 mb-3 mt-2 rounded-[16px] border border-line bg-[--color-glass] shadow-sm backdrop-blur-md">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
         <span className="flex items-center gap-1.5">
           <Dot color={P.green} sz={6}/><span className="microlabel">Live performance</span>
@@ -149,12 +179,47 @@ function LivePerformance({ totals, lastFetched }) {
         {lastFetched && <span className="text-[10px] text-mute">updated {prettyDate(lastFetched)}</span>}
       </div>
       <div className="grid divide-x divide-line" style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
-        {tiles.map(([l, v]) => (
-          <div key={l} className="px-4 py-3">
-            <div className="tnum text-[19px] font-bold leading-none text-ink">
-              <AnimatedNumber value={v} format={fmtNum} duration={900}/>
+        {tiles.map(t => (
+          <div key={t.label} className="relative px-4 py-3"
+            onMouseEnter={() => t.parts && setOpenBd(true)}
+            onMouseLeave={() => setOpenBd(false)}>
+            <div className="tnum text-[19px] font-bold leading-none text-ink">{t.node}</div>
+            <div className="mt-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">
+              {/* The dotted rule is the only thing telling you the total opens
+                  — without it the breakdown is a feature you find by accident. */}
+              <span className={t.parts ? "cursor-help border-b border-dotted border-mute/60 pb-px" : ""}>{t.label}</span>
             </div>
-            <div className="mt-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">{l}</div>
+            {/* The breakdown unfurls sideways into the tile's own empty half,
+                not downward. Stacked under the figure it was taller than the
+                row and hung over the Budget / Creators / Deliverables cards —
+                covering the thing you might click next to read three numbers.
+                Laid out in a line it fits beside the total, inside the panel.
+
+                Hover-only by nature, so it never appears on touch, which is
+                also where a tile is too narrow to hold it. */}
+            <AnimatePresence>
+              {t.parts && openBd && (
+                <motion.div
+                  initial={{ opacity: 0, x: -8, y: "-50%" }} animate={{ opacity: 1, x: 0, y: "-50%" }} exit={{ opacity: 0, x: -8, y: "-50%" }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  className="glass-panel pointer-events-none absolute right-3 top-1/2 z-30 flex items-center gap-3.5 rounded-[12px] px-3.5 py-2 shadow-[0_10px_26px_rgba(25,22,17,0.13)]">
+                  {t.parts.map(([label, v, Icon]) => (
+                    <div key={label} className="flex items-center gap-1.5 whitespace-nowrap">
+                      <Icon size={12} strokeWidth={2} className="shrink-0 text-mute"/>
+                      <div>
+                        <div className="tnum text-[12.5px] font-semibold leading-none text-ink">{fmtNum(v)}</div>
+                        {/* A share that rounds to zero still isn't zero — comments are
+                            routinely a fraction of a percent of engagements, and
+                            printing "0%" next to 3K reads as a broken number. */}
+                        <div className="mt-[3px] text-[8.5px] font-semibold uppercase tracking-[0.06em] text-mute">
+                          {label} · {(v / eng) * 100 < 0.5 ? "<1%" : `${Math.round((v / eng) * 100)}%`}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ))}
       </div>
@@ -623,8 +688,6 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const numDelPosted = c.deliverablesPosted ?? 0;
   const needsAction = creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status));
 
-  const mkBD = (f) => { if (!creators.length) return []; const g = {}; creators.forEach(cr => { g[cr[f] || "Other"] = (g[cr[f] || "Other"] || 0) + 1; }); return Object.entries(g).map(([k, v]) => ({ label: k, value: v })); };
-  const bd = creators.length ? { niche: mkBD("niche"), size: mkBD("size"), region: mkBD("region") } : null;
   const engByCreator = creators.filter(c2 => c2.engRate !== "—").map(c2 => ({ label: c2.name.split(" ")[0], value: parseFloat(c2.engRate) }));
   const engByNiche = (() => { const g = {}, c2 = {}; creators.forEach(cr => { if (cr.engRate !== "—") { const n = cr.niche; g[n] = (g[n] || 0) + parseFloat(cr.engRate); c2[n] = (c2[n] || 0) + 1; } }); return Object.entries(g).map(([k, v]) => ({ label: k, value: Math.round((v / c2[k]) * 10) / 10 })); })();
   const engBD = creators.length ? { creator: engByCreator, niche: engByNiche } : null;
@@ -677,19 +740,20 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
               {tab === "overview" && (
                 <div>
                   <PhaseTracker currentPhase={c.phase}/>
-                  <LivePerformance totals={c.trackTotals} lastFetched={c.lastFetched}/>
+                  <LivePerformance totals={c.trackTotals} lastFetched={c.lastFetched} cpv={c.cpv}/>
                   <SentimentStrip avgPositivity={c.avgPositivity} creators={creators}/>
-                  <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {/* Budget / roster / delivery — the commitments. What the
+                      campaign has RETURNED (views, engagements, cost per view)
+                      is stated once, together, in Live Performance above; CPV
+                      used to sit down here, a row away from the views it is
+                      divided by. */}
+                  <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     <BudgetCard value={c.budget} creators={creators}/>
-                    {/* Views are stated once, in Live Performance above — a
-                        second card repeating the same figure was the only
-                        thing this slot ever said. External CPV is what the
-                        budget and those views mean together. */}
-                    <MetricCard label="External CPV" value={fmtCPV(c.cpv)}/>
-                    {/* Breakdowns belong to the count they break down: niche /
-                        tier / state are cuts of the ROSTER, and they sat under
-                        a Views card reading as if they split the views. */}
-                    <MetricCard label="Creators" value={`${numCr}`} breakdowns={bd}/>
+                    {/* The roster is a list, not three bars — this opens the
+                        Creators tab, which shows every creator with their
+                        niche, tier and state on the row. AEO campaigns have no
+                        such tab, so there the count is just a count. */}
+                    <MetricCard label="Creators" value={`${numCr}`} onOpen={!isAEO && numCr ? () => setTab("creators") : undefined}/>
                     {/* "n / N" — posts live against posts committed. A bare
                         total hid the only part a brand acts on: how much of
                         what they paid for has actually gone out. */}

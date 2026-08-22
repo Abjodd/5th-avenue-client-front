@@ -110,6 +110,71 @@ test("null metrics count as zero rather than poisoning the sum with NaN", () => 
   assert.ok(!Number.isNaN(s[1].engagements));
 });
 
+test("days nobody refreshed are still days on the axis", () => {
+  // The refresh job skipped the 14th through the 16th. Those days still
+  // happened, and dropping them drew the four-day climb at the same width as
+  // the one-day step after it — the slope would describe the cron schedule.
+  const s = growthSeries([creator("A", [
+    pt("2026-08-13", 100), pt("2026-08-17", 500), pt("2026-08-18", 560),
+  ])]);
+  assert.deepEqual(s.map(r => r.date), [
+    "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18",
+  ]);
+  // A gap holds the last known total — the same carry-forward a sampled day
+  // uses, never a zero and never an interpolation toward the next reading.
+  assert.deepEqual(s.map(r => r.views), [100, 100, 100, 100, 500, 560]);
+});
+
+test("the series stops at the last reading rather than running out to today", () => {
+  // Carrying a flat line past the final refresh would assert the campaign has
+  // stopped growing, when the truth is only that nobody has measured it.
+  const s = growthSeries([creator("A", [pt("2026-08-01", 10), pt("2026-08-02", 20)])]);
+  assert.equal(s.at(-1).date, "2026-08-02");
+});
+
+test("an implausible span falls back to the measured days", () => {
+  // One corrupt timestamp must not expand a campaign into thousands of points.
+  const s = growthSeries([creator("A", [pt("2019-01-01", 5), pt("2026-08-02", 20)])]);
+  assert.deepEqual(s.map(r => r.date), ["2019-01-01", "2026-08-02"]);
+});
+
+test("gap filling keeps the per-creator split summing to the combined series", () => {
+  const creators = [
+    creator("A", [pt("2026-08-01", 100), pt("2026-08-05", 300)]),
+    creator("B", [pt("2026-08-03", 40), pt("2026-08-05", 60)]),
+  ];
+  const combined = growthSeries(creators);
+  const { rows, series } = growthByCreator(creators);
+  assert.equal(rows.length, 5, "Aug 1 through Aug 5, gaps included");
+  rows.forEach((row, i) => {
+    const summed = series.reduce((t, sr) => t + (row[`${sr.key}_views`] || 0), 0);
+    assert.equal(summed, combined[i].views, `day ${row.date}`);
+  });
+  assert.equal(rows[1].c1_views, undefined, "B has no reading yet on a filled day before its first");
+});
+
+test("a field missing from one reading carries forward instead of zeroing", () => {
+  // Real payload shape: a post reported forwards on every refresh until one
+  // came back with `forwards: null`. Scoring that as 0 removed the whole share
+  // count and made cumulative engagements FALL between two days.
+  const s = growthSeries([creator("A", [
+    { at: "2026-08-01T20:00:00.000Z", views: 100, likes: 10, comments: 1, forwards: 500 },
+    { at: "2026-08-02T20:00:00.000Z", views: 120, likes: 12, comments: 1, forwards: null },
+  ])]);
+  assert.equal(s[1].engagements, 513, "forwards held at 500, not dropped to 0");
+  assert.ok(s[1].engagements >= s[0].engagements, "a cumulative total may not fall");
+});
+
+test("a genuine zero is not mistaken for a missing field", () => {
+  // `??`, not `||` — a post really can have zero comments.
+  const s = growthSeries([creator("A", [
+    { at: "2026-08-01T20:00:00.000Z", views: 100, likes: 10, comments: 7, forwards: 0 },
+    { at: "2026-08-02T20:00:00.000Z", views: 120, likes: 12, comments: 0, forwards: 0 },
+  ])]);
+  assert.equal(s[1].comments, 0);
+  assert.equal(s[1].engagements, 12);
+});
+
 /* ── per-creator split ─────────────────────────────────────────────────────── */
 
 test("each creator gets their own keyed series", () => {
