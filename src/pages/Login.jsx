@@ -278,11 +278,11 @@ export default function FifthAvenueLogin() {
         </button>
 
         <p style={{ marginTop: 18, textAlign: "center", fontSize: 11, lineHeight: 1.6, color: C.onNavyMute }}>
-          Lost your credentials? Contact your 5th Avenue account manager.
+          Lost your credentials? Contact your FIFTH Avenue account manager.
         </p>
       </form>
 
-      <div className="fa-login-footer" style={{ position: "relative", marginBottom: 24, fontSize: 11, color: C.onNavyMute, textAlign: "center" }}>© 5th Avenue Marketing</div>
+      <div className="fa-login-footer" style={{ position: "relative", marginBottom: 24, fontSize: 11, color: C.onNavyMute, textAlign: "center" }}>© FIFTH - Avenue Marketing</div>
     </div>
   );
 }
