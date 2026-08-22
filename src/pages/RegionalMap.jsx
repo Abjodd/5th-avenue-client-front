@@ -35,15 +35,18 @@ const LC = {"Hindi":"#2C3E7E","Tamil":"#17915A","Telugu":"#A2489A","Kannada":"#A
 
 const MODES = [["state", "States"], ["region", "Regions"], ["language", "Languages"]];
 
-/* Centroid calculator */
-function centroid(path){const nums=path.replace(/[MLZHVCSQTA]/gi," ").trim().split(/[\s,]+/).map(Number).filter(n=>!isNaN(n));let cx=0,cy=0,n=0;for(let i=0;i<nums.length;i+=2){cx+=nums[i];cy+=nums[i+1];n++;}return n?[cx/n,cy/n]:[0,0];}
+/* Centroid + bounding box, from the same single parse. The paths are pure
+   M/L/Z, so every number is a coordinate — the bbox is what lets the hover
+   card sit beside a state's edge instead of on top of its middle. */
+function geometry(path){const nums=path.replace(/[MLZHVCSQTA]/gi," ").trim().split(/[\s,]+/).map(Number).filter(n=>!isNaN(n));let cx=0,cy=0,n=0,x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;for(let i=0;i<nums.length;i+=2){const x=nums[i],y=nums[i+1];cx+=x;cy+=y;n++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}return n?{c:[cx/n,cy/n],x0,y0,x1,y1}:{c:[0,0],x0:0,y0:0,x1:0,y1:0};}
 
 /* Precomputed once at module load — centroid() parses hundreds of coordinates
    per state, so doing it per-render made every hover re-render expensive.
    The length floor drops the offshore-island stubs (ld, dd) whose paths are
    zero-area placeholders that would render as invisible, unhoverable slivers. */
 const STATE_IDS = Object.keys(PATHS).filter(id => STATES_META[id] && PATHS[id] && PATHS[id].length >= 20);
-const CENTROIDS = Object.fromEntries(STATE_IDS.map(id => [id, centroid(PATHS[id])]));
+const GEO = Object.fromEntries(STATE_IDS.map(id => [id, geometry(PATHS[id])]));
+const CENTROIDS = Object.fromEntries(STATE_IDS.map(id => [id, GEO[id].c]));
 /* All states merged into one path string — the base silhouette renders as a
    single <path> instead of ~35 elements. */
 const MERGED_PATH = STATE_IDS.map(id => PATHS[id]).join(" ");
@@ -59,7 +62,7 @@ const MERGED_PATH = STATE_IDS.map(id => PATHS[id]).join(" ");
 
    Hover state lives inside this component so moving the cursor over the map
    never re-renders the page around it. */
-function IndiaMap({ mode, stateData, selectedId, onSelect, onHover, tinted, P }) {
+function IndiaMap({ mode, stateData, selectedId, onSelect, tinted, P }) {
   const isLang = mode === "language";
   const isRegion = mode === "region";
   const maxCr = Math.max(1, ...Object.values(stateData).map(d => d.creators));
@@ -70,9 +73,9 @@ function IndiaMap({ mode, stateData, selectedId, onSelect, onHover, tinted, P })
   const colorOf = (meta) =>
     !tinted ? P.accent : isLang ? (LC[meta.lang] || P.mute) : RC[meta.region];
 
-  /* Hover is reported upward so the pinned detail card can render it, and kept
-     locally so only this component repaints as the cursor crosses states. */
-  const setHov = (id) => { setHovId(id); onHover(id); };
+  /* Hover lives here and nowhere else: the detail card is rendered inside this
+     component too, so crossing states never re-renders the page around it. */
+  const setHov = setHovId;
 
   /* Selecting a state (or region) eases the "camera" toward it. Depends only
      on stable values so the spring target doesn't churn identity every render
@@ -92,77 +95,139 @@ function IndiaMap({ mode, stateData, selectedId, onSelect, onHover, tinted, P })
     return { scale: s, x: (240 - cx) * s, y: (280 - cy) * s };
   }, [selectedId, isRegion]);
 
-  return (
-    <svg viewBox="0 0 480 560" onMouseLeave={() => setHov(null)}
-      className="mx-auto block w-full max-w-[640px]">
-      <rect width="480" height="560" fill="transparent" onClick={() => selectedId && onSelect(null)} />
-      <motion.g animate={zoom} transition={{ type: "spring", stiffness: 170, damping: 26 }}
-        style={{ transformBox: "view-box", transformOrigin: "240px 280px" }}>
-        {/* One merged silhouette under the washes, so an unpopulated state
-            still reads as part of the country rather than as a hole. */}
-        <path d={MERGED_PATH} fill={P.raised} stroke={P.raised} strokeWidth={0.6} />
-        {STATE_IDS.map((id, i) => {
-          const meta = STATES_META[id], data = stateData[id];
-          const isSel = selectedId === id || (isRegion && selectedId === meta.region);
-          const isHov = hovId === id;
-          const has = data?.creators > 0;
-          const baseColor = colorOf(meta);
-          // Monochrome mode leans harder on density so one hue still ranks
-          // the country; tinted mode keeps the flatter washes it needs to
-          // stay legible with six competing colours.
-          const intensity = has
-            ? (isRegion || isLang ? (tinted ? 0.38 : 0.34) : (tinted ? 0.22 : 0.14) + (data.creators / maxCr) * (tinted ? 0.55 : 0.72))
-            : (isRegion || isLang ? 0.10 : 0.05);
-          const dimmed = selectedId && !isSel;
-          // Hover lifts a state enough to confirm what you're pointing at,
-          // but an EMPTY state only lifts a little: giving it the same
-          // emphasis as a populated one made states with no creators read as
-          // the brand's strongest markets on the way past.
-          const fillOp = isSel ? 0.85
-            : isHov ? Math.max(intensity, has ? 0.55 : 0.2)
-            : dimmed ? intensity * 0.4
-            : intensity;
-          const [cx, cy] = CENTROIDS[id];
-          return (
-            // Zoomed in, every other state stays live: clicking one moves the
-            // camera straight there rather than making you back out first.
-            <g key={id} className="cursor-pointer"
-              onClick={() => onSelect(isRegion ? meta.region : id)}
-              onPointerEnter={() => setHov(id)}
-              onPointerLeave={() => setHov(null)}>
-              {/* Geometry NEVER changes on hover/select, only paint. Letting
-                  the interactive element shift shape under the cursor is what
-                  caused the old "stuck hover" bug near state borders. */}
-              <motion.path d={PATHS[id]} fill={baseColor}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1, fillOpacity: fillOp }}
-                transition={{ opacity: { delay: 0.15 + i * 0.014, duration: 0.4 }, fillOpacity: { type: "spring", stiffness: 300, damping: 28 } }}
-                stroke={isSel || isHov ? baseColor : outline}
-                strokeWidth={isSel ? 1.8 : isHov ? 1.3 : 0.5} />
-              {/* The creator count is the only mark on the map: the state's
-                  name is in the pinned card, and two-letter codes made the
-                  country read as an atlas rather than as this brand's data.
+  /* The card that names what you're pointing at. It rides beside the state
+     itself rather than parking in the map's top-left corner — you read the
+     name without your eye ever leaving the shape it belongs to.
 
-                  It sits ON the centroid. The old +14/-10 offset floated it
-                  clear of small states, which is how Chandigarh's single
-                  creator ended up printed over Himachal Pradesh. It also stays
-                  up while the state is selected — on a territory a few pixels
-                  wide the marker is the only thing you can see you picked —
-                  and it takes clicks, so those states have a hit target the
-                  size of the bubble rather than of the sliver. */}
-              {has && (
-                <g style={{ opacity: dimmed ? 0.3 : 1, transition: "opacity 0.3s" }}>
-                  <motion.circle cx={cx} cy={cy} fill={baseColor} opacity={0.92}
-                    animate={{ r: isSel ? 8.5 : isHov ? 7.5 : 6.5 }} transition={{ type: "spring", stiffness: 400, damping: 24 }} />
-                  <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" pointerEvents="none"
-                    fill="#fff" fontSize={isSel ? 8 : 7} fontWeight={700} fontFamily="'Sora'">{data.creators}</text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-      </motion.g>
-    </svg>
+     Anchored in the SVG's own coordinates, then expressed as a percentage of
+     the map box, so it follows the zoom: the group is drawn as
+     translate(x,y)·scale(s) about (240,280), so a point p lands at
+     240 + x + s·(p − 240). The clamp keeps a card whose state has been
+     pushed near the edge by the zoom from hanging off the map. */
+  const focusId = hovId || (!isRegion && selectedId) || null;
+  const focusMeta = focusId ? STATES_META[focusId] : null;
+  const focusData = focusId ? stateData[focusId] : null;
+  const card = useMemo(() => {
+    const g = focusId && GEO[focusId];
+    if (!g) return null;
+    const toX = (x) => 240 + zoom.x + zoom.scale * (x - 240);
+    const toY = (y) => 280 + zoom.y + zoom.scale * (y - 280);
+    // Flip to whichever side has room, and hang the card off the state's own
+    // bounding edge — anchoring on the centroid laid it across Rajasthan and
+    // Madhya Pradesh, the two shapes wide enough to swallow it whole.
+    const flip = toX(g.c[0]) > 240;
+    const ax = flip ? toX(g.x0) - 9 : toX(g.x1) + 9;
+    return {
+      flip,
+      x: Math.min(97, Math.max(3, (ax / 480) * 100)),
+      y: Math.min(90, Math.max(7, (toY(g.c[1]) / 560) * 100)),
+    };
+  }, [focusId, zoom]);
+
+  const SLIDE = { type: "spring", stiffness: 400, damping: 36 };
+
+  return (
+    <div className="relative mx-auto w-full max-w-[640px]">
+      <svg viewBox="0 0 480 560" onMouseLeave={() => setHov(null)}
+        className="block w-full">
+        <rect width="480" height="560" fill="transparent" onClick={() => selectedId && onSelect(null)} />
+        <motion.g animate={zoom} transition={{ type: "spring", stiffness: 170, damping: 26 }}
+          style={{ transformBox: "view-box", transformOrigin: "240px 280px" }}>
+          {/* One merged silhouette under the washes, so an unpopulated state
+              still reads as part of the country rather than as a hole. */}
+          <path d={MERGED_PATH} fill={P.raised} stroke={P.raised} strokeWidth={0.6} />
+          {STATE_IDS.map((id, i) => {
+            const meta = STATES_META[id], data = stateData[id];
+            const isSel = selectedId === id || (isRegion && selectedId === meta.region);
+            const isHov = hovId === id;
+            const has = data?.creators > 0;
+            const baseColor = colorOf(meta);
+            // Monochrome mode leans harder on density so one hue still ranks
+            // the country; tinted mode keeps the flatter washes it needs to
+            // stay legible with six competing colours.
+            const intensity = has
+              ? (isRegion || isLang ? (tinted ? 0.38 : 0.34) : (tinted ? 0.22 : 0.14) + (data.creators / maxCr) * (tinted ? 0.55 : 0.72))
+              : (isRegion || isLang ? 0.10 : 0.05);
+            const dimmed = selectedId && !isSel;
+            // Hover lifts a state enough to confirm what you're pointing at,
+            // but an EMPTY state only lifts a little: giving it the same
+            // emphasis as a populated one made states with no creators read as
+            // the brand's strongest markets on the way past.
+            const fillOp = isSel ? 0.85
+              : isHov ? Math.max(intensity, has ? 0.55 : 0.2)
+              : dimmed ? intensity * 0.4
+              : intensity;
+            const [cx, cy] = CENTROIDS[id];
+            return (
+              // Zoomed in, every other state stays live: clicking one moves the
+              // camera straight there rather than making you back out first.
+              <g key={id} className="cursor-pointer"
+                onClick={() => onSelect(isRegion ? meta.region : id)}
+                onPointerEnter={() => setHov(id)}
+                onPointerLeave={() => setHov(null)}>
+                {/* Geometry NEVER changes on hover/select, only paint. Letting
+                    the interactive element shift shape under the cursor is what
+                    caused the old "stuck hover" bug near state borders. */}
+                <motion.path d={PATHS[id]} fill={baseColor}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, fillOpacity: fillOp }}
+                  transition={{ opacity: { delay: 0.15 + i * 0.014, duration: 0.4 }, fillOpacity: { type: "spring", stiffness: 300, damping: 28 } }}
+                  stroke={isSel || isHov ? baseColor : outline}
+                  strokeWidth={isSel ? 1.8 : isHov ? 1.3 : 0.5} />
+                {/* The creator count is the only mark on the map: the state's
+                    name is in the pinned card, and two-letter codes made the
+                    country read as an atlas rather than as this brand's data.
+
+                    It sits ON the centroid. The old +14/-10 offset floated it
+                    clear of small states, which is how Chandigarh's single
+                    creator ended up printed over Himachal Pradesh. It also stays
+                    up while the state is selected — on a territory a few pixels
+                    wide the marker is the only thing you can see you picked —
+                    and it takes clicks, so those states have a hit target the
+                    size of the bubble rather than of the sliver. */}
+                {has && (
+                  <g style={{ opacity: dimmed ? 0.3 : 1, transition: "opacity 0.3s" }}>
+                    <motion.circle cx={cx} cy={cy} fill={baseColor} opacity={0.92}
+                      animate={{ r: isSel ? 8.5 : isHov ? 7.5 : 6.5 }} transition={{ type: "spring", stiffness: 400, damping: 24 }} />
+                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" pointerEvents="none"
+                      fill="#fff" fontSize={isSel ? 8 : 7} fontWeight={700} fontFamily="'Sora'">{data.creators}</text>
+                  </g>
+                )}
+              </g>
+            );
+          })}
+        </motion.g>
+      </svg>
+
+      {/* One element that moves, NOT one per state: keyed by state it would
+          remount on every hover, so the new copy played its entrance where
+          the old one was still exiting. Keeping it mounted turns a switch
+          between states into a glide from one to the next. */}
+      <AnimatePresence>
+        {focusMeta && card && (
+          <motion.div key="focus-card" initial={false}
+            animate={{ left: `${card.x}%`, top: `${card.y}%` }} transition={SLIDE}
+            className="pointer-events-none absolute z-20">
+            <motion.div initial={false} animate={{ x: card.flip ? "-100%" : "0%", y: "-50%" }} transition={SLIDE}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.94 }}
+                transition={{ duration: 0.14 }}
+                style={{ transformOrigin: card.flip ? "right center" : "left center" }}
+                className="glass-panel w-max max-w-[210px] rounded-[13px] px-3.5 py-2.5 shadow-[0_12px_30px_rgba(25,22,17,0.14)]">
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+                  <Dot color={colorOf(focusMeta)} sz={6} />{focusMeta.name}
+                </div>
+                <div className="mt-0.5 text-[11px] text-sub">
+                  {focusData?.creators || 0} creator{(focusData?.creators || 0) === 1 ? "" : "s"}
+                  {focusData?.followers ? <> · <b className="tnum text-ink">{fmtNum(focusData.followers)}</b> reach</> : null}
+                </div>
+                <div className="mt-0.5 text-[9.5px] uppercase tracking-[0.08em] text-mute">{RN[focusMeta.region]} · {focusMeta.lang}</div>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -375,7 +440,6 @@ export default function RegionalMap() {
   const [mode, setMode] = useState("state");
   const [sel, setSel] = useState(null);
   const [selType, setSelType] = useState(null);
-  const [hovId, setHovId] = useState(null);
   const [tinted, setTinted] = useState(false);   // "Regional colours"
   const { data: campaigns, error, retry } = usePortalCampaigns();
 
@@ -400,12 +464,6 @@ export default function RegionalMap() {
   if (!data) return <PageSkeleton />;
 
   const t = data.totals;
-  // What the card names: the state under the cursor, or — once one is picked —
-  // the state you zoomed into, so the label stays pinned instead of vanishing
-  // the moment the cursor leaves the map.
-  const focusId = hovId || (selType === "state" ? sel : null);
-  const focusMeta = focusId ? STATES_META[focusId] : null;
-  const focusData = focusId ? data.stateData[focusId] : null;
 
   const KPIS = [
     { label: "Campaigns", value: t.campaigns, format: Math.round, Icon: Megaphone },
@@ -488,46 +546,8 @@ export default function RegionalMap() {
             transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
             className="relative top-28 self-start px-2 py-4 lg:sticky">
 
-            {/* Pinned caption on the map rather than a tooltip chasing the
-                cursor. Reserves its height so the map doesn't jump as you move
-                on and off the country.
-
-                The overlay spans the map and the card is STICKY inside it, at
-                the navbar's height: pinned to the top-left of the map, it
-                slid up under the floating navbar as soon as you scrolled far
-                enough to reach a southern state — you'd click Kerala and the
-                label naming it was off-screen. Now it rides down with the
-                scroll and stops where the navbar ends, still clamped to the
-                map so it never outlives what it describes. */}
-            <div className="pointer-events-none absolute inset-x-2 bottom-4 top-4 z-20">
-              <div className="sticky top-[104px] min-h-[62px] w-fit">
-                {/* One element that updates in place, NOT one per state: keying
-                    the card by state remounted it on every switch, so the new
-                    copy played its y:6 entrance below the old one and snapped
-                    up as the old unmounted — the drop-and-jump on every click.
-                    AnimatePresence now only handles it appearing and going. */}
-                <AnimatePresence>
-                  {focusMeta && (
-                    <motion.div key="focus-card"
-                      initial={{ opacity: 0, y: 6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }}
-                      transition={{ duration: 0.15 }}
-                      className="glass-panel rounded-[14px] px-4 py-2.5">
-                      <div className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
-                        <Dot color={colorOf(focusMeta)} sz={6} />{focusMeta.name}
-                      </div>
-                      <div className="mt-0.5 text-[11px] text-sub">
-                        {focusData?.creators || 0} creator{(focusData?.creators || 0) === 1 ? "" : "s"}
-                        {focusData?.followers ? <> · <b className="tnum text-ink">{fmtNum(focusData.followers)}</b> reach</> : null}
-                      </div>
-                      <div className="mt-0.5 text-[9.5px] uppercase tracking-[0.08em] text-mute">{RN[focusMeta.region]} · {focusMeta.lang}</div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-
             <IndiaMap mode={mode} stateData={data.stateData} selectedId={sel}
-              onSelect={handleSelect} onHover={setHovId} tinted={tinted} P={P} />
+              onSelect={handleSelect} tinted={tinted} P={P} />
 
             <div className="mt-4 min-h-4 text-center text-[12px] text-mute transition-all duration-200">
               {mode === "state" ? "Deeper tint = more creators · click a state to zoom in, or click another to move on"

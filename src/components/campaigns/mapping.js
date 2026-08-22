@@ -144,8 +144,31 @@ export function toViewCampaign(c) {
     // boolean.
   } : null;
 
-  /* Real aggregates over creators that actually have tracking data */
-  const sumTrack = (key) => creators.reduce((s, cr) => s + (cr.tracking?.[key] || 0), 0);
+  /* Real aggregates over creators that actually have tracking data.
+
+     A null field is a refresh that didn't report that number, NOT a count that
+     fell to zero, so it falls back to the most recent reading that did carry
+     it. Without that, one partial refresh silently deletes a post's whole
+     contribution: a roster here came back with `forwards: null` on its latest
+     fetch, which took 33.8K shares off the live total and off the engagements
+     figure derived from it, while the campaign had not lost a single share.
+
+     Same rule as carriedByDay() in portalMetrics.js, which the growth chart is
+     built on — the two must not disagree about what a null means. */
+  const TRACK_KEYS = ["views", "likes", "comments", "forwards"];
+  const lastKnown = creators.map((cr) => {
+    // Newest first: nothing guarantees stored order, and the fallback wants
+    // the latest reading that carried the field, not the first.
+    const history = Array.isArray(cr.tracking?.history)
+      ? [...cr.tracking.history].sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      : [];
+    return Object.fromEntries(TRACK_KEYS.map((key) => {
+      const live = cr.tracking?.[key];
+      const hit = live != null ? { [key]: live } : history.find((p) => p?.[key] != null);
+      return [key, Number(hit?.[key]) || 0];
+    }));
+  });
+  const sumTrack = (key) => lastKnown.reduce((s, t) => s + t[key], 0);
   const trackTotals = { views: sumTrack("views"), likes: sumTrack("likes"), comments: sumTrack("comments"), forwards: sumTrack("forwards") };
   const hasTrackTotals = Object.values(trackTotals).some(v => v > 0);
   const views = trackTotals.views;
