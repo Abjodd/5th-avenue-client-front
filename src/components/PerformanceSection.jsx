@@ -24,8 +24,7 @@ import AnimatedNumber from "./AnimatedNumber";
 import { useApp } from "../context";
 import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/dates";
 import { chartTheme } from "../lib/chartTheme";
-import { fmtNum, fmtINR, fmtCPV } from "../lib/format";
-import { cpvOf } from "../lib/portalMetrics";
+import { fmtNum, fmtINR } from "../lib/format";
 import { Funnel } from "./charts";
 import { PortalAPI } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -78,11 +77,33 @@ function TrendBadge({ delta, P }) {
 }
 
 function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaLabel, P }) {
+  const [showInfo, setShowInfo] = useState(false);
   return (
     <div className="rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
       <div className="flex items-center justify-between gap-2">
-        <div className="microlabel">{label}</div>
-        {!loading && <TrendBadge delta={delta} P={P}/>}
+        <div className="flex items-center gap-1">
+          <div className="microlabel">{label}</div>
+          {label === "CPV" && (
+            <div className="relative">
+              <button
+                type="button"
+                title="This CPV is for all campaigns in the selected period. For a campaign-specific CPV, open the specific campaign page."
+                aria-label="CPV info"
+                onMouseEnter={() => setShowInfo(true)} onMouseLeave={() => setShowInfo(false)}
+                onFocus={() => setShowInfo(true)} onBlur={() => setShowInfo(false)}
+                className="inline-flex size-3.5 items-center justify-center rounded-full border border-line text-[8px] font-bold text-mute transition-colors hover:bg-accent/[0.12] hover:text-accent"
+              >
+                i
+              </button>
+              {showInfo && (
+                <div className="absolute right-0 z-10 mt-2 w-64 rounded-md border border-line bg-[--color-glass] p-2 text-[11px] text-sub shadow-md">
+                  This CPV is for all campaigns in the selected period. For a campaign-specific CPV, open the specific campaign page.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {!loading && delta != null && <TrendBadge delta={delta} P={P}/>}
       </div>
       <div className="mt-1 text-[22px] font-bold leading-none" style={{ color }}>
         {loading ? "…" : <AnimatedNumber value={value} format={format} duration={900}/>}
@@ -92,6 +113,11 @@ function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaL
       )}
     </div>
   );
+}
+
+function fmtCPV5(value) {
+  if (value == null || !Number.isFinite(value)) return "0.00000";
+  return Number(value).toFixed(5);
 }
 
 export default function PerformanceSection({ clientName: clientNameProp }) {
@@ -164,7 +190,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const totals = useMemo(() => {
     const sum = k => events.reduce((s, ev) => s + (ev[k] || 0), 0);
     const spend = sum("spend"), views = sum("views");
-    return { views, reach: sum("reach"), eng: sum("engagements"), spend, cpv: cpvOf(spend, views) };
+    return { views, reach: sum("reach"), eng: sum("engagements"), spend, cpv: views > 0 ? spend / views : 0 };
   }, [events]);
 
   // How much of the period is real measurement vs follower-based estimate.
@@ -261,9 +287,9 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.accent} delta={trend?.views}  deltaLabel={trendUnit} P={P}/>
           <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber}  delta={trend?.eng}    deltaLabel={trendUnit} P={P}/>
           <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple} delta={trend?.spend} deltaLabel={trendUnit} P={P}/>
-          {/* No trend badge on CPV: a falling cost per view is the good
+            {/* No trend badge on CPV: a falling cost per view is the good
               outcome, and the shared badge paints every drop red. */}
-          <StatTile label="External CPV"   value={totals.cpv}    format={fmtCPV} loading={isLoading} color={P.green} P={P}/>
+          <StatTile label="CPV"            value={totals.cpv}    format={fmtCPV5} loading={isLoading} color={P.green} P={P}/>
         </div>
 
         {/* Row 1: Dual-axis line chart */}

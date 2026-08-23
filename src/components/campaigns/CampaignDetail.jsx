@@ -143,9 +143,14 @@ function MetricCard({ label, value, breakdowns, onOpen, suffix = "" }) {
 
    It used to spread views / likes / comments / shares across four equal tiles,
    which gave three components of a single number the same standing as the
-   number itself, and then restated External CPV in a detached card below,
+   number itself, and then restated CPV in a detached card below,
    away from the views it is computed from. Likes, comments and shares haven't
-   gone anywhere: they're one hover inside the total they add up to. */
+   gone anywhere: they're one hover inside the total they add up to.
+
+   CPV here is budget ÷ views, shown to six decimal places rather than
+   rounded to a currency-style two — at typical view counts a campaign's
+   real cost-per-view is a fraction of a paisa, and rounding to 2dp collapses
+   most campaigns to the same "₹0.00". */
 function LivePerformance({ totals, lastFetched, cpv }) {
   const P = useP();
   const [openBd, setOpenBd] = useState(false);
@@ -162,8 +167,10 @@ function LivePerformance({ totals, lastFetched, cpv }) {
     totals.views > 0 && { label: "Views", node: <AnimatedNumber value={totals.views} format={fmtNum} duration={900}/> },
     eng > 0 && { label: "Engagements", node: <AnimatedNumber value={eng} format={fmtNum} duration={900}/>, parts },
     // cpv is null until the campaign has both a budget and measured views, so
-    // this drops out on its own rather than printing an invented rate.
-    cpv != null && { label: "External CPV", node: fmtCPV(cpv) },
+    // this drops out on its own rather than printing an invented rate. Shown
+    // to 6dp (not run through fmtCPV's currency rounding) since budget/views
+    // is routinely a sub-paisa number.
+    cpv != null && { label: "CPV", node: `₹${cpv.toFixed(6)}` },
   ].filter(Boolean);
   if (!tiles.length) return null;
 
@@ -184,10 +191,13 @@ function LivePerformance({ totals, lastFetched, cpv }) {
             onMouseEnter={() => t.parts && setOpenBd(true)}
             onMouseLeave={() => setOpenBd(false)}>
             <div className="tnum text-[19px] font-bold leading-none text-ink">{t.node}</div>
-            <div className="mt-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">
+            <div className="mt-1 flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">
               {/* The dotted rule is the only thing telling you the total opens
                   — without it the breakdown is a feature you find by accident. */}
               <span className={t.parts ? "cursor-help border-b border-dotted border-mute/60 pb-px" : ""}>{t.label}</span>
+              {t.parts && (
+                <span className="inline-flex items-center justify-center size-4 rounded-full border border-mute/40 text-[8px] font-bold text-mute">i</span>
+              )}
             </div>
             {/* The breakdown unfurls sideways into the tile's own empty half,
                 not downward. Stacked under the figure it was taller than the
@@ -759,7 +769,10 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                         what they paid for has actually gone out. */}
                     <MetricCard label="Deliverables" value={numDel ? `${numDelPosted}/${numDel}` : "—"}/>
                   </div>
-                  <MetricCard label="Engagement Rate" value={c.engRate} breakdowns={engBD} suffix="%"/>
+                  <div className="group cursor-pointer relative">
+                    <MetricCard label="Engagement Rate" value={c.engRate} breakdowns={engBD} suffix="%"/>
+                    {engBD && <div className="absolute top-3 right-3 text-[12px] text-mute opacity-60 group-hover:opacity-100 transition-opacity">Hover or click to explore</div>}
+                  </div>
                   <div className="mb-3 mt-2 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
                     <div className="flex items-center justify-between">
                       <div><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Timeline</div><div className="mt-0.5 text-[12.5px] font-medium text-ink">{prettyDate(c.start)} — {prettyDate(c.end)}</div></div>
