@@ -50,11 +50,11 @@ export const PortalAPI = {
 /**
  * The signed-in brand user's own credential record.
  *
- * The portal is otherwise strictly read-only — this is the single exception,
- * and it is scoped as narrowly as that fact deserves: a user may change THEIR
- * OWN profile photo and nothing else. Every other field on the record (brand,
- * username, title, role) is the agency's to set, and lives behind the founder's
- * Access & Credentials page.
+ * The portal is otherwise read-only — this is the exception, scoped narrowly:
+ * a user may change their own photo, contact details and password, nothing
+ * else. The fields deciding what this login can SEE (brand, username) belong
+ * to the founder's Access & Credentials page. The server holds the allowlist;
+ * these are just the matching calls.
  *
  * Hits the same /api/brand-credentials routes the internal app uses, because
  * they are the same documents.
@@ -78,6 +78,15 @@ export const AccountAPI = {
     request(`/api/portal/account/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
+    }),
+
+  // The member's own sign-in password. The current one travels too, because
+  // that is what authorises the change — there is no session token, so the id
+  // alone must not be enough. Returns nothing: no session field changes.
+  changePassword: (id, currentPassword, newPassword) =>
+    request(`/api/portal/account/${encodeURIComponent(id)}/password`, {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
   // Null when the record has no photo, so the caller renders initials instead
