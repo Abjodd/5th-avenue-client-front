@@ -450,7 +450,14 @@ export default function OverviewDashboard() {
   if (!campaigns) return <PageSkeleton />;
 
   return (
-    <div className="relative">
+    <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      {/* Enhanced gradient overlay */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-40 animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-pink/10 rounded-full blur-3xl opacity-30 animate-pulse" style={{animationDelay: "2s"}} />
+        <div className="absolute top-1/2 right-0 w-96 h-96 bg-purple/5 rounded-full blur-3xl opacity-20" />
+      </div>
+
       {/* Cinematic brand story — once per login, over the loaded dashboard */}
       {!introClosed && (
         <Suspense fallback={null}>
@@ -460,24 +467,44 @@ export default function OverviewDashboard() {
 
       <AmbientBackground variant="a" />
 
-      <div className="mx-auto w-full max-w-[1600px] px-5 pb-16 sm:px-9">
+      <div className="relative z-10 mx-auto w-full max-w-[1600px] px-5 pb-16 sm:px-9">
         {/* ── HERO ─────────────────────────────────────────────────────── */}
         <motion.header
           key={`hero-${introDone}`}
           variants={fadeUp}
           initial="hidden"
           animate={introDone ? "show" : "hidden"}
-          className="pt-10"
+          className="pt-12"
         >
-          <div className="microlabel mb-2 tracking-[0.2em]">
-            Overview · {clientName} · {kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}
-          </div>
-          <h1 className="font-serif text-[clamp(32px,4.6vw,52px)] font-bold leading-[1.05] tracking-[-0.02em] text-ink">
-            {greeting()}, <span className="italic text-accent">{firstName}</span>.
-          </h1>
-          <p className="mt-3 max-w-[62ch] text-[14.5px] leading-relaxed text-sub">{summary}</p>
+          <motion.div 
+            className="microlabel mb-3 tracking-[0.3em] text-accent/70 font-semibold"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            ✨ Overview · {clientName} · {kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}
+          </motion.div>
+          <motion.h1 
+            className="font-serif text-[clamp(40px,5.5vw,64px)] font-black leading-[1.02] tracking-[-0.03em] text-ink bg-gradient-to-r from-ink via-accent to-ink bg-clip-text text-transparent"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.6 }}
+          >
+            {greeting()}, <span className="italic text-accent drop-shadow-lg">{firstName}</span>.
+          </motion.h1>
+          <motion.p 
+            className="mt-4 max-w-[65ch] text-[15.5px] leading-relaxed text-sub/90 font-medium"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+          >{summary}</motion.p>
 
-          <div className="mt-7 grid items-stretch gap-4 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+          <motion.div 
+            className="mt-9 grid items-stretch gap-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
             {/* Campaign health — the mean of the progress 5th Avenue records on
                 each live campaign. Hidden entirely when nothing is in flight. */}
             <Panel reveal className="flex flex-col items-center justify-center px-6 py-7">
@@ -524,7 +551,7 @@ export default function OverviewDashboard() {
                 </div>
               )}
             </Panel>
-          </div>
+          </motion.div>
         </motion.header>
 
         {/* ── PERFORMANCE ──────────────────────────────────────────────── */}

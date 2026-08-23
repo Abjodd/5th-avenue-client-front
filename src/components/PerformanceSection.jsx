@@ -83,6 +83,8 @@ function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaL
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <div className="microlabel">{label}</div>
+        </div>
+        <div className="flex items-center gap-1">
           {label === "CPV" && (
             <div className="relative">
               <button
@@ -91,19 +93,19 @@ function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaL
                 aria-label="CPV info"
                 onMouseEnter={() => setShowInfo(true)} onMouseLeave={() => setShowInfo(false)}
                 onFocus={() => setShowInfo(true)} onBlur={() => setShowInfo(false)}
-                className="inline-flex size-3.5 items-center justify-center rounded-full border border-line text-[8px] font-bold text-mute transition-colors hover:bg-accent/[0.12] hover:text-accent"
+                className="inline-flex size-3.5 items-center justify-center rounded-full border border-line bg-accent/[0.15] text-[8px] font-bold text-accent transition-colors hover:bg-accent/[0.25] hover:text-accent"
               >
                 i
               </button>
               {showInfo && (
-                <div className="absolute right-0 z-10 mt-2 w-64 rounded-md border border-line bg-[--color-glass] p-2 text-[11px] text-sub shadow-md">
+                <div className="absolute right-0 z-10 mt-2 w-64 rounded-md border border-line bg-white p-2 text-[11px] text-gray-900 shadow-md">
                   This CPV is for all campaigns in the selected period. For a campaign-specific CPV, open the specific campaign page.
                 </div>
               )}
             </div>
           )}
+          {!loading && delta != null && <TrendBadge delta={delta} P={P}/>}
         </div>
-        {!loading && delta != null && <TrendBadge delta={delta} P={P}/>}
       </div>
       <div className="mt-1 text-[22px] font-bold leading-none" style={{ color }}>
         {loading ? "…" : <AnimatedNumber value={value} format={format} duration={900}/>}
@@ -287,8 +289,8 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.accent} delta={trend?.views}  deltaLabel={trendUnit} P={P}/>
           <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber}  delta={trend?.eng}    deltaLabel={trendUnit} P={P}/>
           <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple} delta={trend?.spend} deltaLabel={trendUnit} P={P}/>
-            {/* No trend badge on CPV: a falling cost per view is the good
-              outcome, and the shared badge paints every drop red. */}
+          {/* No trend badge on CPV: a falling cost per view is the good
+            outcome, and the shared badge paints every drop red. */}
           <StatTile label="CPV"            value={totals.cpv}    format={fmtCPV5} loading={isLoading} color={P.green} P={P}/>
         </div>
 
