@@ -12,7 +12,7 @@
  * showing a grid of dashes.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { User, Palette, Building2, ArrowLeft, Mail, ExternalLink, Pencil, Lock } from "lucide-react";
+import { User, Palette, Building2, ArrowLeft, Mail, ExternalLink, Pencil, Lock, KeyRound, Eye, EyeOff, Check } from "lucide-react";
 
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
@@ -179,6 +179,140 @@ function FieldGrid({ fields, empty }) {
         ? <EditableField key={f.label} {...f} />
         : <Field key={f.label} {...f} />))}
     </Stagger>
+  );
+}
+
+/**
+ * Changing your own sign-in password.
+ *
+ * Three fields, each earning its place: CURRENT authorises the change (there is
+ * no session token, so the account id alone must not be enough), and CONFIRM
+ * stands between a typo and a lockout only an account manager can undo.
+ *
+ * The rules below mirror the server so a bad password is caught before a round
+ * trip; the server enforces them, and its message wins when the two disagree.
+ */
+const MIN_PASSWORD = 8;                       // mirrors MIN_PASSWORD in routes/auth.js
+const BLANK_PASSWORDS = { current: "", next: "", confirm: "" };
+
+function PasswordField({ label, value, onChange, reveal, disabled, autoComplete, inputRef }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</span>
+      <input
+        ref={inputRef}
+        type={reveal ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        autoComplete={autoComplete}
+        placeholder="••••••••"
+        className="mt-1 w-full rounded-[10px] border border-line bg-[--color-input] px-3 py-2 text-[14px] text-ink outline-none transition-colors placeholder:text-donetxt focus:border-accent/50 disabled:opacity-50"
+      />
+    </label>
+  );
+}
+
+function PasswordPanel({ userId }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(BLANK_PASSWORDS);
+  const [reveal, setReveal] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [saved, setSaved] = useState(false);
+  const firstRef = useRef(null);
+
+  useEffect(() => { if (open) firstRef.current?.focus(); }, [open]);
+
+  const set = (key) => (e) => {
+    setForm((f) => ({ ...f, [key]: e.target.value }));
+    setErr("");
+  };
+
+  // Leaving drops what was typed — a half-entered password is not a draft.
+  const close = () => { setForm(BLANK_PASSWORDS); setErr(""); setReveal(false); setOpen(false); };
+
+  const filled = form.current && form.next && form.confirm;
+  // Only once all three are filled — flagging a mismatch mid-typing is noise.
+  const problem = !filled ? ""
+    : form.next.length < MIN_PASSWORD ? `New password must be at least ${MIN_PASSWORD} characters.`
+    : form.next === form.current ? "New password must be different from your current one."
+    : form.next !== form.confirm ? "The two new passwords don't match."
+    : "";
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy || !filled || problem) return;
+    setBusy(true);
+    setErr("");
+    try {
+      await AccountAPI.changePassword(userId, form.current, form.next);
+      setSaved(true);
+      close();
+    } catch (e2) {
+      setErr(e2.body?.error || e2.message);   // stays open so it can be corrected
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Panel reveal delay={0.12} className="px-6 py-5">
+      <PanelTitle
+        title="Password"
+        hint="The password you sign in with. Changing it here updates it everywhere immediately."
+        action={!open && (
+          <button type="button" onClick={() => { setSaved(false); setOpen(true); }}
+            className="flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-3 py-1.5 text-[11.5px] font-medium text-accent transition-colors hover:bg-accent/[0.06]">
+            <KeyRound size={12} strokeWidth={2.2} /> Change password
+          </button>
+        )}
+      />
+
+      {open ? (
+        <form onSubmit={submit} className="flex max-w-[420px] flex-col gap-3">
+          <PasswordField label="Current password" value={form.current} onChange={set("current")}
+            reveal={reveal} disabled={busy} autoComplete="current-password" inputRef={firstRef} />
+          <PasswordField label="New password" value={form.next} onChange={set("next")}
+            reveal={reveal} disabled={busy} autoComplete="new-password" />
+          <PasswordField label="Confirm new password" value={form.confirm} onChange={set("confirm")}
+            reveal={reveal} disabled={busy} autoComplete="new-password" />
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] text-mute">At least {MIN_PASSWORD} characters.</span>
+            <button type="button" onClick={() => setReveal((v) => !v)}
+              className="flex items-center gap-1 text-[11px] font-medium text-sub transition-colors hover:text-ink">
+              {reveal ? <EyeOff size={12} /> : <Eye size={12} />} {reveal ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {(problem || err) && <div className="text-[11.5px] text-red">{problem || err}</div>}
+
+          <div className="flex items-center gap-1.5">
+            <button type="submit" disabled={busy || !filled || !!problem}
+              className="rounded-full bg-accent px-3.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+              {busy ? "Updating…" : "Update password"}
+            </button>
+            <button type="button" onClick={close} disabled={busy}
+              className="rounded-full border border-line px-3.5 py-1.5 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <Subpanel className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Current password</span>
+            <span className="mt-1 block font-mono text-[15px] font-semibold tracking-[0.22em] text-ink">••••••••</span>
+          </span>
+          {saved && (
+            <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-green">
+              <Check size={13} strokeWidth={2.4} /> Updated — use it the next time you sign in.
+            </span>
+          )}
+        </Subpanel>
+      )}
+    </Panel>
   );
 }
 
@@ -428,6 +562,7 @@ export default function Settings() {
                     Saved changes reach your 5th Avenue team straight away.
                   </p>
                 </Panel>
+                <PasswordPanel userId={user?.id} />
               </div>
             )}
 

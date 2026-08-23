@@ -37,20 +37,6 @@ const C = {
 
 const CYCLE = ["tracked.", "organized.", "on time."];
 
-function mockLogin(email, password) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      if (!email.includes("@")) {
-        resolve({ ok: false, error: "Enter a valid email address." });
-      } else if (password.length < 4) {
-        resolve({ ok: false, error: "That password doesn't look right." });
-      } else {
-        resolve({ ok: true });
-      }
-    }, 850);
-  });
-}
-
 export default function FifthAvenueLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -97,7 +83,12 @@ export default function FifthAvenueLogin() {
     const result = await login(email, password);
     if (result.ok) {
       setLoading(false);
-      navigate("/portal/overview", { replace: true });
+      // First sign-in ever → Profile, so the brand sees and corrects the
+      // account we hold for them. Every sign-in after → the dashboard, where
+      // the brand-story intro plays. `firstLogin` comes from the server, not
+      // this browser: a local flag would fire again on every new device.
+      // `replace` so Back leaves the portal instead of bouncing through login.
+      navigate(result.user?.firstLogin ? "/portal/profile" : "/portal/overview", { replace: true });
     } else {
       setLoading(false);
       setErr(result.error);
