@@ -1,18 +1,29 @@
 /**
  * 5th Avenue — Client Portal Login (single-panel redesign)
  * One continuous navy scene — no left/right split. The motion (blueprint
- * grid, drifting orbs, rising diamonds, cycling headline) sits behind a
- * single centered glass card that holds both the pitch and the sign-in
- * form. The "live campaign" stat strip lives inside the card itself, above
- * the fields, so there's one flow instead of two competing halves.
+ * grid, drifting orbs, cycling headline) sits behind a single centered
+ * glass card that holds both the pitch and the sign-in form. The stat
+ * strip lives inside the card itself, above the fields, so there's one
+ * flow instead of two competing halves.
+ *
+ * Brand mark: swap FAVICON_SRC below for the actual file in /public
+ * (e.g. "/favicon.svg", "/favicon.png", "/logo.svg") if it isn't
+ * literally "/favicon.ico".
  */
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const FAVICON_SRC = "/favicon.svg";
+
+// One typeface for the whole scene — the wordmark up top, the headline,
+// and the card title all read as one voice instead of a sans/serif mix.
+const FONT_BRAND = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif";
+
 const C = {
   navyDark: "#03060F",
   navy: "#0A1638",
+  navyDeep: "#050B1E",
   blue: "#3E7BFF",
   blueSoft: "#8FB2FF",
   white: "#FFFFFF",
@@ -40,31 +51,6 @@ function mockLogin(email, password) {
   });
 }
 
-function useRisingDiamonds(reduced) {
-  const [items, setItems] = useState([]);
-  useEffect(() => {
-    if (reduced) return;
-    const t = setInterval(() => {
-      const id = Date.now() + Math.random();
-      setItems((cur) => [
-        ...cur,
-        { id, x: 4 + Math.random() * 92, size: 5 + Math.random() * 6, dur: 6 + Math.random() * 3 },
-      ]);
-      setTimeout(() => setItems((cur) => cur.filter((it) => it.id !== id)), 9200);
-    }, 550);
-    return () => clearInterval(t);
-  }, [reduced]);
-  return items;
-}
-
-function Diamond({ size, style }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" style={style}>
-      <polygon points="8,0 16,8 8,16 0,8" fill="none" stroke={C.blueSoft} strokeWidth="1.3" />
-    </svg>
-  );
-}
-
 export default function FifthAvenueLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -88,7 +74,6 @@ export default function FifthAvenueLogin() {
   const [my, setMy] = useState(0);
 
   const sceneRef = useRef(null);
-  const diamonds = useRisingDiamonds(reduced);
 
   const onMove = (e) => {
     if (reduced) return;
@@ -131,8 +116,14 @@ export default function FifthAvenueLogin() {
         position: "relative", minHeight: "100vh", width: "100%", overflow: "hidden",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         gap: 18, boxSizing: "border-box", padding: "24px 16px",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif",
-        background: `radial-gradient(120% 90% at 50% 0%, ${C.navy} 0%, ${C.navyDark} 68%)`,
+        fontFamily: FONT_BRAND,
+        // Layered instead of one flat radial: a deep base, a warmer glow
+        // rising from the horizon, and a faint top vignette so the card
+        // sits in a scene with depth rather than a single color wash.
+        background: `
+          radial-gradient(60% 40% at 50% 0%, rgba(62,123,255,0.16), transparent 70%),
+          radial-gradient(120% 90% at 50% 100%, ${C.navy} 0%, ${C.navyDeep} 55%, ${C.navyDark} 100%)
+        `,
         borderRadius: "20px",
       }}
     >
@@ -143,7 +134,7 @@ export default function FifthAvenueLogin() {
         @keyframes fa-burst { 0% { transform: scale(0.5); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
         @keyframes fa-orb1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-20px) scale(1.08); } }
         @keyframes fa-orb2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-26px,24px) scale(1.08); } }
-        @keyframes fa-rise { 0% { opacity: 0; transform: translateY(0) rotate(0deg); } 10% { opacity: 0.85; } 90% { opacity: 0.85; } 100% { opacity: 0; transform: translateY(-540px) rotate(90deg); } }
+        @keyframes fa-aurora { 0%,100% { transform: translateX(-4%) rotate(0deg); opacity: 0.5; } 50% { transform: translateX(4%) rotate(1.5deg); opacity: 0.85; } }
         @keyframes fa-pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }
         @keyframes fa-fadeup { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fa-wordin { from { opacity: 0; transform: translateY(0.5em); filter: blur(4px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
@@ -162,6 +153,7 @@ export default function FifthAvenueLogin() {
         @media (prefers-reduced-motion: reduce) { .fa-anim { animation: none !important; } }
       `}</style>
 
+      {/* Blueprint grid — slow drift, parallaxes very slightly with the cursor */}
       <svg
         style={{
           position: "absolute", inset: "-64px", opacity: 0.12, pointerEvents: "none",
@@ -177,31 +169,55 @@ export default function FifthAvenueLogin() {
         <rect width="100%" height="100%" fill="url(#fa-grid2)" className="fa-anim" style={{ animation: reduced ? "none" : "fa-griddrift 14s linear infinite" }} />
       </svg>
 
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-        <div className="fa-anim" style={{ position: "absolute", left: "-8%", top: "-14%", width: 420, height: 420, borderRadius: "50%", filter: "blur(100px)", background: `radial-gradient(circle, ${C.blue}, transparent 70%)`, opacity: 0.42, animation: reduced ? "none" : "fa-orb1 18s ease-in-out infinite" }} />
-        <div className="fa-anim" style={{ position: "absolute", right: "-10%", bottom: "-16%", width: 460, height: 460, borderRadius: "50%", filter: "blur(110px)", background: `radial-gradient(circle, ${C.blue}, transparent 70%)`, opacity: 0.32, animation: reduced ? "none" : "fa-orb2 22s ease-in-out infinite" }} />
+      {/* Ambient depth — two soft orbs plus a faint aurora sweep behind the
+          card. Replaces the rising-diamond field: same navy/blue theme,
+          but nothing pops into the foreground or competes with the form. */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+        <div className="fa-anim" style={{ position: "absolute", left: "-8%", top: "-14%", width: 420, height: 420, borderRadius: "50%", filter: "blur(100px)", background: `radial-gradient(circle, ${C.blue}, transparent 70%)`, opacity: 0.38, animation: reduced ? "none" : "fa-orb1 18s ease-in-out infinite" }} />
+        <div className="fa-anim" style={{ position: "absolute", right: "-10%", bottom: "-16%", width: 460, height: 460, borderRadius: "50%", filter: "blur(110px)", background: `radial-gradient(circle, ${C.blue}, transparent 70%)`, opacity: 0.28, animation: reduced ? "none" : "fa-orb2 22s ease-in-out infinite" }} />
+        <div
+          className="fa-anim"
+          style={{
+            position: "absolute", left: "50%", top: "-20%", width: "140%", height: 360,
+            transform: "translateX(-50%)",
+            background: `linear-gradient(90deg, transparent, ${C.blueSoft}22, transparent)`,
+            filter: "blur(60px)",
+            animation: reduced ? "none" : "fa-aurora 12s ease-in-out infinite",
+          }}
+        />
       </div>
 
-      <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-        {diamonds.map((d) => (
-          <span key={d.id} style={{ position: "absolute", bottom: "-4%", left: `${d.x}%`, animation: `fa-rise ${d.dur}s linear forwards` }}>
-            <Diamond size={d.size} />
-          </span>
-        ))}
-      </div>
-
-      <div className="fa-login-brand" onClick={() => navigate(-1)} style={{ position: "absolute", left: 32, top: 32, display: "inline-flex", alignItems: "center", gap: 12, cursor: "pointer", animation: reduced ? "none" : "fa-fadeup 0.5s cubic-bezier(0.16,1,0.3,1)" }}>
-        <svg width="32" height="32" viewBox="0 0 16 16" style={{ filter: `drop-shadow(0 0 4px ${C.blue}90)` }}>
-          <polygon points="8,0 16,8 8,16 0,8" fill="none" stroke={C.blue} strokeWidth="1.4" />
-        </svg>
-        <span style={{ fontSize: 20, fontWeight: 300, textTransform: "uppercase", letterSpacing: "0.26em", color: C.white }}>Fifth Avenue</span>
+      <div
+        className="fa-login-brand"
+        onClick={() => navigate(-1)}
+        style={{ position: "absolute", left: 32, top: 32, display: "inline-flex", alignItems: "center", gap: 12, cursor: "pointer", animation: reduced ? "none" : "fa-fadeup 0.5s cubic-bezier(0.16,1,0.3,1)" }}
+      >
+        <img
+          src={FAVICON_SRC}
+          alt="Fifth Avenue"
+          width={28}
+          height={28}
+          style={{ display: "block", filter: `drop-shadow(0 0 6px ${C.blue}90)` }}
+        />
+        <span style={{ fontFamily: FONT_BRAND, fontSize: 20, fontWeight: 300, textTransform: "uppercase", letterSpacing: "0.26em", color: C.white }}>
+          Fifth Avenue
+        </span>
       </div>
 
       <div className="fa-login-headline" style={{ position: "relative", marginTop: 18, textAlign: "center", animation: reduced ? "none" : "fa-fadeup 0.6s 0.05s cubic-bezier(0.16,1,0.3,1) both", maxWidth: 760 }}>
-        <h1 style={{ margin: "12px 0 0", fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontWeight: 500, fontSize: "clamp(26px,3.6vw,34px)", lineHeight: 1.15, color: C.white }}>
+        <h1 style={{ margin: "12px 0 0", fontFamily: FONT_BRAND, fontWeight: 300, fontSize: "clamp(24px,3.4vw,32px)", lineHeight: 1.2, letterSpacing: "0.01em", color: C.white }}>
           Every campaign, perfectly{" "}
           <span style={{ position: "relative", display: "inline-block" }}>
-            <span key={word} className="fa-anim" style={{ display: "inline-block", background: `linear-gradient(90deg, ${C.blueSoft}, ${C.white})`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: reduced ? "none" : "fa-wordin 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
+            <span
+              key={word}
+              className="fa-anim"
+              style={{
+                display: "inline-block", fontWeight: 600,
+                background: `linear-gradient(90deg, ${C.blueSoft}, ${C.white})`,
+                WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
+                animation: reduced ? "none" : "fa-wordin 0.4s cubic-bezier(0.16,1,0.3,1)",
+              }}
+            >
               {CYCLE[word]}
             </span>
           </span>
@@ -213,14 +229,13 @@ export default function FifthAvenueLogin() {
         onSubmit={handleSubmit}
         style={{
           position: "relative", marginTop: 32, marginBottom: 20, width: "min(100%, 400px)", maxWidth: 400,
-          boxSizing: "border-box",
+          boxSizing: "border-box", fontFamily: FONT_BRAND,
           borderRadius: 24, padding: 32, background: C.glass, backdropFilter: "blur(14px)",
           border: `1px solid ${err ? `${C.red}55` : C.onNavyLine}`,
           boxShadow: "0 40px 90px rgba(0,0,0,0.35)",
           animation: reduced ? "none" : "fa-fadeup 0.6s 0.12s cubic-bezier(0.16,1,0.3,1) both",
           transform: shake ? "translateX(0)" : undefined,
         }}
-        className={shake ? "" : ""}
       >
         {success && (
           <>
@@ -229,11 +244,11 @@ export default function FifthAvenueLogin() {
           </>
         )}
 
-        <h2 style={{ margin: 0, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", fontWeight: 600, fontSize: 24, lineHeight: 1.2, background: `linear-gradient(90deg, ${C.white}, ${C.blueSoft}, ${C.white})`, backgroundSize: "200% auto", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: reduced ? "none" : "fa-shimmer 5s linear infinite" }}>
+        <h2 style={{ margin: 0, fontFamily: FONT_BRAND, fontWeight: 600, fontSize: 22, lineHeight: 1.2, background: `linear-gradient(90deg, ${C.white}, ${C.blueSoft}, ${C.white})`, backgroundSize: "200% auto", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: reduced ? "none" : "fa-shimmer 5s linear infinite" }}>
           {success ? "Welcome back" : "Sign in"}
         </h2>
         <p style={{ margin: "6px 0 22px", fontSize: 12.5, color: C.onNavySub }}>
-          Use the credentials issued to your brand by 5th Avenue.
+          Use the credentials issued to your brand by Fifth Avenue.
         </p>
 
         <div style={{ marginBottom: 14 }}>
@@ -241,7 +256,7 @@ export default function FifthAvenueLogin() {
           <input
             type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }}
             placeholder="you@yourbrand.com" autoComplete="username" className="fa-input"
-            style={{ width: "100%", boxSizing: "border-box", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, outline: "none", color: C.white, background: "rgba(255,255,255,0.05)", border: `1.5px solid ${err ? C.red : C.onNavyLine}` }}
+            style={{ width: "100%", boxSizing: "border-box", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, outline: "none", color: C.white, background: "rgba(255,255,255,0.05)", border: `1.5px solid ${err ? C.red : C.onNavyLine}`, fontFamily: FONT_BRAND }}
           />
         </div>
         <div style={{ marginBottom: 18 }}>
@@ -249,7 +264,7 @@ export default function FifthAvenueLogin() {
           <input
             type="password" value={password} onChange={(e) => { setPassword(e.target.value); setErr(""); }}
             placeholder="••••••••" autoComplete="current-password" className="fa-input"
-            style={{ width: "100%", boxSizing: "border-box", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, outline: "none", color: C.white, background: "rgba(255,255,255,0.05)", border: `1.5px solid ${err ? C.red : C.onNavyLine}` }}
+            style={{ width: "100%", boxSizing: "border-box", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, outline: "none", color: C.white, background: "rgba(255,255,255,0.05)", border: `1.5px solid ${err ? C.red : C.onNavyLine}`, fontFamily: FONT_BRAND }}
           />
         </div>
 
@@ -263,7 +278,7 @@ export default function FifthAvenueLogin() {
           type="submit" disabled={disabled}
           style={{
             position: "relative", width: "100%", overflow: "hidden", borderRadius: 999, padding: "13px 0",
-            fontSize: 13, fontWeight: 600, border: "none", cursor: disabled ? "not-allowed" : "pointer",
+            fontSize: 13, fontWeight: 600, fontFamily: FONT_BRAND, border: "none", cursor: disabled ? "not-allowed" : "pointer",
             background: loading || !email || !password ? "rgba(255,255,255,0.1)" : `linear-gradient(120deg, ${C.blue}, ${C.blueSoft})`,
             color: loading || !email || !password ? C.onNavyMute : C.white,
             boxShadow: loading || !email || !password ? "none" : `0 14px 30px ${C.blue}55`,
@@ -278,11 +293,11 @@ export default function FifthAvenueLogin() {
         </button>
 
         <p style={{ marginTop: 18, textAlign: "center", fontSize: 11, lineHeight: 1.6, color: C.onNavyMute }}>
-          Lost your credentials? Contact your FIFTH Avenue account manager.
+          Lost your credentials? Contact your Fifth Avenue account manager.
         </p>
       </form>
 
-      <div className="fa-login-footer" style={{ position: "relative", marginBottom: 24, fontSize: 11, color: C.onNavyMute, textAlign: "center" }}>© FIFTH - Avenue Marketing</div>
+      <div className="fa-login-footer" style={{ position: "relative", marginBottom: 24, fontSize: 11, color: C.onNavyMute, textAlign: "center", fontFamily: FONT_BRAND }}>© Fifth Avenue Marketing</div>
     </div>
   );
 }
