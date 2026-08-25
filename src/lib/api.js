@@ -37,6 +37,13 @@ export const PortalAPI = {
   client: (clientName) =>
     request(`/api/portal/client?client=${encodeURIComponent(clientName)}`),
 
+  // The brand's live campaign reels, with the video/poster/caption pulled from
+  // Instagram server-side. The backend caches those CDN links for a day (they
+  // are signed and expire), so this is a cheap read however often it is called
+  // — see 5th-internal-back/portalReels.js.
+  reels: (clientName) =>
+    request(`/api/portal/reels?client=${encodeURIComponent(clientName)}`),
+
   // Pre-aggregated analytics timeseries + spend split.
   // from / to are ISO strings (optional — defaults to YTD on the backend).
   analytics: (clientName, from, to) => {

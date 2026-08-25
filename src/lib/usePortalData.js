@@ -41,5 +41,12 @@ function usePortalResource(fetcher, map) {
 /** This client's campaigns, with their sanitized embedded creators. */
 export const usePortalCampaigns = (map) => usePortalResource(PortalAPI.campaigns, map);
 
+/** This client's live campaign reels (the Reels shelf at /portal/assets).
+ *
+ * Takes the same optional `map` as usePortalCampaigns, and under the same
+ * rule: pass a module-level function, never an inline arrow, or the fetch
+ * re-runs on every render. See mapReels in pages/assets.jsx. */
+export const usePortalReels = (map) => usePortalResource(PortalAPI.reels, map);
+
 /** This client's own company record (Settings → Company). */
 export const usePortalClient = () => usePortalResource(PortalAPI.client);

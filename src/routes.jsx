@@ -60,6 +60,7 @@ const Overview = lazy(() => import("./pages/Overview"));
 const Campaigns = lazy(() => import("./pages/Campaigns"));
 const RegionalMap = lazy(() => import("./pages/RegionalMap"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Assets = lazy(() => import("./pages/assets"));
 
 /** Suspense boundary for a lazily-loaded route element. The marketing site
     fades in from a bare tinted panel; the portal shows its own skeleton. */
@@ -97,7 +98,7 @@ export const router = createBrowserRouter([
   /* Standalone public pages — their own full-bleed chrome, no marketing nav. */
   { path: "/apply", element: <S><ApplyPage /></S> },
   { path: "/start", element: <S><StartProjectPage /></S> },
-  { path: "/login", element: <S portal><Login /></S> },
+  { path: "/login", element: <S><Login /></S> },
 
   /* The portal proper. */
   {
@@ -115,6 +116,7 @@ export const router = createBrowserRouter([
       { path: "campaigns", element: <Campaigns /> },
       { path: "regional", element: <RegionalMap /> },
       { path: "profile", element: <Profile /> },
+      { path: "assets", element: <Assets /> },
       { path: "*", element: <Navigate to="/portal/overview" replace /> },
     ],
   },

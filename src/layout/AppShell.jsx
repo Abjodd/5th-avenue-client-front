@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { id: "overview",  label: "Overview",     icon: "◎" },
   { id: "campaigns", label: "Campaigns",    icon: "▤" },
   { id: "regional",  label: "Regional Map", icon: "◯" },
+  { id: "assets",    label: "Assets",       icon: "⚙" },
 ];
 
 // The signed-in user's photo in the nav pill, ringed by profile completion.
