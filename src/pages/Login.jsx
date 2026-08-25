@@ -55,7 +55,7 @@ export default function LoginPage() {
           to="/"
           className="inline-flex items-center gap-2 text-label text-ink-2 transition-colors hover:text-ink"
         >
-          <Icon icon={ArrowLeft} size={16} /> Back to 5th Avenue
+          <Icon icon={ArrowLeft} size={16} /> Back to Fifth Avenue
         </Link>
       </div>
 
@@ -126,7 +126,7 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-caption text-ink-3">
-            Lost your credentials? Contact your 5th Avenue account manager.
+            Lost your credentials? Contact your Fifth Avenue account manager.
           </p>
         </div>
       </div>
