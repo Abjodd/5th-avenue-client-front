@@ -575,7 +575,13 @@ export default function OverviewDashboard() {
             <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.green} />
             <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.pink} />
             <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber} />
-            <KPI index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR} sublabel="committed" color={P.purple} />
+            {/* The sublabel names what the figure leaves out. Campaigns raised
+                before a budget was agreed contribute nothing to this total, so
+                without saying so it reads as the account's whole commitment
+                when it is only the agreed part of it. */}
+            <KPI index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR}
+              sublabel={kpis.budgetPending ? `committed · ${kpis.budgetPending} to be confirmed` : "committed"}
+              color={P.purple} />
           </Stagger>
 
           <PerformanceSection clientName={clientName} />

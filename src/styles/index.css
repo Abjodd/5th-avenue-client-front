@@ -550,20 +550,6 @@
 .pulse { animation: pulse-dot 1.2s ease-in-out infinite; }
 .bounce-1 { animation: bounce-soft 1.4s ease-in-out infinite; }
 
-/* Login collage — a column of post cards scrolling forever. The card list is
-   rendered twice and the track travels exactly half its height, so the second
-   copy arrives where the first started and the seam is invisible. Duration is
-   set per column with --marquee-duration; `animation-direction: reverse`
-   sends a column the other way. */
-@keyframes login-marquee {
-  from { transform: translate3d(0, 0, 0); }
-  to   { transform: translate3d(0, -50%, 0); }
-}
-.login-marquee {
-  animation: login-marquee var(--marquee-duration, 40s) linear infinite;
-  will-change: transform;
-}
-
 /* Ambient background blobs — slow, GPU-friendly drift */
 .ambient-blob { animation: ambient-drift 26s ease-in-out infinite alternate; will-change: transform; }
 @keyframes ambient-drift {
@@ -804,8 +790,6 @@
   html { scroll-behavior: auto; }
   /* motion/react handles its own via MotionConfig; this covers CSS animation */
   .au, .anim-up, .fi, .fade-in, .slide-in, .pulse, .bounce-1, .ambient-blob, .funnel-layer, .funnel-sheen { animation: none !important; }
-  /* hold the login collage still rather than snapping it to the loop's end */
-  .login-marquee { animation: none !important; }
   .fa-toast { animation: none; }
   *,
   *::before,

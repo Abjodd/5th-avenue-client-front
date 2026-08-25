@@ -98,7 +98,7 @@ export const router = createBrowserRouter([
   /* Standalone public pages — their own full-bleed chrome, no marketing nav. */
   { path: "/apply", element: <S><ApplyPage /></S> },
   { path: "/start", element: <S><StartProjectPage /></S> },
-  { path: "/login", element: <S portal><Login /></S> },
+  { path: "/login", element: <S><Login /></S> },
 
   /* The portal proper. */
   {

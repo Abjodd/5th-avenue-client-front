@@ -142,7 +142,9 @@ export default function CampaignCard({ campaign: c, onClick }) {
 
       {/* budget strip reveals on hover */}
       <div className="flex gap-1 overflow-hidden transition-all duration-250 max-h-0 opacity-0 group-hover:mt-2 group-hover:max-h-[22px] group-hover:opacity-100">
-        <span className="rounded-full bg-well px-2 py-0.5 text-[10.5px] text-sub">Budget {c.budget}</span>
+        <span className={c.budgetPending
+          ? "rounded-full bg-amber/[0.10] px-2 py-0.5 text-[10.5px] text-amber"
+          : "rounded-full bg-well px-2 py-0.5 text-[10.5px] text-sub"}>Budget {c.budget}</span>
         {c.liveCount > 0 && <span className="rounded-full bg-green/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-green">{c.liveCount} live</span>}
       </div>
     </motion.div>
