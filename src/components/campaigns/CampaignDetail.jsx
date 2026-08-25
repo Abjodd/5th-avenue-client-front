@@ -63,11 +63,23 @@ function PhaseTracker({ currentPhase }) {
 /* ═══ BUDGET CARD ═══ */
 // Plain figure only — the DB doesn't store an operational budget split, so
 // none is invented here. A real split can return once the backend has one.
-function BudgetCard({ value }) {
+//
+// `pending` is a campaign that was raised before a budget was agreed. It reads
+// smaller and in amber, with a line saying so: the same card printing a bold
+// "To be confirmed" at 18px would give a non-figure the visual weight of a
+// figure, on a card whose whole job is to state one.
+function BudgetCard({ value, pending }) {
   return (
     <div className="rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
       <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Budget</div>
-      <div className="mt-1 text-[18px] font-bold text-ink">{value}</div>
+      {pending ? (
+        <>
+          <div className="mt-1 text-[13px] font-semibold text-amber">To be confirmed</div>
+          <div className="mt-0.5 text-[10px] leading-snug text-sub">Not yet agreed — the campaign is running in the meantime.</div>
+        </>
+      ) : (
+        <div className="mt-1 text-[18px] font-bold text-ink">{value}</div>
+      )}
     </div>
   );
 }
@@ -758,7 +770,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                       used to sit down here, a row away from the views it is
                       divided by. */}
                   <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <BudgetCard value={c.budget} creators={creators}/>
+                    <BudgetCard value={c.budget} pending={c.budgetPending} creators={creators}/>
                     {/* The roster is a list, not three bars — this opens the
                         Creators tab, which shows every creator with their
                         niche, tier and state on the row. AEO campaigns have no

@@ -263,6 +263,11 @@ export function summarise(campaigns = [], creators = []) {
     views: sum(creators, (cr) => cr.views),
     avgER: mean(ers),
     budget: sum(campaigns, (c) => num(c.budget)),
+    // Campaigns with no budget agreed yet contribute nothing to the total
+    // above — correctly, since there is nothing to add — but that makes the
+    // total quietly incomplete. Counted so the KPI can say how many campaigns
+    // are not in it, rather than presenting a partial figure as the whole.
+    budgetPending: campaigns.filter((c) => !(num(c.budget) > 0)).length,
     waiting: creators.filter((cr) => cr.waiting).length,
     states: new Set(creators.map((cr) => cr.stateCode).filter(Boolean)).size,
   };

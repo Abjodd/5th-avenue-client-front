@@ -135,7 +135,13 @@ export function toViewCampaign(c) {
   const briefView = brief ? {
     objective: brief.objective || "", targetAudience: brief.audience || "",
     keyMessages: brief.messages || "", deliverables: brief.deliverables || "",
-    budget: brief.budget || fmtINR(Number(c.budget) || null), timeline: brief.timeline || "",
+    // "To be confirmed", not "—". A campaign can be raised in the internal app
+    // before the brand has agreed a number (5th-internal-front lib/campaign.js
+    // hasBudget), and this is the brand's OWN brief — an em dash reads as a
+    // figure we're withholding, when the truth is that it hasn't been set yet
+    // and they are the ones who set it.
+    budget: brief.budget || (Number(c.budget) > 0 ? fmtINR(Number(c.budget)) : "To be confirmed"),
+    timeline: brief.timeline || "",
     // No per-field status here. It used to carry a `vars` map, but every entry
     // was the same value derived from `briefLocked` — so the detail view painted six
     // identical status glyphs that said exactly what its own banner said. The
@@ -210,8 +216,12 @@ export function toViewCampaign(c) {
     cpv: cpvOf(Number(c.budget) || 0, views),
     start: c.start || "—",
     end: c.end || "—",
-    budget: fmtINR(Number(c.budget) || null),
+    budget: Number(c.budget) > 0 ? fmtINR(Number(c.budget)) : "To be confirmed",
     budgetNum: Number(c.budget) || 0,
+    // Whether a number has been agreed at all, kept separate from budgetNum
+    // being 0 — the cards and the KPI strip need to say "not yet" rather than
+    // print a zero or quietly drop the campaign out of a total.
+    budgetPending: !(Number(c.budget) > 0),
     numReq: Number(c.numReq) || null,
     lockedCount: (c.creators || []).filter(isLocked).length,
     // Committed posts (locked creators' real targets + unfilled slots at the
