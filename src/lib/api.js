@@ -38,9 +38,19 @@ export const PortalAPI = {
     request(`/api/portal/client?client=${encodeURIComponent(clientName)}`),
 
   // The brand's live campaign reels, with the video/poster/caption pulled from
-  // Instagram server-side. The backend caches those CDN links for a day (they
-  // are signed and expire), so this is a cheap read however often it is called
-  // — see 5th-internal-back/portalReels.js.
+  // Instagram server-side.
+  //
+  // This is a database read, not a proxied API call: the backend stores the
+  // media in its reel_cache collection and refreshes it on a schedule, so the
+  // route costs nothing per view no matter how often the page is opened or how
+  // recently the server restarted. That last part is why it changed — the
+  // cache used to live in process memory, so every deploy or idle recycle made
+  // the next page load re-buy the whole shelf from HikerAPI.
+  //
+  // Which means usePortalReels() refetching on every mount of /portal/assets
+  // is fine, and deliberately left alone: it is one cheap Mongo query, and it
+  // is what makes a newly delivered reel show up without a hard reload.
+  // See 5th-internal-back/portalReels.js.
   reels: (clientName) =>
     request(`/api/portal/reels?client=${encodeURIComponent(clientName)}`),
 

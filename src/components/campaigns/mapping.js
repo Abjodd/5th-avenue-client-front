@@ -8,7 +8,7 @@ import { STATES_META, stateCode } from "../../lib/geo";
 // Both from the phase registry itself. lib/api re-exports phaseOf for callers
 // that already imported it there, but taking one of the pair from each module
 // would leave two import paths for one registry.
-import { phaseOf, progressOf } from "../../lib/phases";
+import { phaseOf, progressOf, briefLockedOf } from "../../lib/phases";
 import {
   STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf, cpvOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
@@ -62,6 +62,17 @@ export function profileUrl(cr) {
   return PROFILE_URL[cr?.platform]?.(h) || null;
 }
 
+/* "TBD" is not a value — it is the internal create wizard's placeholder for a
+   field nobody filled in (`region: f.region || "TBD"`, `end: f.timelineEnd ||
+   "TBD"` in 5th-internal-front Campaigns/index.jsx). It leaked straight onto the
+   brand's campaign cards as a chip sitting next to the service, reading like a
+   region called TBD. An unanswered optional field should render as absent here,
+   the same as every other missing value in this module. */
+const realValue = (v) => {
+  const s = String(v ?? "").trim();
+  return s && s.toUpperCase() !== "TBD" ? s : null;
+};
+
 /* Numeric-or-null: never invents a value for missing tracking data */
 const numOrNull = (v) => (v == null || v === "" ? null : Number(v) || null);
 
@@ -70,6 +81,47 @@ const numOrNull = (v) => (v == null || v === "" ? null : Number(v) || null);
    the fallback for the window before anything is live, which is the only time
    it's the best estimate available. */
 const fmtER = (v) => (v == null ? "—" : `${v.toFixed(1)}%`);
+
+/* An asset's state, as the brand should read it.
+
+   This used to ask ONE question — "is there a file link?" — and answer it as a
+   link or the words "Not uploaded". But the link is optional on the internal
+   side: the team moves an asset through its statuses whether or not anyone
+   pastes a URL, and most of the time nobody does. Both creators on a live
+   campaign here carry `concept: {status: "locked", fileLink: null}` — received,
+   reviewed, signed off, and posted — while the portal told the brand their
+   brief was "Not uploaded", directly under a live post with 2.5M views on it.
+
+   So the STATUS is the fact, and the link is an extra a row shows when it
+   happens to have one. Labels are the brand's reading of ASSET_STATUSES in
+   5th-internal-front Campaigns/index.jsx; `locked` is internal for "signed off,
+   no further edits", which is not a word to hand a client as-is. `t` is the
+   tier rendered by components/StatusPill, same vocabulary as STATUS_MAP. */
+const ASSET_STATUS = {
+  yet_to_receive: { label: "Not received",          t: "neutral"  },
+  received:       { label: "In review",             t: "progress" },
+  rework:         { label: "In rework",             t: "progress" },
+  pending_brand:  { label: "Awaiting your review",  t: "action"   },
+  approved:       { label: "Approved",              t: "done"     },
+  locked:         { label: "Signed off",            t: "done"     },
+};
+
+const assetView = (a) => ({
+  ...(ASSET_STATUS[a?.status] || ASSET_STATUS.yet_to_receive),
+  url: a?.fileLink || null,
+});
+
+/* How the post goes up: a paid collaboration (co-authored, so it carries the
+   brand's own handle) or on the creator's account alone. Set on the internal
+   Creators tab, where it is a precondition of locking — the fee is committed at
+   the lock, and a collab type agreed afterwards is a question the brand was
+   never asked. Which is why it belongs here: by the time a creator is locked,
+   this is a term of the deal the brand is paying for.
+
+   Null while nobody has decided yet, and the row renders nothing rather than a
+   dash — same rule as the rest of this module, an unanswered question is not a
+   value. Labels mirror COLLAB_TYPES in 5th-internal-front Campaigns/index.jsx. */
+const COLLAB_LABELS = { collab: "Collab", non_collab: "Non-Collab" };
 
 /**
  * `campaign` is required to read deliverables: what a creator owes is their own
@@ -115,12 +167,13 @@ export function toViewCreator(cr, campaign) {
     ),
     avgLikes: numOrNull(cr.avgLikes),
     niche: cr.niche || "—",
+    collab: COLLAB_LABELS[cr.collab] || null,
     size: sizeOf(followers),
     region: STATES_META[stateCode(cr.state)]?.name || cr.state || "—",
     language: cr.languages?.length ? cr.languages.join(", ") : cr.language || "—",
     avatar: initials(cr.name),
-    briefDoc: cr.concept?.fileLink ? { name: "Concept file", url: cr.concept.fileLink } : null,
-    videoDoc: cr.demo?.fileLink ? { name: "Demo video", url: cr.demo.fileLink } : null,
+    briefAsset: assetView(cr.concept),
+    videoAsset: assetView(cr.demo),
     live: cr.live?.postUrl ? { postUrl: cr.live.postUrl, postedDate: cr.live.postedDate || null } : null,
     tracking: hasTracking ? tracking : null,
     approval: { exec: null, mgmt: null, execLocked: false, mgmtLocked: false },
@@ -131,7 +184,7 @@ export function toViewCampaign(c) {
   const phase = phaseOf(c.stage);
   const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
   const brief = c.brief && typeof c.brief === "object" ? c.brief : null;
-  const briefLocked = c.briefStatus === "locked";
+  const briefLocked = briefLockedOf(c);
   const briefView = brief ? {
     objective: brief.objective || "", targetAudience: brief.audience || "",
     keyMessages: brief.messages || "", deliverables: brief.deliverables || "",
@@ -201,7 +254,7 @@ export function toViewCampaign(c) {
     id: c.id,
     name: c.name,
     service: c.service || "Influencer Marketing",
-    region: c.region || "—",
+    region: realValue(c.region) || "—",
     phase,
     // progressOf() reads the stored value where one exists and otherwise
     // derives it from the stage, matching the internal app's pipeline table.
@@ -214,8 +267,8 @@ export function toViewCampaign(c) {
     // External CPV — committed budget per measured view. Null until the
     // campaign has both, so the card reads "—" rather than an invented rate.
     cpv: cpvOf(Number(c.budget) || 0, views),
-    start: c.start || "—",
-    end: c.end || "—",
+    start: realValue(c.start) || "—",
+    end: realValue(c.end) || "—",
     budget: Number(c.budget) > 0 ? fmtINR(Number(c.budget)) : "To be confirmed",
     budgetNum: Number(c.budget) || 0,
     // Whether a number has been agreed at all, kept separate from budgetNum

@@ -164,7 +164,9 @@ test("summarise leaves avgER null when no creator has a rate", () => {
 });
 
 test("healthScore averages progress over live campaigns only", () => {
-  assert.deepEqual(healthScore(CAMPAIGNS), { value: 35, of: 2 }); // (62 + 8) / 2
+  // Derived from each stage, not the stale `progress` the fixtures also carry:
+  // execution → 55, draft → 0. (55 + 0) / 2 = 27.5 → 28.
+  assert.deepEqual(healthScore(CAMPAIGNS), { value: 28, of: 2 });
   assert.equal(healthScore([]), null);
   assert.equal(healthScore([{ stage: "completed", progress: 100 }]), null);
 });
@@ -227,8 +229,9 @@ test("flagOutliers needs a real spread before it calls anything an outlier", () 
 test("serviceGroups weights progress by budget", () => {
   const g = serviceGroups(CAMPAIGNS, rows);
   const im = g.find((x) => x.service === "Influencer Marketing");
-  // (62×1_250_000 + 8×800_000) / 2_050_000 = 40.9 → 41
-  assert.equal(im.progress, 41);
+  // Stage-derived, budget-weighted: execution → 55, draft → 0.
+  // (55×1_250_000 + 0×800_000) / 2_050_000 = 33.5 → 34
+  assert.equal(im.progress, 34);
   assert.equal(im.campaigns, 2);
   assert.equal(im.active, 2);
   assert.equal(im.budget, 2_050_000);
@@ -380,7 +383,7 @@ test("greeting follows the clock", () => {
 test("heroSummary only claims what the data supports", () => {
   const kpis = summarise(CAMPAIGNS, rows);
   const text = heroSummary({ kpis, health: healthScore(CAMPAIGNS), signalRows: signals(CAMPAIGNS, rows) });
-  assert.match(text, /Campaign health is at 35%/);
+  assert.match(text, /Campaign health is at 28%/);   // see healthScore above
   assert.match(text, /signals need a decision today/);
 
   const quiet = heroSummary({ kpis: summarise([], []), health: null, signalRows: [] });
