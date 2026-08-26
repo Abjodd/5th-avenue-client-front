@@ -1,4 +1,4 @@
-// Mirrors 5th-internal-front's AppShell: floating glass navbar, Newsreader italic
+// Mirrors Fifth-internal-front's AppShell: floating glass navbar, Newsreader italic
 // wordmark, Sora nav tabs. The active tab is a shared motion pill (layoutId) that
 // slides between tabs; the navbar shadow deepens once the page scrolls.
 import { useEffect, useState } from "react";

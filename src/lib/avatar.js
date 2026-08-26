@@ -1,6 +1,6 @@
 // Profile-photo handling for the client portal's Settings → Profile pane.
 //
-// Duplicated from 5th-internal-front/src/lib/avatar.js rather than imported:
+// Duplicated from Fifth-internal-front/src/lib/avatar.js rather than imported:
 // the two apps are separate deployments with no shared package, the same way
 // profileUrl() is duplicated in components/campaigns/mapping.js. Keep the two
 // in step — in particular the 2MB limit, which the backend enforces

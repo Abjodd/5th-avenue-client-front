@@ -88,7 +88,7 @@ export const cpvOf = (spend, views) =>
 const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
 /* ── DELIVERABLES ────────────────────────────────────────────────────────────
-   Mirrors lib/campaign.js in 5th-internal-front — the two apps must quote a
+   Mirrors lib/campaign.js in Fifth-internal-front — the two apps must quote a
    brand the same number of posts, so these three rules are copied deliberately
    rather than re-derived:
 
@@ -276,7 +276,7 @@ export function summarise(campaigns = [], creators = []) {
 /**
  * Campaign health, 0–100 — the mean of `progress` across campaigns that aren't
  * completed. It is NOT a stored score and not a proprietary index: `progress`
- * is the number 5th Avenue sets on each campaign as it moves through the
+ * is the number Fifth Avenue sets on each campaign as it moves through the
  * pipeline, and this is its average. The UI states that under the ring.
  * Returns null when there is nothing in flight, so the ring can be hidden
  * rather than reading a meaningless 0%.

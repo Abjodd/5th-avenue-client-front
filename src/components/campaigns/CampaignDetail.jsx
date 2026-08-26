@@ -715,7 +715,7 @@ function BriefPage({ lockedBrief, pendingBrief }) {
             route strips before it leaves the building (server.js
             CAMPAIGN_PRIVATE). Saying less is the honest option until the backend
             exposes the date. */}
-        <Dot color={isLocked ? P.green : P.amber}/><span className={`text-[12px] font-medium ${isLocked?"text-green":"text-amber"}`}>{isLocked ? "Signed off by 5th Avenue" : "Waiting — under review by 5th Avenue"}</span>
+        <Dot color={isLocked ? P.green : P.amber}/><span className={`text-[12px] font-medium ${isLocked?"text-green":"text-amber"}`}>{isLocked ? "Signed off by Fifth Avenue" : "Waiting — under review by Fifth Avenue"}</span>
         <span className="ml-auto text-[10.5px] italic text-mute">{isLocked ? "Read-only" : "Pending approval"}</span>
       </div>
       {BRIEF_FIELDS.map(([label, key, Icon]) => {

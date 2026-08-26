@@ -19,7 +19,7 @@ import { MapPin, Users, Wallet, Megaphone } from "lucide-react";
 import { useApp } from "../context";
 import { usePortalCampaigns } from "../lib/usePortalData";
 import { fmtNum, fmtINR, initials } from "../lib/format";
-import { STATES_META, REGION_COLORS as RC, REGION_NAMES as RN } from "../lib/geo";
+import { STATES_META, regionColors, REGION_NAMES as RN } from "../lib/geo";
 import { PATHS } from "../lib/indiaPaths";
 import { PHASE_LABELS as PL, phaseColors } from "../lib/phases";
 import { flattenCreators, regionalRollup } from "../lib/portalMetrics";
@@ -70,6 +70,7 @@ function IndiaMap({ mode, stateData, selectedId, onSelect, tinted, P }) {
   const [hovId, setHovId] = useState(null);
 
   /* The one hue everything is painted in, unless regional colours are on. */
+  const RC = regionColors(P);
   const colorOf = (meta) =>
     !tinted ? P.accent : isLang ? (LC[meta.lang] || P.mute) : RC[meta.region];
 
@@ -142,11 +143,17 @@ function IndiaMap({ mode, stateData, selectedId, onSelect, tinted, P }) {
             const isHov = hovId === id;
             const has = data?.creators > 0;
             const baseColor = colorOf(meta);
-            // Monochrome mode leans harder on density so one hue still ranks
-            // the country; tinted mode keeps the flatter washes it needs to
-            // stay legible with six competing colours.
+            // With the count bubble gone the fill IS the number, so every
+            // mode ramps by creator density now — the region and language
+            // views used to be a flat wash that said only "someone is here".
+            // Monochrome leans hardest on it (one hue has to rank the whole
+            // country); the tinted views stay flatter, which is what keeps six
+            // competing colours legible against each other.
+            const ramp = has ? data.creators / maxCr : 0;
             const intensity = has
-              ? (isRegion || isLang ? (tinted ? 0.38 : 0.34) : (tinted ? 0.22 : 0.14) + (data.creators / maxCr) * (tinted ? 0.55 : 0.72))
+              ? (isRegion || isLang
+                  ? (tinted ? 0.26 : 0.22) + ramp * (tinted ? 0.50 : 0.45)
+                  : (tinted ? 0.22 : 0.14) + ramp * (tinted ? 0.60 : 0.78))
               : (isRegion || isLang ? 0.10 : 0.05);
             const dimmed = selectedId && !isSel;
             // Hover lifts a state enough to confirm what you're pointing at,
@@ -174,25 +181,12 @@ function IndiaMap({ mode, stateData, selectedId, onSelect, tinted, P }) {
                   transition={{ opacity: { delay: 0.15 + i * 0.014, duration: 0.4 }, fillOpacity: { type: "spring", stiffness: 300, damping: 28 } }}
                   stroke={isSel || isHov ? baseColor : outline}
                   strokeWidth={isSel ? 1.8 : isHov ? 1.3 : 0.5} />
-                {/* The creator count is the only mark on the map: the state's
-                    name is in the pinned card, and two-letter codes made the
-                    country read as an atlas rather than as this brand's data.
-
-                    It sits ON the centroid. The old +14/-10 offset floated it
-                    clear of small states, which is how Chandigarh's single
-                    creator ended up printed over Himachal Pradesh. It also stays
-                    up while the state is selected — on a territory a few pixels
-                    wide the marker is the only thing you can see you picked —
-                    and it takes clicks, so those states have a hit target the
-                    size of the bubble rather than of the sliver. */}
-                {has && (
-                  <g style={{ opacity: dimmed ? 0.3 : 1, transition: "opacity 0.3s" }}>
-                    <motion.circle cx={cx} cy={cy} fill={baseColor} opacity={0.92}
-                      animate={{ r: isSel ? 8.5 : isHov ? 7.5 : 6.5 }} transition={{ type: "spring", stiffness: 400, damping: 24 }} />
-                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" pointerEvents="none"
-                      fill="#fff" fontSize={isSel ? 8 : 7} fontWeight={700} fontFamily="'Sora'">{data.creators}</text>
-                  </g>
-                )}
+                {/* No count bubble — the depth of the fill carries the number,
+                    and the exact figure is in the card that pins to whichever
+                    state you are pointing at. What the bubble also did was give
+                    a territory a few pixels wide something you could actually
+                    hit, so that part stays as an invisible target. */}
+                {has && <circle cx={cx} cy={cy} r={7} fill="transparent" pointerEvents="all" />}
               </g>
             );
           })}
@@ -238,29 +232,35 @@ function RankRow({ color, title, sub, stats, share, onClick, index = 0 }) {
   const Tag = onClick ? "button" : "div";
   return (
     <Tag onClick={onClick}
-      className="anim-up group mb-2 block w-full rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
+      // A colour spine down the left edge rather than only a dot: at a glance
+      // it is the row's region, and it is what stops a stack of these reading
+      // as one undifferentiated block.
+      className="anim-up group relative mb-3 block w-full overflow-hidden rounded-[16px] border border-line bg-[--color-glass] py-4 pl-5 pr-5 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
       style={{ animationDelay: `${index * 30}ms` }}>
-      <div className="flex items-center gap-3">
-        <span className="relative flex size-8 shrink-0 items-center justify-center">
+      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: color }} />
+      <div className="flex items-center gap-4">
+        <span className="relative flex size-9 shrink-0 items-center justify-center">
           <span className="absolute inset-0 rounded-full opacity-20 transition-transform duration-300 group-hover:scale-125" style={{ background: color }} />
-          <Dot color={color} sz={8} />
+          <Dot color={color} sz={9} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13.5px] font-semibold text-ink">{title}</span>
-          {sub && <span className="mt-px block truncate text-[10.5px] text-sub">{sub}</span>}
+          <span className="block truncate text-[14px] font-semibold text-ink">{title}</span>
+          {sub && <span className="mt-0.5 block truncate text-[10.5px] text-sub">{sub}</span>}
         </span>
-        {stats.map(([label, value, tone]) => (
-          <span key={label} className="min-w-[52px] text-right">
-            <span className={`tnum block text-[15px] font-bold ${tone}`}>{value}</span>
-            <span className="block text-[9px] uppercase text-mute">{label}</span>
-          </span>
-        ))}
-        {onClick && <span className="text-[13px] text-mute opacity-0 transition-all duration-200 group-hover:translate-x-1 group-hover:opacity-100">→</span>}
+        <span className="flex shrink-0 items-center gap-5">
+          {stats.map(([label, value, tone]) => (
+            <span key={label} className="min-w-[58px] text-right">
+              <span className={`tnum block text-[15px] font-bold ${tone}`}>{value}</span>
+              <span className="mt-0.5 block text-[9px] uppercase tracking-[0.06em] text-mute">{label}</span>
+            </span>
+          ))}
+        </span>
+        {onClick && <span className="shrink-0 text-[13px] text-mute opacity-0 transition-all duration-200 group-hover:translate-x-1 group-hover:opacity-100">→</span>}
       </div>
       {share != null && (
-        <span className="mt-2.5 block h-[5px] overflow-hidden rounded-full bg-well">
+        <span className="mt-3.5 block h-[6px] overflow-hidden rounded-full bg-well">
           <span className="block h-full rounded-full transition-[width] duration-700 ease-out"
-            style={{ width: `${share}%`, background: color, boxShadow: `0 0 8px ${color}60` }} />
+            style={{ width: `${Math.max(share, 2)}%`, background: color, boxShadow: `0 0 8px ${color}60` }} />
         </span>
       )}
     </Tag>
@@ -268,17 +268,28 @@ function RankRow({ color, title, sub, stats, share, onClick, index = 0 }) {
 }
 
 function StatesPanel({ stateData, onSelect, colorOf }) {
-  const rows = Object.entries(stateData).filter(([, d]) => d.creators > 0).sort((a, b) => b[1].creators - a[1].creators);
+  /* Ranked and sized by REACH, not by creator count. A brand with one creator
+     per state — which is most of them early on — gave every row the same count
+     and therefore a bar pinned at 100%, so the list ranked nothing and every
+     row looked identical. Reach is the figure that actually separates them
+     (12K against 213K), and it is what the panel's own KPI strip leads with.
+     Falls back to creators while no follower counts are on file. */
+  const rows = Object.entries(stateData).filter(([, d]) => d.creators > 0);
   if (!rows.length) return <PanelEmpty>No creators have a location on file yet.</PanelEmpty>;
-  const peak = rows[0][1].creators;
+  const byReach = rows.some(([, d]) => d.followers > 0);
+  const rank = ([, d]) => (byReach ? d.followers : d.creators);
+  rows.sort((a, b) => rank(b) - rank(a) || b[1].creators - a[1].creators);
+  const peak = rank(rows[0]) || 1;
   return (
     <div>
-      <div className="mb-2.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">States with creators — click to drill down</div>
+      <div className="mb-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">
+        States with creators · ranked by {byReach ? "reach" : "creators"} — click to drill down
+      </div>
       {rows.map(([code, d], i) => {
         const m = STATES_META[code];
         return (
           <RankRow key={code} index={i} color={colorOf(m)} title={m.name} sub={`${RN[m.region]} · ${m.lang}`}
-            share={(d.creators / peak) * 100} onClick={() => onSelect(code)}
+            share={(rank([code, d]) / peak) * 100} onClick={() => onSelect(code)}
             stats={[
               ["creators", <AnimatedNumber key="c" value={d.creators} />, "text-accent"],
               ["campaigns", <AnimatedNumber key="k" value={d.campaigns} />, "text-green"],
@@ -448,9 +459,10 @@ export default function RegionalMap() {
     return regionalRollup(campaigns, flattenCreators(campaigns));
   }, [campaigns]);
 
+  const RC = useMemo(() => regionColors(P), [P]);
   const colorOf = useMemo(
     () => (meta) => !tinted ? P.accent : mode === "language" ? (LC[meta?.lang] || P.mute) : (RC[meta?.region] || P.accent),
-    [tinted, mode, P],
+    [tinted, mode, P, RC],
   );
 
   const handleSelect = (id) => {

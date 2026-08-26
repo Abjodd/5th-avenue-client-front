@@ -127,9 +127,9 @@ export function progressOf(campaign) {
 }
 
 /**
- * Has the brief been signed off by 5th Avenue?
+ * Has the brief been signed off by Fifth Avenue?
  *
- * Mirrors briefLocked() in the internal app (5th-internal-front
+ * Mirrors briefLocked() in the internal app (Fifth-internal-front
  * src/lib/campaign.js) — and it has to, because the portal's Brief tab tells a
  * brand whether the document they are reading is final.
  *

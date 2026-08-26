@@ -1,5 +1,5 @@
 /**
- * 5th Avenue — merged route table.
+ * Fifth Avenue — merged route table.
  *
  * Two apps behind one origin:
  *   · the public marketing site at the root, wrapped in <MarketingLayout/>

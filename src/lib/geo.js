@@ -5,9 +5,18 @@
 // so a missing entry leaves a hole in the country rather than an unlabelled
 // state.
 
-// Region hues drawn from the portal theme (context.js) so the map reads as
-// part of the same system: accent / green / pink / amber / purple / teal.
-export const REGION_COLORS = { north:"#2C3E7E", south:"#17915A", west:"#A2489A", east:"#A8720C", northeast:"#7860D6", central:"#178E80" };
+/* Region hues, taken from the ACTIVE palette rather than frozen as light-mode
+   hexes — on the dark ground the old #2C3E7E North read as a near-black dot.
+   Mirrors phaseColors() in lib/phases.js; call it with P from useApp/useTheme.
+
+   Teal is deliberately not in the set. It sat beside green closely enough
+   (#178E80 against #17915A) that South and Central were the same colour at a
+   glance, which is most of why the list read as one undifferentiated block.
+   Red takes Central instead, leaving six hues that separate cleanly. */
+export const regionColors = (P) => ({
+  north: P.accent, south: P.green, west: P.pink,
+  east: P.amber, central: P.red, northeast: P.purple,
+});
 export const REGION_NAMES  = { north:"North", south:"South", west:"West", east:"East", northeast:"North-East", central:"Central" };
 
 export const STATES_META = {

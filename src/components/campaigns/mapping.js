@@ -40,7 +40,7 @@ export const closeBtnCls = "flex size-7 items-center justify-center rounded-full
    handle still rendered inside an <a>, as accent-coloured text that looks like
    a link and does nothing.
 
-   Mirrors profileUrl() in the internal app (5th-internal-front
+   Mirrors profileUrl() in the internal app (Fifth-internal-front
    src/lib/campaign.js). Duplicated rather than imported because the two apps
    are separate deployments with no shared package — keep the two in step. */
 const PROFILE_URL = {
@@ -64,7 +64,7 @@ export function profileUrl(cr) {
 
 /* "TBD" is not a value — it is the internal create wizard's placeholder for a
    field nobody filled in (`region: f.region || "TBD"`, `end: f.timelineEnd ||
-   "TBD"` in 5th-internal-front Campaigns/index.jsx). It leaked straight onto the
+   "TBD"` in Fifth-internal-front Campaigns/index.jsx). It leaked straight onto the
    brand's campaign cards as a chip sitting next to the service, reading like a
    region called TBD. An unanswered optional field should render as absent here,
    the same as every other missing value in this module. */
@@ -94,7 +94,7 @@ const fmtER = (v) => (v == null ? "—" : `${v.toFixed(1)}%`);
 
    So the STATUS is the fact, and the link is an extra a row shows when it
    happens to have one. Labels are the brand's reading of ASSET_STATUSES in
-   5th-internal-front Campaigns/index.jsx; `locked` is internal for "signed off,
+   Fifth-internal-front Campaigns/index.jsx; `locked` is internal for "signed off,
    no further edits", which is not a word to hand a client as-is. `t` is the
    tier rendered by components/StatusPill, same vocabulary as STATUS_MAP. */
 const ASSET_STATUS = {
@@ -120,7 +120,7 @@ const assetView = (a) => ({
 
    Null while nobody has decided yet, and the row renders nothing rather than a
    dash — same rule as the rest of this module, an unanswered question is not a
-   value. Labels mirror COLLAB_TYPES in 5th-internal-front Campaigns/index.jsx. */
+   value. Labels mirror COLLAB_TYPES in Fifth-internal-front Campaigns/index.jsx. */
 const COLLAB_LABELS = { collab: "Collab", non_collab: "Non-Collab" };
 
 /**
@@ -189,7 +189,7 @@ export function toViewCampaign(c) {
     objective: brief.objective || "", targetAudience: brief.audience || "",
     keyMessages: brief.messages || "", deliverables: brief.deliverables || "",
     // "To be confirmed", not "—". A campaign can be raised in the internal app
-    // before the brand has agreed a number (5th-internal-front lib/campaign.js
+    // before the brand has agreed a number (Fifth-internal-front lib/campaign.js
     // hasBudget), and this is the brand's OWN brief — an em dash reads as a
     // figure we're withholding, when the truth is that it hasn't been set yet
     // and they are the ones who set it.

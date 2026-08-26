@@ -59,7 +59,7 @@ export default function ApplyPage() {
     <div className="min-h-screen bg-bg">
       <div className="mx-auto max-w-lg px-6 py-10 md:py-16">
         <Link to="/" className="mb-8 inline-flex items-center gap-2 text-label text-ink-2 transition-colors hover:text-ink">
-          <Icon icon={ArrowLeft} size={16} /> Back to 5th Avenue
+          <Icon icon={ArrowLeft} size={16} /> Back to Fifth Avenue
         </Link>
 
         {submitted ? (

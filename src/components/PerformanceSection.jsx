@@ -26,8 +26,18 @@ import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/da
 import { chartTheme } from "../lib/chartTheme";
 import { fmtNum, fmtINR } from "../lib/format";
 import { Funnel } from "./charts";
+import { InfoHint } from "./portal/Shell";
 import { PortalAPI } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+
+/* What each view of the dual-axis chart is for. Kept to a line or two: it sits
+   under the chart as a full-width footer, and a paragraph there pushed the
+   chart itself down the panel and read as something to get past rather than
+   something to read. Keyed by the toggle so a third view is one entry here. */
+const CHART_BLURB = {
+  reach: "Reach is the combined following of the creators live in each period; spend is what was committed in the same one. Climbing together means the budget is buying audience.",
+  engagement: "Engagements are the likes, comments and shares your live posts earned; spend is what was committed in the same period. Outpacing spend means the work is doing the lifting.",
+};
 
 // `totalCreators` is bucketed alongside the metrics so a period can be asked
 // whether it had a ROSTER at all — see audienceKnown below. Without it a
@@ -62,57 +72,20 @@ function serviceColor(name, P) {
   return P.purple;
 }
 
-/* Period-over-period trend badge — null delta (no prior-bucket data, or the
-   very first period) renders nothing rather than a misleading "0%". */
-function TrendBadge({ delta, P }) {
-  if (delta == null || !Number.isFinite(delta)) return null;
-  const flat = Math.abs(delta) < 0.5;
-  const up = delta > 0;
-  const tone = flat ? P.mute : up ? P.green : P.red;
-  return (
-    <span className="inline-flex items-center gap-0.5 text-[10.5px] font-bold" style={{ color: tone }}>
-      {flat ? "→" : up ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}%
-    </span>
-  );
-}
-
-function StatTile({ label, value, format = fmtNum, loading, color, delta, deltaLabel, P }) {
-  const [showInfo, setShowInfo] = useState(false);
+/* No period-over-period ▲/▼ badge here. The tiles report the total for the
+   period the reader chose; a delta against the previous bucket answered a
+   different question than the number it sat on, and on a young account it
+   mostly reported where the data starts (see audienceKnown above). */
+function StatTile({ label, value, format = fmtNum, loading, color, info }) {
   return (
     <div className="rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <div className="microlabel">{label}</div>
-        </div>
-        <div className="flex items-center gap-1">
-          {label === "CPV" && (
-            <div className="relative">
-              <button
-                type="button"
-                title="This CPV is for all campaigns in the selected period. For a campaign-specific CPV, open the specific campaign page."
-                aria-label="CPV info"
-                onMouseEnter={() => setShowInfo(true)} onMouseLeave={() => setShowInfo(false)}
-                onFocus={() => setShowInfo(true)} onBlur={() => setShowInfo(false)}
-                className="inline-flex size-3.5 items-center justify-center rounded-full border border-line bg-accent/[0.15] text-[8px] font-bold text-accent transition-colors hover:bg-accent/[0.25] hover:text-accent"
-              >
-                i
-              </button>
-              {showInfo && (
-                <div className="absolute right-0 z-10 mt-2 w-64 rounded-md border border-line bg-white p-2 text-[11px] text-gray-900 shadow-md">
-                  This CPV is for all campaigns in the selected period. For a campaign-specific CPV, open the specific campaign page.
-                </div>
-              )}
-            </div>
-          )}
-          {!loading && delta != null && <TrendBadge delta={delta} P={P}/>}
-        </div>
+        <div className="microlabel">{label}</div>
+        {info && <InfoHint label={`${label} info`}>{info}</InfoHint>}
       </div>
       <div className="mt-1 text-[22px] font-bold leading-none" style={{ color }}>
         {loading ? "…" : <AnimatedNumber value={value} format={format} duration={900}/>}
       </div>
-      {!loading && delta != null && Number.isFinite(delta) && (
-        <div className="mt-0.5 text-[9.5px] text-mute">vs previous {deltaLabel}</div>
-      )}
     </div>
   );
 }
@@ -205,26 +178,6 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
     { measured: 0, total: 0 },
   ), [events]);
 
-  // Period-over-period trend: last bucket vs the one before it, reusing the
-  // series already built for the chart (no extra fetch). Skipped when either
-  // bucket has no real events — a 0→N or N→0 jump isn't a meaningful trend,
-  // it's just where the data happens to start/stop.
-  const trend = useMemo(() => {
-    if (series.length < 2) return null;
-    const last = series[series.length - 1], prev = series[series.length - 2];
-    if (!last.count || !prev.count) return null;
-    const pct = k => (prev[k] > 0 ? ((last[k] - prev[k]) / prev[k]) * 100 : null);
-    // Audience deltas need a roster on BOTH sides of the comparison. Comparing
-    // a measured month against a booked-but-uncast one produces a −100% that
-    // describes the calendar, not the work.
-    const audience = audienceKnown(last) && audienceKnown(prev);
-    const pctAudience = k => (audience ? pct(k) : null);
-    return {
-      views: pctAudience("views"), reach: pctAudience("reach"),
-      eng: pctAudience("engagements"), spend: pct("spend"),
-    };
-  }, [series]);
-
   // Audience metrics are blanked wherever no creators were cast (see
   // audienceKnown), so the left-hand line can have fewer points than the
   // spend line — one point draws as a lone dot with nothing to join it to.
@@ -280,18 +233,17 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           </div>
         )}
 
-        {/* KPI stat strip — each tile's ▲/▼ badge compares the most recent
-            {intervalLabel} bucket against the one before it, so a brand can
-            tell at a glance whether reach/spend/engagement is trending up or
-            down, not just what the flat total is. */}
+        {/* KPI stat strip — the period's totals, flat. */}
         <div className="mb-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
-          <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.pink}   delta={trend?.reach}  deltaLabel={trendUnit} P={P}/>
-          <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.accent} delta={trend?.views}  deltaLabel={trendUnit} P={P}/>
-          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber}  delta={trend?.eng}    deltaLabel={trendUnit} P={P}/>
-          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple} delta={trend?.spend} deltaLabel={trendUnit} P={P}/>
-          {/* No trend badge on CPV: a falling cost per view is the good
-            outcome, and the shared badge paints every drop red. */}
-          <StatTile label="CPV"            value={totals.cpv}    format={fmtCPV5} loading={isLoading} color={P.green} P={P}/>
+          {/* Same figure as the Overview's "Combined audience" tile, so the
+              same neutral treatment — a coloured hue on it claimed a status
+              the number doesn't carry. */}
+          <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.neutral}/>
+          <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.accent}/>
+          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber}/>
+          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple}/>
+          <StatTile label="CPV"            value={totals.cpv}    format={fmtCPV5} loading={isLoading} color={P.green}
+            info="Cost per view across every campaign in the selected period. For one campaign's own CPV, open that campaign."/>
         </div>
 
         {/* Row 1: Dual-axis line chart */}
@@ -403,6 +355,13 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
               {plottedAudience === 1 && " With a single point there is nothing to join it to, so it shows as one marker."}
             </p>
           )}
+
+          {/* Full-width footer under the chart, swapping with the toggle — the
+              two views answer different questions, and one caption for both
+              left the reader to work out which they were looking at. */}
+          <p className="mt-3 border-t border-line pt-2.5 text-[11px] leading-relaxed text-sub">
+            {CHART_BLURB[toggle]}
+          </p>
         </div>
 
         {/* Row 2: Funnel + Spend Split side by side */}

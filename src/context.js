@@ -1,5 +1,5 @@
 // src/context.js — Shared theme palette and app context.
-// Palette mirrors 5th-internal-front/src/theme/tokens.js (the internal OS
+// Palette mirrors Fifth-internal-front/src/theme/tokens.js (the internal OS
 // design system): warm paper neutrals + deep indigo-navy accent, Newsreader
 // for display type, Sora for UI. Light theme only — same as the internal
 // dashboard. Keys keep the P.* names the pages already consume.
@@ -29,6 +29,10 @@ export const LIGHT = {
   teal: "#178E80",
   pink: "#A2489A",
   gold: "#96792A",
+  // A figure that is context, not a status: the accent blue on paper, a light
+  // grey on the dark ground. Used where a coloured hue would claim a meaning
+  // the number doesn't carry (see the Overview's "Combined audience" tile).
+  neutral: "#2C3E7E",
 
   barBg: "rgba(25,22,17,0.055)",  // track/well behind bars & chips
   inputBg: "#FFFFFF",
@@ -57,7 +61,7 @@ export const DARK = {
   done: "#23222B",
   doneTxt: "#6C6858",
 
-  accent: "#7C93E4",
+  accent: "#5E8FE0",   // true blue — mirrors --accent in styles/index.css
   accentInk: "#FFFFFF",
   green: "#3FB97E",
   amber: "#D69A38",
@@ -66,6 +70,7 @@ export const DARK = {
   teal: "#3CB9A9",
   pink: "#D46BC7",
   gold: "#C7A452",
+  neutral: "#CFCBC1",
 
   barBg: "rgba(255,255,255,0.06)",
   inputBg: "#22212A",

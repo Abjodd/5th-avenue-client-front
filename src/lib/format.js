@@ -37,7 +37,7 @@ export const fmtL = (n) =>
 // crores here, and "₹75K" next to "₹7.5L" reads as two unrelated scales.
 // Below a lakh the full grouped number is short enough to print, and it's
 // exact: the K tier rounded ₹75,400 and ₹75,600 to the same "₹75K".
-// Mirrors fmtINR in the internal app (5th-internal-front src/lib/format.js).
+// Mirrors fmtINR in the internal app (Fifth-internal-front src/lib/format.js).
 export const fmtINR = (n) => {
   if (n == null || n === "" || !Number.isFinite(Number(n))) return "—";
   const v = Number(n), a = Math.abs(v), sign = v < 0 ? "-" : "";

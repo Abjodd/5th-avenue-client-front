@@ -2,7 +2,7 @@
  * Unit tests for lib/phases.js — `npm test` (node:test).
  *
  * These pin the stage→phase table and the progress derivation against the
- * internal app's pipeline (5th-internal-front src/lib/campaign.js). Both bugs
+ * internal app's pipeline (Fifth-internal-front src/lib/campaign.js). Both bugs
  * covered here were silent: they produced a plausible-looking number rather
  * than an error, so nothing surfaced until a client asked why a finished
  * campaign still said "Brief & Strategy".
@@ -106,7 +106,7 @@ test("an unknown or absent stage with nothing stored is 0, not NaN", () => {
 // ── brief sign-off ─────────────────────────────────────────────────────────
 // The regression these pin: the portal tested `briefStatus === "locked"`, a
 // value the internal app has not written since locking became its own step. The
-// Brief tab's banner was therefore stuck on "Waiting — under review by 5th
+// Brief tab's banner was therefore stuck on "Waiting — under review by Fifth
 // Avenue" for every campaign in the business, including ones already invoiced
 // and paid, with no state that could ever clear it.
 

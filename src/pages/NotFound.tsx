@@ -11,7 +11,7 @@ export default function NotFound() {
         to="/"
         className="rounded-md border border-line px-4 py-2 text-label text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
       >
-        Back to 5th Avenue
+        Back to Fifth Avenue
       </Link>
     </div>
   );

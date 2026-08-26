@@ -1,8 +1,8 @@
 /**
- * 5th Avenue — Client Portal AuthContext
- * Logs in against the shared 5th-internal-back backend's brand-credential
+ * Fifth Avenue — Client Portal AuthContext
+ * Logs in against the shared Fifth-internal-back backend's brand-credential
  * system (BrandCredential model, POST /api/auth/portal-login) — the same
- * store the founder-only Auth page in 5th-internal-front manages. There is
+ * store the founder-only Auth page in Fifth-internal-front manages. There is
  * no separate client-side user directory: the backend resolves the login's
  * brandId to a real Client document and returns clientName, so every page
  * here derives its data from user.clientName and a brand can only ever see
