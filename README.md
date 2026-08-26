@@ -2,7 +2,7 @@
 
 **What:** The public Fifth Avenue marketing site and the client-facing portal, in one app on one origin. The marketing site (landing, Regional network, International, Tech, Creatives, Portfolio, Careers, Legal, plus the `/apply` and `/start` lead forms) is public. The portal under `/portal/*` is a read-only view of a brand's campaigns — Overview dashboard (KPIs, creator breakdowns, Performance analytics), Campaigns board, Regional Map and Profile. Each login is scoped to exactly one client; a brand can only ever see its own data.
 
-**Why:** These were two repos — `Fifth-client-main` (the marketing site) and this one (the portal). Visitors had to cross an origin to sign in, the two shared no components, and the design tokens had drifted apart. They were merged so "Client login" is an in-app route, the primitives and chart library are shared, and there is one theme control for both.
+**Why:** These were two repos — `5th-client-main` (the marketing site) and this one (the portal). Visitors had to cross an origin to sign in, the two shared no components, and the design tokens had drifted apart. They were merged so "Client login" is an in-app route, the primitives and chart library are shared, and there is one theme control for both.
 
 **How:** React 19 + Vite 8 + Tailwind 4 + Recharts + GSAP/Motion. Routed with `react-router-dom` v7's data router (`src/routes.jsx`). The marketing pages sit under `MarketingLayout`, the portal under `ProtectedRoute` → `PortalLayout` → `AppShell`. Everything is route-split with `lazy()`/`Suspense`, so someone reading the landing page never downloads Recharts or the India map path data.
 
@@ -12,7 +12,7 @@ The codebase is deliberately **mixed TypeScript and JavaScript** — the marketi
 
 One provider — `src/context/ThemeContext.jsx` — owns the theme for the whole app. It defaults to **System** (`prefers-color-scheme`, live-updating if the OS flips) and a toggle sets an explicit Light/Dark override, persisted under the `5av_theme` key. The resolved theme is written to `<html data-theme>`; an inline script in `index.html` applies it before first paint so there is no flash. Both the marketing nav's toggle and the portal's `ThemeToggle` drive the same provider, so the theme carries across the login seam.
 
-**Two identities, one vocabulary.** `src/styles/index.css` carries both palettes — the portal's warm-paper neutrals + indigo-navy accent (mirroring `Fifth-internal-front`), and the marketing site's navy-dark look — behind a single set of Tailwind utility names. Raw values live on scope selectors and `@theme inline` maps them to utilities, so `bg-surface` resolves to white inside the portal and to `#040927` inside `<MarketingLayout/>`, with no branching in components:
+**Two identities, one vocabulary.** `src/styles/index.css` carries both palettes — the portal's warm-paper neutrals + indigo-navy accent (mirroring `5th-internal-front`), and the marketing site's navy-dark look — behind a single set of Tailwind utility names. Raw values live on scope selectors and `@theme inline` maps them to utilities, so `bg-surface` resolves to white inside the portal and to `#040927` inside `<MarketingLayout/>`, with no branching in components:
 
 ```
 :root, [data-theme="light"]                   → portal light   (document default)
@@ -25,13 +25,13 @@ The portal is the document default on purpose: overlays that escape their DOM sc
 
 ## Auth
 
-Login calls the backend's `POST /api/auth/portal-login`, which checks a hashed password against the `BrandCredential` collection (managed from the founder-only Auth page in `Fifth-internal-front`) and resolves that credential's `brandId` to a real `Client` document, returning `clientName`. Every subsequent API call in this app is scoped to that `clientName` — a login can only ever see the one client it's linked to. If a credential's `brandId` doesn't resolve to a real client yet, login fails closed rather than falling back to any default.
+Login calls the backend's `POST /api/auth/portal-login`, which checks a hashed password against the `BrandCredential` collection (managed from the founder-only Auth page in `5th-internal-front`) and resolves that credential's `brandId` to a real `Client` document, returning `clientName`. Every subsequent API call in this app is scoped to that `clientName` — a login can only ever see the one client it's linked to. If a credential's `brandId` doesn't resolve to a real client yet, login fails closed rather than falling back to any default.
 
 This is password-hash auth with no session token yet (no JWT/cookie) — fine for showing the portal to a stakeholder, but real session verification should land before this is exposed beyond a trusted network.
 
 ## Backend
 
-Everything talks to the shared `Fifth-internal-back` (Express + Mongoose/Atlas) via `VITE_API_URL`, default `http://localhost:4000`.
+Everything talks to the shared `5th-internal-back` (Express + Mongoose/Atlas) via `VITE_API_URL`, default `http://localhost:4000`.
 
 | Surface | Endpoint | Effect |
 |---|---|---|
@@ -53,7 +53,7 @@ npm install
 npm run dev     # http://localhost:3000
 ```
 
-Requires `Fifth-internal-back` running (default `http://localhost:4000`; override with `VITE_API_URL`). `npm run build` deliberately does not type-check — run `npm run typecheck` separately.
+Requires `5th-internal-back` running (default `http://localhost:4000`; override with `VITE_API_URL`). `npm run build` deliberately does not type-check — run `npm run typecheck` separately.
 
 `npm test` runs the portal's metrics suite (`src/lib/portalMetrics.test.js`) on Node's built-in test runner — no framework, no bundler. Everything the portal computes from a payload lives in `src/lib/portalMetrics.js` as pure functions precisely so it can be tested that way; see `scrap/CODEBASE_DOCUMENTATION_CLIENT.md` for the rules that module enforces.
 

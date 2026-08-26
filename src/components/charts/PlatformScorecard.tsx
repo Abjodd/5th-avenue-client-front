@@ -44,8 +44,12 @@ function median(nums: number[]) {
  */
 export function PlatformScorecard({ rows, viewsFormat, className }: PlatformScorecardProps) {
   const compare = rows.length > 1;
-  const peakViews = Math.max(...rows.map((r) => r.avgViews), 1);
-  const peakEr = Math.max(...rows.map((r) => r.er ?? 0), 1);
+  // `|| 1` guards the divide, rather than Math.max(..., 1): a floor of 1
+  // inside the max silently became the scale whenever every platform sat
+  // below it, which for engagement rate (0.9%, 0.5%) is the normal case —
+  // every bar was then drawn against 1% instead of against the best one.
+  const peakViews = Math.max(...rows.map((r) => r.avgViews)) || 1;
+  const peakEr = Math.max(...rows.map((r) => r.er ?? 0)) || 1;
   const mViews = compare ? median(rows.map((r) => r.avgViews)) : 0;
   const mEr = compare ? median(rows.map((r) => r.er ?? 0)) : 0;
 

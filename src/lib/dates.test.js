@@ -101,3 +101,100 @@ test("bucketStart/nextBucket/bucketLabel agree on weekly boundaries (Monday-star
   assert.ok(nextBucket(start, "weekly") > thu);
   assert.equal(bucketLabel(start, "weekly"), "Jan 26");
 });
+
+/* ── Range presets & the hand-picked custom window ──────────────────────────
+ *
+ * `rangeFor` turns whatever the period control holds into the {from,to} pair
+ * the analytics request is built from, so a mistake here is a mistake in every
+ * figure on the Performance panel.
+ *
+ * Two things below have already been wrong in this code and must stay pinned:
+ *
+ *  · the END of a custom window is inclusive, in LOCAL time. The picker hands
+ *    over calendar dates, and a brand asking for "1–25 Aug" means through the
+ *    end of the 25th where they are. Taking the date at face value ends the
+ *    window at 00:00 and silently drops the last day.
+ *  · the fallback preset is found by INDEX. Adding "Today" to the head of
+ *    RANGE_PRESETS shifted every one of them, so the fallback has to move with
+ *    it or an unrecognised id starts resolving to the wrong window.
+ */
+import {
+  RANGE_PRESETS, rangeFor, customPreset, parseCustom,
+} from "./dates.js";
+
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+test("customPreset and parseCustom round-trip a window", () => {
+  const id = customPreset("2026-07-01", "2026-08-25");
+  assert.equal(id, "custom:2026-07-01:2026-08-25");
+  assert.deepEqual(parseCustom(id), { from: "2026-07-01", to: "2026-08-25" });
+});
+
+test("parseCustom returns null for a plain preset id, so presets keep their own path", () => {
+  for (const p of RANGE_PRESETS) assert.equal(parseCustom(p.id), null, p.id);
+});
+
+test("parseCustom rejects anything that isn't two ISO dates", () => {
+  for (const bad of [
+    null, undefined, "", "custom:", "custom:2026-07-01",
+    "custom:2026-7-1:2026-08-25",        // unpadded
+    "custom:2026-07-01:2026-08-25:extra",
+    "custom:not-a-date:2026-08-25",
+    "6m",
+  ]) {
+    assert.equal(parseCustom(bad), null, JSON.stringify(bad));
+  }
+});
+
+test("a custom window starts at local midnight on `from`", () => {
+  const { from } = rangeFor(customPreset("2026-07-01", "2026-08-25"));
+  assert.equal(iso(from), "2026-07-01");
+  assert.equal(from.getHours(), 0);
+  assert.equal(from.getMinutes(), 0);
+  assert.equal(from.getSeconds(), 0);
+});
+
+test("a custom window ENDS INCLUSIVELY, at the last instant of `to` in local time", () => {
+  const { to } = rangeFor(customPreset("2026-07-01", "2026-08-25"));
+  assert.equal(iso(to), "2026-08-25", "still the 25th locally, not rolled into the 26th");
+  assert.equal(to.getHours(), 23);
+  assert.equal(to.getMinutes(), 59);
+  assert.equal(to.getSeconds(), 59);
+});
+
+test("the same date at both ends means that whole day, not a zero-width window", () => {
+  const { from, to } = rangeFor(customPreset("2026-08-25", "2026-08-25"));
+  assert.ok(to > from, "an empty window would report every metric as zero");
+  // One full day, minus the single millisecond the end is short of midnight.
+  assert.equal(to - from, 86400000 - 1);
+});
+
+test("an unrecognised preset id falls back to Last 3 months", () => {
+  // Pinned by LABEL, not by index: the point of the test is to catch the
+  // fallback drifting when RANGE_PRESETS is reordered or added to.
+  const now = new Date(2026, 7, 26, 12, 0, 0); // 26 Aug 2026, local
+  const { from } = rangeFor("no-such-preset", now);
+  const threeMonths = rangeFor("3m", now);
+  assert.equal(+from, +threeMonths.from);
+});
+
+test("every preset resolves to a window ending now and starting no later", () => {
+  const now = new Date(2026, 7, 26, 12, 0, 0);
+  for (const p of RANGE_PRESETS) {
+    const { from, to } = rangeFor(p.id, now);
+    assert.equal(+to, +now, `${p.id} should run up to now`);
+    assert.ok(from <= to, `${p.id} starts after it ends`);
+  }
+});
+
+test("Today starts at local midnight, so it cannot reach back into yesterday", () => {
+  const now = new Date(2026, 7, 26, 0, 30, 0); // 00:30 local — the UTC trap
+  const { from } = rangeFor("1d", now);
+  assert.equal(iso(from), "2026-08-26");
+  assert.equal(from.getHours(), 0);
+});
+
+test("preset ids are unique — the control looks them up by id", () => {
+  const ids = RANGE_PRESETS.map((p) => p.id);
+  assert.equal(new Set(ids).size, ids.length);
+});

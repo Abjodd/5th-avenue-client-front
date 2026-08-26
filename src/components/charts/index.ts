@@ -5,7 +5,6 @@ export { BarList, type BarItem } from "./BarList";
 export { ColumnChart, type ColumnItem } from "./ColumnChart";
 export { Funnel, type FunnelStage } from "./Funnel";
 export { StackedBar, type StackSegment } from "./StackedBar";
-export { ScatterPlot, type ScatterPoint } from "./ScatterPlot";
 export { PlatformScorecard, type PlatformRow } from "./PlatformScorecard";
 export { Podium, type PodiumItem } from "./Podium";
 export { MultiLineChart, type MultiSeries } from "./MultiLineChart";

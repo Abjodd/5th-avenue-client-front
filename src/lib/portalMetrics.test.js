@@ -320,7 +320,7 @@ test("regionalRollup handles a client with no data at all", () => {
 });
 
 /* ── deliverables ────────────────────────────────────────────────────────────
-   These must agree with lib/campaign.js in Fifth-internal-front — the two apps
+   These must agree with lib/campaign.js in 5th-internal-front — the two apps
    quoting a brand different post counts is the bug this mirrors away. */
 
 const DELIV_CAMPAIGN = {

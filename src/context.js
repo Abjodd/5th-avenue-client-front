@@ -1,5 +1,5 @@
 // src/context.js — Shared theme palette and app context.
-// Palette mirrors Fifth-internal-front/src/theme/tokens.js (the internal OS
+// Palette mirrors 5th-internal-front/src/theme/tokens.js (the internal OS
 // design system): warm paper neutrals + deep indigo-navy accent, Newsreader
 // for display type, Sora for UI. Light theme only — same as the internal
 // dashboard. Keys keep the P.* names the pages already consume.

@@ -1,6 +1,6 @@
 /* Client helper for the three public forms — "Start a project", "Apply as a
    creator" and the Careers page's "Tell us about you". Each POSTs straight to
-   the Fifth Avenue internal backend (Fifth-internal-back), which saves the
+   the Fifth Avenue internal backend (5th-internal-back), which saves the
    submission as a row the founder triages in the Requests page AND emails them
    — see routes/{client,creator,career}Requests.js and mailer.js in that repo.
 

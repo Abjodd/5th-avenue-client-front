@@ -2,7 +2,7 @@
  * Unit tests for lib/phases.js — `npm test` (node:test).
  *
  * These pin the stage→phase table and the progress derivation against the
- * internal app's pipeline (Fifth-internal-front src/lib/campaign.js). Both bugs
+ * internal app's pipeline (5th-internal-front src/lib/campaign.js). Both bugs
  * covered here were silent: they produced a plausible-looking number rather
  * than an error, so nothing surfaced until a client asked why a finished
  * campaign still said "Brief & Strategy".

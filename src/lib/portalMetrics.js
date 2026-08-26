@@ -88,7 +88,7 @@ export const cpvOf = (spend, views) =>
 const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
 /* ── DELIVERABLES ────────────────────────────────────────────────────────────
-   Mirrors lib/campaign.js in Fifth-internal-front — the two apps must quote a
+   Mirrors lib/campaign.js in 5th-internal-front — the two apps must quote a
    brand the same number of posts, so these three rules are copied deliberately
    rather than re-derived:
 

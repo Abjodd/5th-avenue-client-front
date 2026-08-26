@@ -18,7 +18,7 @@
  * `kind` is decided by the backend from Instagram's own `product_type`,
  * not by whether a video URL happens to be present — a feed video carries
  * one too and would otherwise autoplay here, contradicting the pin it's
- * stuck with. See Fifth-internal-back/portalReels.js.
+ * stuck with. See 5th-internal-back/portalReels.js.
  *
  * Under prefers-reduced-motion, nothing swings and nothing autoplays; a
  * reel behaves like a still until it is opened, where the lightbox gives
@@ -97,10 +97,7 @@ function PinnedCard({ reel, index, onOpen }) {
   const isReel = reel.kind === "reel" && !!reel.video;
   const canPlay = isReel && !reduced;
 
-  const tilt = 0;
-  const lift = 0;
   const tapeColor = tapeSideFor(reel.id);
-  const tapeAngle = 0;
 
   useEffect(() => {
     if (!hovered) setPlaying(false);
@@ -137,7 +134,7 @@ function PinnedCard({ reel, index, onOpen }) {
           className="pointer-events-none absolute -top-2 left-1/2 z-20 h-5 w-16 -translate-x-1/2 opacity-95 shadow-[0_2px_4px_rgba(0,0,0,0.22)]"
           style={{
             background: tapeColor,
-            transform: `translateX(-50%) rotate(${tapeAngle}deg)`,
+            transform: "translateX(-50%)",
           }}
         />
       )}

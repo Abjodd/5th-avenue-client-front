@@ -24,7 +24,7 @@ export function HeroDashboard() {
         <span className="h-2.5 w-2.5 rounded-full bg-warning/60" />
         <span className="h-2.5 w-2.5 rounded-full bg-success/60" />
         <div className="ml-3 flex h-5 flex-1 items-center rounded-md bg-input px-2 font-mono text-[10px] text-ink-3">
-          app.Fifthavenue.agency/portal/overview
+          app.5thavenue.agency/portal/overview
         </div>
       </div>
 

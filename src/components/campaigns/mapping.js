@@ -3,17 +3,17 @@
 // shape; these helpers convert them into what the page renders. Anything the DB
 // doesn't store yet renders as "—" / hidden rather than being invented.
 
-import { parseFollowers, sizeOf, fmtNum, fmtINR, initials } from "../../lib/format";
-import { STATES_META, stateCode } from "../../lib/geo";
+import { parseFollowers, sizeOf, fmtNum, fmtINR, initials } from "../../lib/format.js";
+import { STATES_META, stateCode } from "../../lib/geo.js";
 // Both from the phase registry itself. lib/api re-exports phaseOf for callers
 // that already imported it there, but taking one of the pair from each module
 // would leave two import paths for one registry.
-import { phaseOf, progressOf, briefLockedOf } from "../../lib/phases";
+import { phaseOf, progressOf, briefLockedOf } from "../../lib/phases.js";
 import {
   STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf, cpvOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
   growthSeries, growthByCreator,
-} from "../../lib/portalMetrics";
+} from "../../lib/portalMetrics.js";
 
 // The status vocabulary, the "waiting on you" list, the furthest-signal status
 // resolver and the ER formula now live in lib/portalMetrics.js — Overview and
@@ -40,7 +40,7 @@ export const closeBtnCls = "flex size-7 items-center justify-center rounded-full
    handle still rendered inside an <a>, as accent-coloured text that looks like
    a link and does nothing.
 
-   Mirrors profileUrl() in the internal app (Fifth-internal-front
+   Mirrors profileUrl() in the internal app (5th-internal-front
    src/lib/campaign.js). Duplicated rather than imported because the two apps
    are separate deployments with no shared package — keep the two in step. */
 const PROFILE_URL = {
@@ -64,7 +64,7 @@ export function profileUrl(cr) {
 
 /* "TBD" is not a value — it is the internal create wizard's placeholder for a
    field nobody filled in (`region: f.region || "TBD"`, `end: f.timelineEnd ||
-   "TBD"` in Fifth-internal-front Campaigns/index.jsx). It leaked straight onto the
+   "TBD"` in 5th-internal-front Campaigns/index.jsx). It leaked straight onto the
    brand's campaign cards as a chip sitting next to the service, reading like a
    region called TBD. An unanswered optional field should render as absent here,
    the same as every other missing value in this module. */
@@ -94,7 +94,7 @@ const fmtER = (v) => (v == null ? "—" : `${v.toFixed(1)}%`);
 
    So the STATUS is the fact, and the link is an extra a row shows when it
    happens to have one. Labels are the brand's reading of ASSET_STATUSES in
-   Fifth-internal-front Campaigns/index.jsx; `locked` is internal for "signed off,
+   5th-internal-front Campaigns/index.jsx; `locked` is internal for "signed off,
    no further edits", which is not a word to hand a client as-is. `t` is the
    tier rendered by components/StatusPill, same vocabulary as STATUS_MAP. */
 const ASSET_STATUS = {
@@ -120,7 +120,7 @@ const assetView = (a) => ({
 
    Null while nobody has decided yet, and the row renders nothing rather than a
    dash — same rule as the rest of this module, an unanswered question is not a
-   value. Labels mirror COLLAB_TYPES in Fifth-internal-front Campaigns/index.jsx. */
+   value. Labels mirror COLLAB_TYPES in 5th-internal-front Campaigns/index.jsx. */
 const COLLAB_LABELS = { collab: "Collab", non_collab: "Non-Collab" };
 
 /**
@@ -180,21 +180,34 @@ export function toViewCreator(cr, campaign) {
   };
 }
 
+/* A brief field the internal app stored as a LIST rather than a line.
+   `deliverables` arrives as ["Reel — Collab", "Reel — Non-Collab"] on every
+   campaign, and React renders an array of strings by concatenating them with
+   nothing between — so the brand's own brief read "Reel — CollabReel —
+   Non-Collab". Applied to every text field, not just that one: they share a
+   shape on the internal side, so any of them can arrive as a list. */
+const briefText = (v) =>
+  Array.isArray(v)
+    // Drop nullish BEFORE stringifying: String(null) is "null", which is
+    // truthy and would have been printed to the brand as a list item.
+    ? v.filter((x) => x != null).map((x) => String(x).trim()).filter(Boolean).join(" · ")
+    : (v || "");
+
 export function toViewCampaign(c) {
   const phase = phaseOf(c.stage);
   const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
   const brief = c.brief && typeof c.brief === "object" ? c.brief : null;
   const briefLocked = briefLockedOf(c);
   const briefView = brief ? {
-    objective: brief.objective || "", targetAudience: brief.audience || "",
-    keyMessages: brief.messages || "", deliverables: brief.deliverables || "",
+    objective: briefText(brief.objective), targetAudience: briefText(brief.audience),
+    keyMessages: briefText(brief.messages), deliverables: briefText(brief.deliverables),
     // "To be confirmed", not "—". A campaign can be raised in the internal app
-    // before the brand has agreed a number (Fifth-internal-front lib/campaign.js
+    // before the brand has agreed a number (5th-internal-front lib/campaign.js
     // hasBudget), and this is the brand's OWN brief — an em dash reads as a
     // figure we're withholding, when the truth is that it hasn't been set yet
     // and they are the ones who set it.
     budget: brief.budget || (Number(c.budget) > 0 ? fmtINR(Number(c.budget)) : "To be confirmed"),
-    timeline: brief.timeline || "",
+    timeline: briefText(brief.timeline),
     // No per-field status here. It used to carry a `vars` map, but every entry
     // was the same value derived from `briefLocked` — so the detail view painted six
     // identical status glyphs that said exactly what its own banner said. The
@@ -291,7 +304,10 @@ export function toViewCampaign(c) {
     growthPerCreator,
     avgPositivity,
     lastFetched,
-    brief: brief?.objective || "",
+    // Same list-or-string guard as briefView: this is the card's one-line
+    // summary of the objective, and an array here would concatenate exactly
+    // the way `deliverables` did on the brief tab.
+    brief: briefText(brief?.objective),
     lockedBrief: briefLocked ? briefView : null,
     pendingBrief: !briefLocked ? briefView : null,
     status: phase === "completed" ? "done" : "active",

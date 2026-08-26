@@ -10,7 +10,13 @@ import { useAnchoredPosition } from "../lib/useAnchoredPosition";
 import { dayLabel } from "../lib/format";
 
 const MENU_W = 226;
-const todayISO = () => new Date().toISOString().slice(0, 10);
+/* Local calendar date. toISOString() is UTC, which for anyone east of it
+   (the whole of IST) reports yesterday between midnight and their offset —
+   so the picker's ceiling would refuse today for the first 5½ hours of it. */
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 export default function PeriodFilter({ preset, onPreset, interval, onInterval }) {
   const [open, setOpen] = useState(false);

@@ -1,5 +1,5 @@
-// Fetch wrapper for the shared Fifth-internal-back backend (Express + MongoDB),
-// same pattern as Fifth-internal-front/src/lib/api.js. The portal is read-only;
+// Fetch wrapper for the shared 5th-internal-back backend (Express + MongoDB),
+// same pattern as 5th-internal-front/src/lib/api.js. The portal is read-only;
 // which client's data is fetched is decided by the logged-in brand user
 // (useAuth().user.clientName) — nothing is hardcoded here anymore.
 
@@ -16,7 +16,7 @@ async function request(path, options = {}) {
     // Structured fields so a caller can show the backend's own message (e.g.
     // "Profile photo must be 2MB or smaller.") instead of the raw URL-and-status
     // string, which is a debugging aid, not something to put in front of a
-    // brand. Mirrors Fifth-internal-front/src/lib/api.js.
+    // brand. Mirrors 5th-internal-front/src/lib/api.js.
     err.status = res.status;
     try { err.body = JSON.parse(body); } catch { err.body = null; }
     throw err;
@@ -50,7 +50,7 @@ export const PortalAPI = {
   // Which means usePortalReels() refetching on every mount of /portal/assets
   // is fine, and deliberately left alone: it is one cheap Mongo query, and it
   // is what makes a newly delivered reel show up without a hard reload.
-  // See Fifth-internal-back/portalReels.js.
+  // See 5th-internal-back/portalReels.js.
   reels: (clientName) =>
     request(`/api/portal/reels?client=${encodeURIComponent(clientName)}`),
 
