@@ -35,6 +35,7 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { Heart, MessageCircle, ExternalLink, X, Eye, Calendar } from "lucide-react";
 import { fmtNum, prettyDate } from "../lib/format";
 import { usePortalReels } from "../lib/usePortalData";
+import AnimatedNumber from "../components/AnimatedNumber";
 import { toViewReel } from "../components/reels/mapping";
 
 // Stable reference (module-level, not an inline arrow) — usePortalResource
@@ -411,12 +412,11 @@ export default function ReelsPage() {
     return { reels: r, posts: reels.length - r };
   }, [reels]);
 
-  const hint =
-    counts && counts.posts > 0
-      ? `${counts.reels} reel${counts.reels === 1 ? "" : "s"} and ${counts.posts} post${
-          counts.posts === 1 ? "" : "s"
-        } on file. Hover an entry to preview it, select one to open the full record.`
-      : "Hover an entry to preview it — select one to open the full record.";
+  // The header's count chips, in the shape the Regional Map's header uses.
+  // A kind with nothing in it is dropped rather than shown as "0 posts".
+  const chips = counts
+    ? [["reel", counts.reels], ["post", counts.posts]].filter(([, n]) => n > 0)
+    : [];
 
   return (
     <div
@@ -434,27 +434,42 @@ export default function ReelsPage() {
       />
 
       <div className="relative mx-auto w-full max-w-[1600px] px-5 pb-24 pt-14 sm:px-9">
-        <div className="mb-10">
-          {/* <div
-            className="mb-4 inline-block rounded-[2px] border px-3 py-1 text-[10.5px] font-medium uppercase tracking-[0.18em]"
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              color: TOKENS.red,
-              borderColor: TOKENS.red,
-            }}
-          >
-            Campaign content 
-          </div> */}
+        {/* The Regional Map tab's header, part for part: mono eyebrow, serif
+            italic headline, then a row of count chips. A bare headline is the
+            one shape no other tab uses, and on a board this wide it read as an
+            orphan.
+
+            Typography is the portal's — `microlabel`, `font-serif` — so this
+            page's heading is set the same as every other tab's. Only the
+            colours are local: `text-ink`/`text-sub`/`border-line` follow the
+            theme, and this board is always cream, so they would wash out in
+            dark mode. TOKENS carries them instead. */}
+        <header className="mb-10">
+          <div className="microlabel mb-1.5 tracking-[0.2em]" style={{ color: TOKENS.slate }}>
+            Content
+          </div>
           <h1
-            className="text-[44px] leading-[1.05] sm:text-[58px]"
-            style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#545252" }}
+            className="font-serif text-[clamp(30px,4vw,42px)] font-bold italic leading-[1.05] tracking-[-0.02em]"
+            style={{ color: TOKENS.ink }}
           >
-            CONTENT
+            Everything that went live
           </h1>
-          {/* <p className="mt-3 max-w-[520px] text-[13.5px] leading-relaxed" style={{ fontFamily: "Inter, sans-serif", color: "#c9bca0" }}>
-            {hint}
-          </p> */}
-        </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[12.5px]" style={{ color: TOKENS.mute }}>
+            {chips.map(([noun, n], i) => (
+              <span
+                key={noun}
+                className="fi rounded-full border px-2.5 py-1 shadow-sm"
+                style={{ borderColor: TOKENS.paperEdge, background: TOKENS.paper, animationDelay: `${i * 60}ms` }}
+              >
+                <b className="tnum font-semibold" style={{ color: TOKENS.ink }}>
+                  <AnimatedNumber value={n} />
+                </b>{" "}
+                {noun}{n === 1 ? "" : "s"} on file
+              </span>
+            ))}
+            <span>Hover an entry to preview it — select one to open the full record.</span>
+          </div>
+        </header>
 
         {error ? (
           <div

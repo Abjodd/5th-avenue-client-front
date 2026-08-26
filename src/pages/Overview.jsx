@@ -165,13 +165,20 @@ function CreatorFilters({ options, filters, setFilters, shown, total }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   GROUPED CREATOR PANEL — one chart, switchable metric
+   GROUPED CREATOR PANEL — one chart, switchable grouping and metric
    ═════════════════════════════════════════════════════════════════════════ */
 
-/** Shared by "by niche" (columns) and "by follower tier" (bars): the same rows
-    and the same metric switch, drawn two ways. Metrics with no data behind
-    them never reach the switch (see availableMetrics). */
-function GroupedPanel({ title, hint, rows, chart, color, delay = 0 }) {
+/** One panel for the whole roster. `view` says which grouping is on show —
+    "by niche" as columns, "by follower tier" as bars — and the metric switch
+    picks what is measured within it. The two groupings used to sit side by
+    side, which asked the reader to compare two charts at once; one panel that
+    swaps means the same eye lands on the same place both times.
+
+    Metrics with no data behind them never reach the switch (availableMetrics),
+    and the metric survives a grouping change so the two views are read against
+    each other rather than reset. */
+function GroupedPanel({ view }) {
+  const { rows, chart, color } = view;
   const metrics = useMemo(() => availableMetrics(rows), [rows]);
   const [metricId, setMetricId] = useState(metrics[0]?.id ?? "count");
   const metric = metrics.find((m) => m.id === metricId) ?? metrics[0] ?? GROUP_METRICS[3];
@@ -196,28 +203,44 @@ function GroupedPanel({ title, hint, rows, chart, color, delay = 0 }) {
   }, [rows, metric, color]);
 
   const avg = items.length ? items.reduce((s, i) => s + i.value, 0) / items.length : undefined;
+  const reduce = useReducedMotion();
 
   return (
-    // h-full + flex so this panel matches the one beside it. The chart area
-    // takes the leftover space and centres in it: a "By follower tier" list
-    // holding one bar would otherwise pin that bar to the top of a card as
-    // tall as the eight-bar niche chart next to it, which looks like a
-    // rendering fault rather than a short list.
-    <Panel reveal delay={delay} className="flex h-full flex-col px-6 py-5">
+    <Panel reveal className="flex flex-col px-6 py-5">
       <PanelTitle
-        title={title}
-        hint={`${hint} · ${metric.hint}`}
-        action={<MetricSwitch label={title} options={metrics} value={metric.id} onChange={setMetricId} />}
+        title={view.label}
+        hint={`${view.hint} · ${metric.hint}`}
+        action={<MetricSwitch label="Metric" options={metrics} value={metric.id} onChange={setMetricId} />}
       />
-      <div className="flex flex-1 flex-col justify-center">
-        {items.length === 0 ? (
-          <PanelEmpty>No creators match the current filters.</PanelEmpty>
-        ) : chart === "column" ? (
-          <ColumnChart items={items} avg={avg} height={190} />
-        ) : (
-          <BarList items={items} avg={avg} />
-        )}
-      </div>
+      {/* `layout` eases the panel between the column chart's fixed height and
+          however tall the bar list is, instead of snapping; the keyed child
+          fades the new view up in its place.
+
+          Deliberately NOT an AnimatePresence crossfade: `mode="wait"` holds
+          the incoming chart until the outgoing one finishes exiting, so a
+          switch made while the tab is backgrounded (rAF throttled, exit never
+          completes) leaves the old chart on screen under the new title. A
+          keyed remount can't get stuck, and reads the same at 60fps. */}
+      <motion.div
+        layout
+        transition={reduce ? { duration: 0 } : { duration: 0.3, ease: EASE }}
+        className="flex flex-1 flex-col justify-center"
+      >
+        <motion.div
+          key={view.id}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={reduce ? { duration: 0 } : { duration: 0.28, ease: EASE }}
+        >
+          {items.length === 0 ? (
+            <PanelEmpty>No creators match the current filters.</PanelEmpty>
+          ) : chart === "column" ? (
+            <ColumnChart items={items} avg={avg} height={190} />
+          ) : (
+            <BarList items={items} avg={avg} />
+          )}
+        </motion.div>
+      </motion.div>
     </Panel>
   );
 }
@@ -393,6 +416,9 @@ export default function OverviewDashboard() {
   // Persisted: a filter holds until it is cleared, not until you look at
   // another page. "Clear all" in the filter bar is the way out.
   const [filters, setFilters] = usePersistentState("overview.filters", EMPTY_FILTERS);
+  // Which cut of the roster the creators panel is showing. Persisted for the
+  // same reason the filters are: it is a reading preference, not page state.
+  const [creatorViewId, setCreatorViewId] = usePersistentState("overview.creatorView", "niche");
 
   const introSeen = sessionStorage.getItem(INTRO_KEY) === "1";
   const [introDone, setIntroDone] = useState(introSeen);     // gates the dashboard cascade
@@ -429,8 +455,13 @@ export default function OverviewDashboard() {
   // build, so the creator filter above must not narrow it.
   const growth = useMemo(() => growthAcross(list), [list]);
   const ranked = useMemo(() => rankCampaigns(list, creators), [list, creators]);
-  const byNiche = useMemo(() => groupBy(creators, "niche"), [creators]);
-  const bySize = useMemo(() => groupBy(creators, "size"), [creators]);
+  // The two groupings share one panel, so they are declared as one list: a
+  // third way of cutting the roster is one entry here and nothing else.
+  const creatorViews = useMemo(() => [
+    { id: "niche", label: "By niche", hint: "Grouped by content niche", chart: "column", color: P.accent, rows: groupBy(creators, "niche") },
+    { id: "size", label: "By follower tier", hint: "Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+", chart: "bar", color: P.teal, rows: groupBy(creators, "size") },
+  ], [creators, P]);
+  const creatorView = creatorViews.find((v) => v.id === creatorViewId) ?? creatorViews[0];
   const platforms = useMemo(() => platformPerformance(creators), [creators]);
   const posts = useMemo(() => livePosts(creators), [creators]);
 
@@ -721,25 +752,10 @@ export default function OverviewDashboard() {
             id="creators"
             eyebrow="Creators"
             title="Who moves the needle"
-            hint="Your roster grouped two ways. Switch the metric to compare on engagement, audience or measured views; the dashed line is the group average and ↑↓ flags a group behaving unlike the rest."
+            hint="One roster, cut two ways. Switch the grouping, then the metric, to compare on engagement, audience or measured views; the dashed line is the group average and ↑↓ flags a group behaving unlike the rest."
+            action={<MetricSwitch label="Grouping" options={creatorViews} value={creatorView.id} onChange={setCreatorViewId} />}
           >
-            <div className="grid items-stretch gap-4 lg:grid-cols-2">
-              <GroupedPanel
-                title="By niche"
-                hint="Grouped by content niche"
-                rows={byNiche}
-                chart="column"
-                color={P.accent}
-              />
-              <GroupedPanel
-                title="By follower tier"
-                hint="Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+"
-                rows={bySize}
-                chart="bar"
-                color={P.teal}
-                delay={0.06}
-              />
-            </div>
+            <GroupedPanel view={creatorView} />
           </Section>
         )}
 
