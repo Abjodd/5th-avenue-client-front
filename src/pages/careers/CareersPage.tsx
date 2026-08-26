@@ -121,7 +121,7 @@ export default function CareersPage() {
         </div>
       </section>
 
-      {/* why 5th avenue */}
+      {/* why Fifth avenue */}
       <section className="border-b border-line px-6 py-16 md:px-10 md:py-24">
         <div className="mx-auto max-w-[1200px]">
           <p className="font-mono text-eyebrow uppercase tracking-[0.12em] text-ink-3">Why join</p>
@@ -299,7 +299,7 @@ function ApplicationForm({
               <Field label="Portfolio / LinkedIn" hint="optional">
                 <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="linkedin.com/in/priyasharma" />
               </Field>
-              <Field label="Why 5th Avenue?" hint="optional">
+              <Field label="Why Fifth Avenue?" hint="optional">
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}

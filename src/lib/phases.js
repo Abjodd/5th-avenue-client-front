@@ -103,13 +103,52 @@ const LEGACY_TO_STAGE = {
  * Raised" reported a health score of 0%: not a campaign in trouble, a field
  * that stopped being stored.
  *
- * A stored value still wins where one exists, so campaigns that predate the
- * change keep the number they were last saved with.
+ * The STAGE wins wherever it resolves. This used to be the other way round —
+ * a stored value beat the stage, so "campaigns that predate the change keep
+ * the number they were last saved with" — and that reasoning only holds while
+ * the stored number is still being maintained. It is not: nothing writes
+ * `progress` any more (it survives as a dead column on the Campaign schema),
+ * so a document that was last saved at 90% and has since been carried all the
+ * way to `payment_done` still told the brand 90% — for good, with no event
+ * that could ever move it. Meanwhile the phase stepper above it read
+ * "Completed" and the internal board read 100%, because both derive. One
+ * campaign, three numbers, and the only wrong one was the frozen one.
+ *
+ * A dead field must never outrank a live one. The stored value is kept as the
+ * fallback for the case it was actually meant for — a document whose stage is
+ * missing or unrecognised, where there is nothing to derive from.
  */
 export function progressOf(campaign) {
-  const stored = Number(campaign?.progress);
-  if (Number.isFinite(stored)) return Math.min(100, Math.max(0, stored));
   const stage = campaign?.stage;
-  const p = STAGE_PROGRESS[stage] ?? STAGE_PROGRESS[LEGACY_TO_STAGE[stage]];
-  return p ?? 0;
+  const derived = STAGE_PROGRESS[stage] ?? STAGE_PROGRESS[LEGACY_TO_STAGE[stage]];
+  if (derived != null) return derived;
+  const stored = Number(campaign?.progress);
+  return Number.isFinite(stored) ? Math.min(100, Math.max(0, stored)) : 0;
 }
+
+/**
+ * Has the brief been signed off by Fifth Avenue?
+ *
+ * Mirrors briefLocked() in the internal app (5th-internal-front
+ * src/lib/campaign.js) — and it has to, because the portal's Brief tab tells a
+ * brand whether the document they are reading is final.
+ *
+ * The portal used to test `briefStatus === "locked"`, which is a value from a
+ * vocabulary the internal app stopped writing: locking a brief now stamps
+ * `signed_off` (Campaigns/index.jsx, the `lock_brief` case), while older
+ * documents carry `draft` / `pending` / `shortlisting` / `locked` from three
+ * earlier flows. So the banner was pinned to "under review" on every campaign
+ * that had actually been approved, with no way for it to ever clear.
+ *
+ * The stage is the second witness, for the same reason the internal app reads
+ * it: campaigns predating the brief-lock step never got the flag at all, and a
+ * stage past `draft` is proof the lock happened whatever the flag says. Kept a
+ * read-time derivation rather than a migration — documents are not rewritten on
+ * read here (see progressOf), and a second mechanism doing this job is a second
+ * thing to keep in step.
+ */
+export const normStage = (stage) =>
+  stage in STAGE_PROGRESS ? stage : (LEGACY_TO_STAGE[stage] || "draft");
+
+export const briefLockedOf = (campaign) =>
+  campaign?.briefStatus === "signed_off" || normStage(campaign?.stage) !== "draft";

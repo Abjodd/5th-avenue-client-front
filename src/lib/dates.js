@@ -15,6 +15,7 @@ export function parsePortalDate(s) {
 
 // ── Range presets (screenshot spec: 30d / 3m / 6m / YTD + everything) ───────
 export const RANGE_PRESETS = [
+  { id: "1d",  label: "Today",         from: (now) => startOfDay(now) },
   { id: "7d",  label: "Last 7 days",   from: (now) => addDays(now, -7) },
   { id: "30d", label: "Last 30 days",  from: (now) => addDays(now, -30) },
   { id: "3m",  label: "Last 3 months", from: (now) => addMonths(now, -3) },
@@ -32,9 +33,28 @@ export const INTERVALS = [
 
 function addDays(d, n)   { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function addMonths(d, n) { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; }
+function startOfDay(d)   { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function endOfDay(d)     { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999); }
+
+/* A hand-picked window is encoded into the same string the presets use —
+   "custom:2026-07-01:2026-08-26". Every caller keeps passing one id around and
+   rangeFor() stays the only place that turns an id into dates, so nothing
+   downstream (the fetch effect, the persisted value) needed a second field. */
+const CUSTOM = /^custom:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/;
+
+export const customPreset = (from, to) => `custom:${from}:${to}`;
+
+export function parseCustom(presetId) {
+  const m = CUSTOM.exec(presetId || "");
+  return m ? { from: m[1], to: m[2] } : null;
+}
 
 export function rangeFor(presetId, now = new Date()) {
-  const p = RANGE_PRESETS.find(r => r.id === presetId) || RANGE_PRESETS[2];
+  const custom = parseCustom(presetId);
+  // Inclusive of the end date: picking the same day at both ends has to mean
+  // that whole day, not a zero-width window.
+  if (custom) return { from: parsePortalDate(custom.from), to: endOfDay(parsePortalDate(custom.to)) };
+  const p = RANGE_PRESETS.find(r => r.id === presetId) || RANGE_PRESETS[3];
   return { from: p.from(now), to: now };
 }
 

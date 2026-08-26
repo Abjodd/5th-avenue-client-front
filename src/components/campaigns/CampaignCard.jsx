@@ -29,28 +29,6 @@ export function Donut({ value, size = 40, stroke = 4.5, color }) {
   );
 }
 
-/* Initials avatar stack (max 4 + "+N") from real creators */
-function AvatarStack({ creators }) {
-  if (!creators?.length) return null;
-  const shown = creators.slice(0, 4);
-  const extra = creators.length - shown.length;
-  return (
-    <div className="flex items-center">
-      {shown.map((cr, i) => (
-        <div key={i} title={cr.name}
-          className="-ml-1.5 flex size-[22px] items-center justify-center rounded-full border-[1.5px] border-white bg-gradient-to-br from-accent/[0.14] to-accent/[0.05] text-[8.5px] font-bold text-accent shadow-sm first:ml-0">
-          {cr.avatar || cr.name[0]}
-        </div>
-      ))}
-      {extra > 0 && (
-        <div className="-ml-1.5 flex size-[22px] items-center justify-center rounded-full border-[1.5px] border-white bg-well text-[8.5px] font-bold text-sub shadow-sm">
-          +{extra}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* Timeline mini-bar: start→end with a "today" marker. Renders nothing when the
    dates don't parse — never invents a timeline. */
 function TimelineBar({ start, end, color }) {
@@ -136,8 +114,6 @@ export default function CampaignCard({ campaign: c, onClick }) {
           ))}
         </div>
       )}
-      {c.creators.length > 0 && <div className="mt-2.5 flex"><AvatarStack creators={c.creators}/></div>}
-
       <TimelineBar start={c.start} end={c.end} color={color}/>
 
       {/* budget strip reveals on hover */}

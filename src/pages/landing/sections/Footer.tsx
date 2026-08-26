@@ -83,7 +83,7 @@ export function Footer() {
             India · Est. MMXXVI
           </p>
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
-            © 2026 5th Avenue Marketing
+            © 2026 Fifth Avenue Marketing
           </p>
         </div>
         <div

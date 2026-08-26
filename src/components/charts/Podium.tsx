@@ -28,12 +28,18 @@ export function Podium({ items, className }: PodiumProps) {
   return (
     <div className={cx("flex flex-col", className)}>
       <div className="flex items-end justify-center gap-3">
+        {/* Keyed by SLOT, not by rank. The two branches below used different
+            key expressions over the one array — `slot` for an empty plinth and
+            `rank` for a filled one — and ORDER puts rank 1 in slot 0, so a
+            podium holding a single campaign emitted key 0 twice and React
+            dropped one of the children. Slot is the array index, so it is
+            unique by construction. */}
         {ORDER.map((rank, slot) => {
           const it = top[rank];
           if (!it) return <div key={slot} className="flex-1" />;
           const h = HEIGHT[slot];
           return (
-            <div key={rank} className="flex flex-1 flex-col items-center">
+            <div key={slot} className="flex flex-1 flex-col items-center">
               <span className="mb-1 max-w-full truncate text-center text-caption font-medium text-ink" title={it.name}>
                 {it.name}
               </span>

@@ -67,7 +67,7 @@ export default function BrandIntro({ data, onDone, onClosed }) {
     const s = [];
     s.push(
       <Step key="hello">
-        <Kicker>5th Avenue · Client Portal</Kicker>
+        <Kicker>Fifth Avenue · Client Portal</Kicker>
         <Big>
           Hello, <span className="text-accent">{data.clientName}</span>
         </Big>

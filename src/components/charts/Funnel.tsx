@@ -68,7 +68,7 @@ function ribbon(halves: number[], centres: number[], plateau: number, scale: num
  * Scaled to the LARGEST stage rather than to the first: views are measured
  * from the posts themselves and a reel that travels beyond its creator's
  * followers genuinely outruns reach, so the first stage is not always the
- * widest. The step label between stages is signed for the same reason.
+ * widest.
  */
 export function Funnel({ stages }: { stages: FunnelStage[] }) {
   // Gradient and clip ids are document-global; scope them per instance so two
@@ -94,21 +94,18 @@ export function Funnel({ stages }: { stages: FunnelStage[] }) {
   return (
     <div>
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${stages.length}, 1fr)` }}>
-        {stages.map((s, i) => {
-          const prev = i > 0 ? stages[i - 1].value : null;
-          const step$ = prev ? ((s.value - prev) / prev) * 100 : null;
-          return (
-            <div key={s.stage} className="min-w-0 text-center">
-              <div className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{s.stage}</div>
-              <div className="tnum mt-0.5 text-[19px] font-bold leading-none" style={{ color: s.color }}>{s.display}</div>
-              {step$ !== null && (
-                <div className={`tnum mt-1 text-[10px] font-semibold ${step$ >= 0 ? "text-green" : "text-red"}`}>
-                  {step$ >= 0 ? "▲" : "▼"} {Math.abs(step$).toFixed(1)}%
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {/* No stage-to-stage ▲/▼ figure. The stages measure different things —
+            reach is a follower base, views are counted from the posts — so the
+            step between them was a percentage change between two units, and it
+            painted the normal case (views outrunning reach) as a red drop or a
+            green spike depending only on which way the mix fell. The ribbon
+            already shows each stage's size relative to the largest. */}
+        {stages.map((s) => (
+          <div key={s.stage} className="min-w-0 text-center">
+            <div className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute">{s.stage}</div>
+            <div className="tnum mt-0.5 text-[19px] font-bold leading-none" style={{ color: s.color }}>{s.display}</div>
+          </div>
+        ))}
       </div>
 
       <svg

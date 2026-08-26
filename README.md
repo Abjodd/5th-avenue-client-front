@@ -1,6 +1,6 @@
-# 5th Avenue — Marketing Site + Client Portal
+# Fifth Avenue — Marketing Site + Client Portal
 
-**What:** The public 5th Avenue marketing site and the client-facing portal, in one app on one origin. The marketing site (landing, Regional network, International, Tech, Creatives, Portfolio, Careers, Legal, plus the `/apply` and `/start` lead forms) is public. The portal under `/portal/*` is a read-only view of a brand's campaigns — Overview dashboard (KPIs, creator breakdowns, Performance analytics), Campaigns board, Regional Map and Profile. Each login is scoped to exactly one client; a brand can only ever see its own data.
+**What:** The public Fifth Avenue marketing site and the client-facing portal, in one app on one origin. The marketing site (landing, Regional network, International, Tech, Creatives, Portfolio, Careers, Legal, plus the `/apply` and `/start` lead forms) is public. The portal under `/portal/*` is a read-only view of a brand's campaigns — Overview dashboard (KPIs, creator breakdowns, Performance analytics), Campaigns board, Regional Map and Profile. Each login is scoped to exactly one client; a brand can only ever see its own data.
 
 **Why:** These were two repos — `5th-client-main` (the marketing site) and this one (the portal). Visitors had to cross an origin to sign in, the two shared no components, and the design tokens had drifted apart. They were merged so "Client login" is an in-app route, the primitives and chart library are shared, and there is one theme control for both.
 

@@ -11,7 +11,7 @@
  *
  * ── Honesty about who can fix what ──────────────────────────────────────────
  * In this portal only the PHOTO is self-serve; name, role and contact details
- * are held by 5th Avenue and changed by an account manager. So each item
+ * are held by Fifth Avenue and changed by an account manager. So each item
  * carries `actionable`, and the UI uses it to split "you can fix this now" from
  * "ask your account manager" — rather than showing a checklist that silently
  * implies the reader can complete all of it.

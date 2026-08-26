@@ -5,7 +5,7 @@
  * telling you what the other 40% is, and on this page most of it isn't yours to
  * fix. So the ring is paired with the actual missing items, split by who can
  * act on them — the photo gets a button that scrolls to the uploader, and
- * everything else is labelled as held by 5th Avenue.
+ * everything else is labelled as held by Fifth Avenue.
  *
  * Recomputed from the session user on every render rather than cached, so
  * uploading a photo moves the ring immediately: AuthContext.updateUser merges
@@ -75,7 +75,7 @@ export default function ProfileCompletion({ user, onFixPhoto }) {
           line on a finished profile would be noise. */}
       {!complete && missing.some((m) => !m.actionable) && (
         <p className="mt-4 text-[11px] leading-relaxed text-mute">
-          Your name, role and contact details are managed by 5th Avenue — ask your account
+          Your name, role and contact details are managed by Fifth Avenue — ask your account
           manager to fill in anything missing above.
         </p>
       )}

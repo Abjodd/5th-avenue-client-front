@@ -276,7 +276,7 @@ export function summarise(campaigns = [], creators = []) {
 /**
  * Campaign health, 0–100 — the mean of `progress` across campaigns that aren't
  * completed. It is NOT a stored score and not a proprietary index: `progress`
- * is the number 5th Avenue sets on each campaign as it moves through the
+ * is the number Fifth Avenue sets on each campaign as it moves through the
  * pipeline, and this is its average. The UI states that under the ring.
  * Returns null when there is nothing in flight, so the ring can be hidden
  * rather than reading a meaningless 0%.

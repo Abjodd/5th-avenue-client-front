@@ -2,7 +2,7 @@
  * src/pages/Profile.jsx — Settings.
  *
  * Three panes behind a sticky rail: who you are, how the portal looks, and the
- * company record 5th Avenue holds for you.
+ * company record Fifth Avenue holds for you.
  *
  * Account fields come straight from the login payload, which IS the sanitized
  * BrandCredential document (routes/auth.js → safe(doc) + brandId/clientName).
@@ -494,8 +494,8 @@ export default function Settings() {
     { label: "Email", value: user?.email, href: user?.email ? `mailto:${user.email}` : undefined,
       lockedReason: "Your email is your sign-in — your account manager changes it" },
     { label: "Phone", value: user?.phone, onSave: saveField("phone"), type: "tel", placeholder: "+91 98765 43210" },
-    { label: "Account ID", value: user?.id, lockedReason: "Set by 5th Avenue" },
-    { label: "Member since", value: user?.createdAt ? prettyDate(user.createdAt) : null, lockedReason: "Set by 5th Avenue" },
+    { label: "Account ID", value: user?.id, lockedReason: "Set by Fifth Avenue" },
+    { label: "Member since", value: user?.createdAt ? prettyDate(user.createdAt) : null, lockedReason: "Set by Fifth Avenue" },
   ];
 
   const p = company?.profile ?? {};
@@ -556,10 +556,10 @@ export default function Settings() {
               <div className="flex flex-col gap-4">
                 <ProfileCompletion user={user} onFixPhoto={fixPhoto} />
                 <Panel reveal delay={0.06} className="px-6 py-5">
-                  <PanelTitle title="Account" hint="Hover a field and hit Edit to change it. Locked fields are set by 5th Avenue." />
+                  <PanelTitle title="Account" hint="Hover a field and hit Edit to change it. Locked fields are set by Fifth Avenue." />
                   <FieldGrid fields={account} empty="No account details on file." />
                   <p className="mt-4 text-[11px] leading-relaxed text-mute">
-                    Saved changes reach your 5th Avenue team straight away.
+                    Saved changes reach your Fifth Avenue team straight away.
                   </p>
                 </Panel>
                 <PasswordPanel userId={user?.id} />
@@ -606,14 +606,14 @@ export default function Settings() {
 
                 {company?.consultant && (
                   <Panel reveal delay={0.06} className="px-6 py-5">
-                    <PanelTitle title="Account manager" hint="Your dedicated 5th Avenue contact" />
+                    <PanelTitle title="Account manager" hint="Your dedicated Fifth Avenue contact" />
                     <Subpanel className="flex flex-wrap items-center gap-3 px-4 py-3.5">
                       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/[0.09] text-[12px] font-bold text-accent">
                         {initials(company.consultant)}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-semibold text-ink">{company.consultant}</span>
-                        <span className="block text-[11.5px] text-mute">5th Avenue Marketing</span>
+                        <span className="block text-[11.5px] text-mute">Fifth Avenue Marketing</span>
                       </span>
                     </Subpanel>
                   </Panel>

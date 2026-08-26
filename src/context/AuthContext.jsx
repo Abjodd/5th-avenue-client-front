@@ -1,5 +1,5 @@
 /**
- * 5th Avenue — Client Portal AuthContext
+ * Fifth Avenue — Client Portal AuthContext
  * Logs in against the shared 5th-internal-back backend's brand-credential
  * system (BrandCredential model, POST /api/auth/portal-login) — the same
  * store the founder-only Auth page in 5th-internal-front manages. There is

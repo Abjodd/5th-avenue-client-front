@@ -40,7 +40,7 @@ import PerformanceSection from "../components/PerformanceSection";
 import { Stagger, AmbientBackground } from "../components/motion/Motion";
 import { Panel, Subpanel, Section, PanelTitle, KPI, MetricSwitch, PanelEmpty } from "../components/portal/Shell";
 import { ProgressRing } from "../components/primitives/ProgressRing";
-import { BarList, ColumnChart, Podium, ScatterPlot, LineChart } from "../components/charts";
+import { BarList, ColumnChart, Podium, PlatformScorecard, LineChart } from "../components/charts";
 
 /* Brand-story intro is its own chunk — most sessions load it once per login */
 const BrandIntro = lazy(() => import("../components/intro/BrandIntro"));
@@ -231,6 +231,11 @@ const GROWTH_METRICS = [
   { id: "engagements", label: "Engagements" },
 ];
 
+/* Height of the growth panel's body — the chart and the breakdown column
+   beside it share it, which is what keeps the panel the same size whether the
+   brand has four live posts or four hundred. */
+const PANEL_H = 300;
+
 /**
  * The account-wide version of the Growth tab in a campaign's detail view.
  * Same numbers, same carry-forward rule — growthAcross() and growthSeries()
@@ -305,20 +310,25 @@ function AccountGrowth({ growth, palette }) {
         action={<MetricSwitch label="Growth" options={GROWTH_METRICS} value={metric.id} onChange={setMetricId} />}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_270px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_290px]">
         <LineChart
           // Full labels: LineChart thins the axis itself (maxTicks) and needs
           // every date intact for the hover readout.
           labels={points.map((p) => dayLabel(p.date))}
           primary={{ label: metric.label, color, values: points.map((p) => p[metric.id]), format: fmtNum }}
-          height={220}
+          height={PANEL_H}
           fit
           activeIndex={pinned}
           onHover={setHovered}
           onSelect={(i) => setPinned((cur) => (cur === i ? null : i))}
         />
 
-        <div className="min-w-0 lg:border-l lg:border-line lg:pl-5">
+        {/* Fixed height, with the list scrolling inside it. The breakdown has
+            one row per measured post, so left to grow it set the height of the
+            whole section — four posts and forty drew two different panels, and
+            the chart beside it stretched to match. The reading above the list
+            stays put; only the rows move. */}
+        <div className="flex min-w-0 flex-col lg:border-l lg:border-line lg:pl-5" style={{ height: PANEL_H }}>
           <div className="flex items-baseline justify-between gap-2">
             <span className="microlabel">{dayLabel(points[at].date)}</span>
             {pinned != null ? (
@@ -336,7 +346,9 @@ function AccountGrowth({ growth, palette }) {
             {breakdown.length} post{breakdown.length === 1 ? "" : "s"} measured by this day
           </div>
 
-          <div className="mt-3 flex flex-col gap-2.5 border-t border-line pt-3">
+          {/* min-h-0 is what lets a flex child actually scroll rather than
+              pushing its parent taller. */}
+          <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto border-t border-line pt-3 pr-1">
             {breakdown.map((post) => (
               <div key={post.key}>
                 <div className="flex items-baseline justify-between gap-2">
@@ -505,7 +517,7 @@ export default function OverviewDashboard() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.5 }}
           >
-            {/* Campaign health — the mean of the progress 5th Avenue records on
+            {/* Campaign health — the mean of the progress Fifth Avenue records on
                 each live campaign. Hidden entirely when nothing is in flight. */}
             <Panel reveal className="flex flex-col items-center justify-center px-6 py-7">
               {health ? (
@@ -515,7 +527,11 @@ export default function OverviewDashboard() {
                       value={health.value}
                       size={168}
                       stroke={13}
-                      color={health.value >= 66 ? P.green : health.value >= 33 ? P.amber : P.accent}
+                      // Always green. The ring reports how far the work has
+                      // come, not a grade: amber and red at low percentages
+                      // read as "your campaigns are in trouble" on a campaign
+                      // that has simply only just started.
+                      color={P.green}
                       showLabel={false}
                     />
                     <div className="pointer-events-none absolute inset-0 flex items-baseline justify-center gap-0.5 pt-[68px]">
@@ -573,7 +589,7 @@ export default function OverviewDashboard() {
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
             <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.accent} />
             <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.green} />
-            <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.pink} />
+            <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral} />
             <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber} />
             {/* The sublabel names what the figure leaves out. Campaigns raised
                 before a budget was agreed contribute nothing to this total, so
@@ -754,25 +770,27 @@ export default function OverviewDashboard() {
               read as one row of the page rather than two unrelated boxes. */}
           <div className="grid items-stretch gap-4 lg:grid-cols-2">
             <Panel reveal className="flex h-full flex-col px-6 py-5">
-              <PanelTitle title="Platform performance" hint="Measured views × engagement rate — bubble size is live posts" />
+              <PanelTitle
+                title="Platform performance"
+                hint="How far a post travels, and how hard that audience engages"
+                info="Average views per live post, and how many of those viewers liked or commented. With two or more platforms, each is ranked against the best and labelled against your own median."
+              />
               {platforms.length ? (
-                <ScatterPlot
-                  points={platforms.map((p, i) => ({
-                    id: p.value,
-                    x: p.avgViews,
-                    y: p.er ?? 0,
-                    size: p.live || p.count,
-                    color: [P.accent, P.green, P.pink, P.amber, P.purple][i % 5],
-                    label: p.label,
-                    meta: `${p.live} post${p.live === 1 ? "" : "s"}`,
-                  }))}
-                  xLabel="Avg views"
-                  yLabel="Engagement rate"
-                  xFormat={fmtNum}
-                  yFormat={(v) => `${v.toFixed(1)}%`}
-                  quadrantLabels={["Distribute more", "Double down", "Stop producing", "Improve hooks"]}
-                  height={280}
-                />
+                /* flex-1 + justify-center so one platform sits in the middle of
+                   the panel rather than at the top of a card sized by the list
+                   beside it — same rule the other paired panels follow. */
+                <div className="flex flex-1 flex-col justify-center">
+                  <PlatformScorecard
+                    rows={platforms.map((p, i) => ({
+                      label: p.label,
+                      avgViews: p.avgViews,
+                      er: p.er ?? null,
+                      live: p.live || p.count,
+                      color: [P.accent, P.green, P.pink, P.amber, P.purple][i % 5],
+                    }))}
+                    viewsFormat={fmtNum}
+                  />
+                </div>
               ) : (
                 <PanelEmpty>
                   Nothing is live with measured metrics yet. Post performance appears here after the first refresh.
@@ -862,6 +880,7 @@ export default function OverviewDashboard() {
               <PanelTitle
                 title="Needs you"
                 hint="Creators sitting in your court"
+                info="Creators we've proposed who are waiting on your approval. The top row is the one holding a campaign up — select it to open that campaign."
                 action={
                   queues.length > 0 && (
                     <span className="tnum flex size-6 items-center justify-center rounded-full bg-amber/[0.12] text-[11px] font-bold text-amber">

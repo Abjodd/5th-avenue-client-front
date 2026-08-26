@@ -35,6 +35,14 @@ function PhaseTracker({ currentPhase }) {
       <div className="flex items-center">
         {PHASES.map((p, i) => {
           const isCur = i === idx, isDone = i < idx;
+          /* The last phase is an end state, not a stop along the way. Landing on
+             it was painted with the in-progress accent — a finished campaign
+             showing a blue node and a pulsing dot, reading as "still working on
+             it" when every phase behind it had already gone green. It gets the
+             same green as the cleared phases, and no pulse: nothing is in
+             flight any more. */
+          const isEnd = isCur && p.id === "completed";
+          const green = isDone || isEnd;
           const Icon = PHASE_ICONS[p.id];
           return (
             <div key={p.id} className="flex flex-1 items-center">
@@ -42,14 +50,14 @@ function PhaseTracker({ currentPhase }) {
                 <motion.div
                   initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: i * 0.06, type: "spring", stiffness: 340, damping: 24 }}
-                  className={`flex size-10 items-center justify-center rounded-[12px] border-2 ${isDone?"border-green bg-green/[0.08] text-green":isCur?"border-accent bg-accent/[0.08] text-accent":"border-ink/5 bg-well text-mute"}`}
-                  style={{ boxShadow: isCur ? `0 0 16px ${P.accent}35` : isDone ? `0 2px 8px ${P.green}20` : "none" }}>
+                  className={`flex size-10 items-center justify-center rounded-[12px] border-2 ${green?"border-green bg-green/[0.08] text-green":isCur?"border-accent bg-accent/[0.08] text-accent":"border-ink/5 bg-well text-mute"}`}
+                  style={{ boxShadow: isEnd ? `0 0 16px ${P.green}35` : isCur ? `0 0 16px ${P.accent}35` : isDone ? `0 2px 8px ${P.green}20` : "none" }}>
                   {/* A cleared phase becomes a tick; the rest keep their own
                       mark, tinted by state rather than by an emoji's palette. */}
                   {isDone ? <Check size={18} strokeWidth={2.6} /> : <Icon size={18} strokeWidth={1.9} />}
                 </motion.div>
-                <span className={`text-center text-[10.5px] uppercase tracking-[0.04em] ${isCur?"font-bold text-ink":isDone?"font-medium text-green":"font-normal text-mute"}`}>{p.label}</span>
-                {isCur && <div className="pulse absolute -top-1 right-[20%] size-2 rounded-full bg-accent"/>}
+                <span className={`text-center text-[10.5px] uppercase tracking-[0.04em] ${isEnd?"font-bold text-green":isCur?"font-bold text-ink":isDone?"font-medium text-green":"font-normal text-mute"}`}>{p.label}</span>
+                {isCur && !isEnd && <div className="pulse absolute -top-1 right-[20%] size-2 rounded-full bg-accent"/>}
               </div>
               {i < PHASES.length-1 && (<div className={`mb-5 h-0.5 max-w-10 flex-[0_0_100%] rounded-full transition-colors duration-300 ${isDone?"bg-green":"bg-ink/[0.05]"}`}/>)}
             </div>
@@ -544,6 +552,19 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
           </div>
           <div className="mt-0.5 flex flex-wrap gap-2 text-[12px] text-sub">
             <span>{cr.followers}</span><span>{cr.platform}</span>
+            {/* Collab / Non-Collab — whether the post is co-authored and carries
+                the brand's own handle, or goes up on the creator's account
+                alone. A pill rather than another plain span: everything else on
+                this line is a measurement of the creator, and this is a term of
+                the deal. Absent until someone has decided (it is set on the
+                internal Creators tab and gates the lock), and an undecided
+                creator shows nothing rather than a dash. */}
+            {cr.collab && (
+              <span title="How this post goes up — a paid collaboration carries the brand's handle"
+                className="rounded-full border border-line bg-well/70 px-2 py-px text-[10.5px] font-medium text-sub">
+                {cr.collab}
+              </span>
+            )}
             {/* Posts live / posts owed — only shown once the creator is locked,
                 because that's the point the commitment exists. */}
             {cr.locked && (
@@ -569,8 +590,8 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
             <div className="mt-1.5 flex flex-col gap-1 border-t border-line pt-2">
               <div className="flex flex-wrap gap-2.5 text-[11px] text-sub"><span>Niche: <b className="text-ink">{cr.niche}</b></span><span>Size: <b className="text-ink">{cr.size}</b></span><span>State: <b className="text-ink">{cr.region}</b></span><span>Language: <b className="text-ink">{cr.language}</b></span></div>
               <div className="mt-0.5 flex flex-wrap gap-3.5 text-[12px]">
-                <span className="text-mute">Brief: {cr.briefDoc ? <a href={cr.briefDoc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 align-middle text-accent no-underline hover:underline"><FileSignature size={13} strokeWidth={1.9} />{cr.briefDoc.name}</a> : <em>Not uploaded</em>}</span>
-                <span className="text-mute">Video: {cr.videoDoc ? <a href={cr.videoDoc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 align-middle text-accent no-underline hover:underline"><Clapperboard size={13} strokeWidth={1.9} />{cr.videoDoc.name}</a> : <em>Not uploaded</em>}</span>
+                <span className="text-mute">Brief: <AssetState asset={cr.briefAsset} Icon={FileSignature} /></span>
+                <span className="text-mute">Video: <AssetState asset={cr.videoAsset} Icon={Clapperboard} /></span>
               </div>
               {/* Live block — only when this creator's post is actually up */}
               {cr.live && (
@@ -613,6 +634,30 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
         </div>
       )}
     </motion.div>
+  );
+}
+
+/* Where a concept or demo has got to, tinted by the same tier vocabulary the
+   status pills use. The file link is an enhancement, not the fact — see
+   assetView() in mapping.js for why asking only "is there a link?" told brands
+   their signed-off brief had never been uploaded. */
+const ASSET_TIER_CLS = {
+  neutral:  "text-mute",
+  progress: "text-accent",
+  action:   "text-amber",
+  done:     "text-green",
+};
+
+function AssetState({ asset, Icon }) {
+  const cls = ASSET_TIER_CLS[asset?.t] || "text-mute";
+  const body = <><Icon size={13} strokeWidth={1.9} />{asset?.label || "Not received"}</>;
+  return asset?.url ? (
+    <a href={asset.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      className={`inline-flex items-center gap-1 align-middle font-medium no-underline hover:underline ${cls}`}>
+      {body} <span className="text-[10px]">↗</span>
+    </a>
+  ) : (
+    <span className={`inline-flex items-center gap-1 align-middle font-medium ${cls}`}>{body}</span>
   );
 }
 
@@ -662,7 +707,15 @@ function BriefPage({ lockedBrief, pendingBrief }) {
   return (
     <div>
       <div className={`mb-3 flex items-center gap-1.5 rounded-[12px] border px-3 py-2 backdrop-blur-sm ${isLocked?"border-green/[0.12] bg-green/[0.03]":"border-amber/[0.12] bg-amber/[0.03]"}`}>
-        <Dot color={isLocked ? P.green : P.amber}/><span className={`text-[12px] font-medium ${isLocked?"text-green":"text-amber"}`}>{isLocked ? `Locked ${brief.approvedOn}` : "Waiting — under review by 5th Avenue"}</span>
+        {/* No date beside "Locked". It used to read `Locked ${brief.approvedOn}`
+            and there is no such field — not on the campaign, not in the brief,
+            not anywhere in the payload — so it rendered the literal word
+            "undefined" the moment the lock flag was ever true. The one record of
+            WHEN it was signed off is the campaign timeline, which the portal
+            route strips before it leaves the building (server.js
+            CAMPAIGN_PRIVATE). Saying less is the honest option until the backend
+            exposes the date. */}
+        <Dot color={isLocked ? P.green : P.amber}/><span className={`text-[12px] font-medium ${isLocked?"text-green":"text-amber"}`}>{isLocked ? "Signed off by Fifth Avenue" : "Waiting — under review by Fifth Avenue"}</span>
         <span className="ml-auto text-[10.5px] italic text-mute">{isLocked ? "Read-only" : "Pending approval"}</span>
       </div>
       {BRIEF_FIELDS.map(([label, key, Icon]) => {

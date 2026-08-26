@@ -5,21 +5,15 @@
  *
  * ── Design concept: THE REGISTER ─────────────────────────────────────────
  * A campaign content register — an archive of record, not a media shelf.
- * Every post is filed to the board, and *how* it's filed tells you what it
- * is before you ever hover it:
+ * The paper stock, the mono corner tag and the entry number are all in
+ * service of "this is a filed record," kept understated rather than
+ * played for whimsy. A still is held by a filing tab; a reel isn't, and
+ * plays instead.
  *
- *   reel → held by a pin, top and center — it's active, it plays.
- *   post → held by a filing tab — it's static, it doesn't.
- *
- * That single material choice replaces the old "REEL / STILL" corner
- * badge as the primary signal (a small mono tag still exists for anyone
- * who can't read the metaphor, or is on a screen reader). The tilt, the
- * paper stock, the entry number are all in service of "this is a filed
- * record," kept understated rather than played for whimsy.
- *
- * Hover/focus squares a card up off its pin/tab, a restrained few degrees
- * of motion standing in for the old scale-and-glow — enough to read as
- * physical, not enough to feel like a toy. Click opens the full record.
+ * Hover/focus lifts a card off the board and brings up the one fact the
+ * resting card leaves out — the date it went live. Everything a card
+ * shows at rest is about the post; the date is about the file, so it
+ * waits until you ask. Click opens the full record.
  *
  * `kind` is decided by the backend from Instagram's own `product_type`,
  * not by whether a video URL happens to be present — a feed video carries
@@ -38,8 +32,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { Heart, MessageCircle, ExternalLink, X, Play, Eye, Pin } from "lucide-react";
-import { fmtNum } from "../lib/format";
+import { Heart, MessageCircle, ExternalLink, X, Eye, Calendar } from "lucide-react";
+import { fmtNum, prettyDate } from "../lib/format";
 import { usePortalReels } from "../lib/usePortalData";
 import { toViewReel } from "../components/reels/mapping";
 
@@ -103,10 +97,7 @@ function PinnedCard({ reel, index, onOpen }) {
   const isReel = reel.kind === "reel" && !!reel.video;
   const canPlay = isReel && !reduced;
 
-  const tilt = 0;
-  const lift = 0;
   const tapeColor = tapeSideFor(reel.id);
-  const tapeAngle = 0;
 
   useEffect(() => {
     if (!hovered) setPlaying(false);
@@ -137,23 +128,13 @@ function PinnedCard({ reel, index, onOpen }) {
       className="relative"
       style={{ transformOrigin: "50% -6px" }}
     >
-      {/* Pin — reels only. The mark that says "this one is active." */}
-      {isReel && (
-        <div className="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
-          <span
-            className="block size-3.5 rounded-full shadow-[0_2px_0_rgba(0,0,0,0.35),0_3px_5px_rgba(0,0,0,0.4)] ring-2 ring-black/10"
-            style={{ background: `radial-gradient(circle at 35% 30%, #c56e69, ${TOKENS.red} 65%)` }}
-          />
-        </div>
-      )}
-
-      {/* Filing tab — stills only. Held in place, not pinned; nothing to play. */}
+      {/* Filing tab — stills only. Nothing to play, so nothing to lift off. */}
       {!isReel && (
         <div
           className="pointer-events-none absolute -top-2 left-1/2 z-20 h-5 w-16 -translate-x-1/2 opacity-95 shadow-[0_2px_4px_rgba(0,0,0,0.22)]"
           style={{
             background: tapeColor,
-            transform: `translateX(-50%) rotate(${tapeAngle}deg)`,
+            transform: "translateX(-50%)",
           }}
         />
       )}
@@ -173,8 +154,8 @@ function PinnedCard({ reel, index, onOpen }) {
             ? {}
             : {
                 rotate: 0,
-                y: hovered ? -5 : 0,
-                scale: hovered ? 1.02 : 1,
+                y: hovered ? -9 : 0,
+                scale: hovered ? 1.045 : 1,
               }
         }
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
@@ -226,6 +207,22 @@ function PinnedCard({ reel, index, onOpen }) {
             {isReel ? "reel" : "still"}
           </div>
 
+          {/* When it went live — only while the card is held. It is the one
+              thing about the file rather than the post, and printing it on
+              every card at rest made a wall of dates compete with the work
+              they belong to. Opposite the kind tag, which is the corner the
+              eye is already using to read the card. */}
+          {reel.takenAt && (
+            <div
+              className={`pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-[2px] px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.1em] text-white/95 transition-all duration-200 ease-out ${
+                hovered ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
+              }`}
+              style={{ fontFamily: "'JetBrains Mono', monospace", background: "rgba(0,0,0,0.6)" }}
+            >
+              <Calendar size={10} strokeWidth={2.4} /> {prettyDate(reel.takenAt)}
+            </div>
+          )}
+
           {/* Entry number — the register's own indexing, not a step count */}
           <div
             className="pointer-events-none absolute bottom-2 right-2 text-[9.5px] font-medium tracking-[0.08em] text-white/70"
@@ -234,13 +231,10 @@ function PinnedCard({ reel, index, onOpen }) {
             {fileNo}
           </div>
 
-          {canPlay && !playing && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <span className="flex size-11 items-center justify-center rounded-full bg-black/45 text-white/95 backdrop-blur-sm transition-transform duration-300 group-hover:scale-110">
-                <Play size={18} fill="currentColor" strokeWidth={0} />
-              </span>
-            </div>
-          )}
+          {/* No play badge. Hovering the card already starts the reel (see the
+              effect above), so a button sitting over the thumbnail promised a
+              second, separate control that never existed — and it covered the
+              part of the frame the card is there to show. */}
         </div>
 
         {/* The paper margin below the photo — a real polaroid strip */}
@@ -263,7 +257,7 @@ function PinnedCard({ reel, index, onOpen }) {
           )}
           {(eng > 0 || reel.views != null) && (
             <div
-              className="flex items-center gap-3 text-[10.5px] font-medium"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] font-medium"
               style={{ fontFamily: "'JetBrains Mono', monospace", color: TOKENS.ink }}
             >
               {reel.views != null && (

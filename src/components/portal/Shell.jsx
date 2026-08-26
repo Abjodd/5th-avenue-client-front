@@ -8,8 +8,11 @@
  *
  * Everything is presentational — no data, no fetching, no palette lookups.
  */
+import { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { cx } from "../../lib/cx";
+import { useAnchoredPosition } from "../../lib/useAnchoredPosition";
 import AnimatedNumber from "../AnimatedNumber";
 import { Reveal, StaggerItem } from "../motion/Motion";
 
@@ -67,15 +70,75 @@ export function Section({ eyebrow, title, hint, action, id, children, className 
   );
 }
 
+/* ── Info hint ─────────────────────────────────────────────────────────────
+   The small circled "i" that says what a panel is actually showing. It was
+   hand-written inline (own hover state, own popover box) each time a panel
+   needed one, and the size, offset and wording drifted every time. One
+   definition here means a panel asks for the explanation and gets the same
+   control, and a panel that needs one no longer has to become stateful to
+   have it.
+
+   Opens on focus as well as hover, and never toggles shut on the same
+   gesture that opened it: a tap both focuses the button and fires its click,
+   so a toggling handler closed the hint the instant a touch reader asked for
+   it. Leaving is what closes it. */
+const HINT_W = 264;
+
+export function InfoHint({ children, label = "What this shows", align = "right", className }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  // On <body>, for the same reason the period menu is — a panel that carries
+  // `backdrop-blur` is a stacking context, so a hint drawn inside one is
+  // painted over by whatever panel comes next.
+  const at = useAnchoredPosition(open, btnRef, { width: HINT_W, align, gap: 8 });
+
+  return (
+    <span className={cx("inline-flex", className)}>
+      <button
+        ref={btnRef}
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen(true)}
+        className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full border border-line bg-accent/[0.12] text-[10px] font-bold leading-none text-accent transition-colors duration-200 hover:bg-accent/[0.22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
+        i
+      </button>
+      {open && at && createPortal(
+        <span
+          role="tooltip"
+          style={{ top: at.top, left: at.left, width: HINT_W }}
+          className="fixed z-[200] rounded-[12px] border border-line bg-modal p-3 text-left text-[11.5px] font-normal leading-relaxed text-sub shadow-modal"
+        >
+          {children}
+        </span>,
+        document.body,
+      )}
+    </span>
+  );
+}
+
 /** Panel-level heading — serif italic title + one line of context. */
-export function PanelTitle({ title, hint, action, className }) {
+export function PanelTitle({ title, hint, info, action, className }) {
   return (
     <div className={cx("mb-4 flex flex-wrap items-start justify-between gap-3", className)}>
       <div className="min-w-0">
         <h3 className="font-serif text-[19px] font-semibold italic text-ink">{title}</h3>
         {hint && <p className="mt-0.5 text-[12.5px] text-sub">{hint}</p>}
       </div>
-      {action}
+      {/* The hint sits with the action rather than beside the title: a panel
+          that has both keeps them on one right-hand cluster instead of
+          pushing the heading off its own line. */}
+      {(info || action) && (
+        <div className="flex shrink-0 items-center gap-2">
+          {action}
+          {info && <InfoHint>{info}</InfoHint>}
+        </div>
+      )}
     </div>
   );
 }
@@ -129,7 +192,10 @@ export function MetricSwitch({ options, value, onChange, label = "Metric" }) {
               <motion.span
                 layoutId={`metric-${label}`}
                 transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                className="absolute inset-0 rounded-full bg-accent shadow-[0_3px_10px_rgba(44,62,126,0.32)]"
+                // Derived from the accent rather than a frozen navy rgba:
+                // the dark theme's accent is a lighter blue, and a hardcoded
+                // navy glow under it read as a shadow from a different button.
+                className="absolute inset-0 rounded-full bg-accent shadow-[0_3px_10px_var(--accent-muted)]"
               />
             )}
             <span className="relative">{o.label}</span>
