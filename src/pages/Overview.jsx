@@ -820,9 +820,9 @@ export default function OverviewDashboard() {
                   <div key={p.id}>
                     <div className="mb-[5px] flex justify-between">
                       <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
-                        <Dot color={phaseColors[p.id]} /> {p.short}
+                        <Dot color={P.neutral} /> {p.short}
                       </span>
-                      <span className="tnum text-[13.5px] font-bold" style={{ color: p.count ? P.neutral : P.doneTxt }}>{p.count}</span>
+                      <span className="tnum text-[13.5px] font-bold" style={{ color: p.count ? P.neutral : P.doneTxt, opacity: p.count ? 1 - i * 0.15 : 1 }}>{p.count}</span>
                     </div>
                     <div className="h-[7px] overflow-hidden rounded-full bg-well">
                       <motion.div
@@ -831,7 +831,7 @@ export default function OverviewDashboard() {
                         whileInView={{ width: `${kpis.campaigns ? (p.count / kpis.campaigns) * 100 : 0}%` }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.7, ease: EASE, delay: i * 0.08 }}
-                        style={{ background: phaseColors[p.id], boxShadow: p.count ? `0 0 10px ${phaseColors[p.id]}55` : "none" }}
+                        style={{ background: P.neutral, boxShadow: p.count ? `0 0 10px ${P.neutral}55` : "none", opacity: p.count ? 1 - i * 0.15 : 0.3 }}
                       />
                     </div>
                   </div>
