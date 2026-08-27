@@ -694,11 +694,11 @@ export default function OverviewDashboard() {
                       // reading as "in trouble." It also now matches every
                       // other figure on the page instead of standing out
                       // as the one green number.
-                      color={P.neutral}
+                      color={P.green}
                       showLabel={false}
                     />
                     <div className="pointer-events-none absolute inset-0 flex items-baseline justify-center gap-0.5 pt-[68px]">
-                      <span className="tnum text-[46px] font-bold leading-none tracking-tight" style={{ color: P.neutral }}>{health.value}</span>
+                      <span className="tnum text-[46px] font-bold leading-none tracking-tight" style={{ color: P.black }}>{health.value}</span>
                       <span className="text-[17px] font-semibold" style={{ color: P.neutral, opacity: 0.55 }}>%</span>
                     </div>
                   </div>
