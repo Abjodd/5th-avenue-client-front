@@ -37,12 +37,19 @@ function rawVideo(versions) {
 /** Where the post lives, off whatever the row already carries — a
  *  `platform` string from the creator roster, or the permalink itself.
  *  Instagram is the only source feeding the reel cache today (see
- *  5th-internal-back/portalReels.js), so it is the default rather than a
- *  guess; deriving it here means the day a YouTube link reaches the shelf
- *  the tile is already right, with no schema change and no extra field on
- *  the wire. */
+ *  5th-internal-back/portalReels.js), so deriving it here means the day a
+ *  YouTube link reaches the shelf the tile is already right, with no schema
+ *  change and no extra field on the wire.
+ *
+ *  Recognised only, never assumed: the roster also carries Snapchat (see
+ *  campaigns/mapping.js PROFILE_URL), and defaulting the unrecognised case
+ *  to Instagram would badge those posts with the wrong platform's logo.
+ *  null means "we don't know", which the tile renders as no badge. */
 function platformOf(s) {
-  return /youtube|youtu\.be/i.test(String(s ?? "")) ? "youtube" : "instagram";
+  const v = String(s ?? "");
+  if (/youtube|youtu\.be/i.test(v)) return "youtube";
+  if (/instagram/i.test(v)) return "instagram";
+  return null;
 }
 
 /** Poster frame from a raw `image_versions2`. */
@@ -60,6 +67,14 @@ function rawThumb(iv2) {
 export function toViewReel(r = {}) {
   const code = r.code ?? r.shortcode ?? null;
 
+  // The page links out with this; a reel with no permalink just hides the
+  // "Open" button (see ReelLightbox) rather than rendering a dead anchor.
+  // Hoisted because `platform` is read off it too — a raw media object
+  // carries only `code`, so reading `r.permalink` directly would miss the
+  // Instagram link this rebuilds and leave the tile unbadged.
+  const permalink =
+    r.permalink ?? r.postUrl ?? (code ? `https://www.instagram.com/reel/${code}/` : null);
+
   // What the card does on hover hangs entirely off this. Our own route sends
   // `kind`; a raw media object is classified here on the same rule the backend
   // uses — product_type "clips", not merely "has a video", because a feed video
@@ -71,12 +86,7 @@ export function toViewReel(r = {}) {
   return {
     kind,
     id: String(r.id ?? r.pk ?? code ?? r.permalink ?? ""),
-    // The page links out with this; a reel with no permalink just hides the
-    // "Open" button (see ReelLightbox) rather than rendering a dead anchor.
-    permalink:
-      r.permalink ??
-      r.postUrl ??
-      (code ? `https://www.instagram.com/reel/${code}/` : null),
+    permalink,
     username: r.username ?? r.user?.username ?? r.handle ?? null,
     // Raw captions arrive as an object with the text one level down.
     caption: r.caption?.text ?? (typeof r.caption === "string" ? r.caption : null),
@@ -99,6 +109,6 @@ export function toViewReel(r = {}) {
     slides: num(r.slides) ?? (Array.isArray(r.carousel_media) ? r.carousel_media.length : null),
     campaign: r.campaign ?? null,
     // Badged on the resting tile, so the shelf says where each entry ran.
-    platform: platformOf(r.platform ?? r.permalink ?? r.postUrl),
+    platform: platformOf(r.platform ?? permalink),
   };
 }

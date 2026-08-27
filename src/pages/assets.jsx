@@ -122,7 +122,9 @@ const PLATFORM_MARKS = {
 function PlatformMark({ platform, size = 17, ...rest }) {
   // Scoped per instance so many badges on one page can't collide on the
   // gradient's id — the whole reason this is a render fn and not a node.
-  const gid = useId();
+  // Colons stripped to match charts/Funnel.tsx: React's ids carry them on
+  // some versions, and they are not safe inside a `url(#…)` reference.
+  const gid = useId().replace(/:/g, "");
   const mark = PLATFORM_MARKS[platform];
   if (!mark) return null;
   return (
