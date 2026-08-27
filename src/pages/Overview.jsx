@@ -212,20 +212,26 @@ function GroupedPanel({ view }) {
         hint={`${view.hint} · ${metric.hint}`}
         action={<MetricSwitch label="Metric" options={metrics} value={metric.id} onChange={setMetricId} />}
       />
-      {/* `layout` eases the panel between the column chart's fixed height and
-          however tall the bar list is, instead of snapping; the keyed child
-          fades the new view up in its place.
+      {/* Fixed body, so switching grouping can't resize the panel. The two
+          views have very different natural heights — a 190px column chart
+          against a bar list of two to four rows — and easing between them
+          still moved everything below, so the Audience section visibly
+          walked up the page mid-switch. Holding the box still is worth more
+          than animating it.
 
-          Deliberately NOT an AnimatePresence crossfade: `mode="wait"` holds
-          the incoming chart until the outgoing one finishes exiting, so a
-          switch made while the tab is backgrounded (rAF throttled, exit never
-          completes) leaves the old chart on screen under the new title. A
-          keyed remount can't get stuck, and reads the same at 60fps. */}
-      <motion.div
-        layout
-        transition={reduce ? { duration: 0 } : { duration: 0.3, ease: EASE }}
-        className="flex flex-1 flex-col justify-center"
-      >
+          214px is the taller of the two by construction: the column chart is
+          given its height as a prop, and its labels `truncate` to one line
+          (charts/ColumnChart.tsx), so that branch is always 190 + one label
+          row. The bar list is capped by the four follower tiers and centres
+          in the leftover space.
+
+          The keyed child still fades the new view up in place. Deliberately
+          NOT an AnimatePresence crossfade: `mode="wait"` holds the incoming
+          chart until the outgoing one finishes exiting, so a switch made
+          while the tab is backgrounded (rAF throttled, exit never completes)
+          leaves the old chart on screen under the new title. A keyed remount
+          can't get stuck, and reads the same at 60fps. */}
+      <div className="flex h-[214px] flex-col justify-center">
         <motion.div
           key={view.id}
           initial={{ opacity: 0, y: 6 }}
@@ -240,7 +246,7 @@ function GroupedPanel({ view }) {
             <BarList items={items} avg={avg} />
           )}
         </motion.div>
-      </motion.div>
+      </div>
     </Panel>
   );
 }

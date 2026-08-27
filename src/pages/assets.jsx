@@ -5,20 +5,20 @@
  *
  * ── Design concept: THE REGISTER ─────────────────────────────────────────
  * A campaign content register — an archive of record, not a media shelf.
- * The paper stock, the mono corner tag and the entry number are all in
- * service of "this is a filed record," kept understated rather than
- * played for whimsy. A still is held by a filing tab; a reel isn't, and
- * plays instead.
+ * The board, the mono labelling and the paper the file is printed on are
+ * all in service of "this is a filed record," kept understated rather
+ * than played for whimsy.
  *
- * Hover/focus lifts a card off the board and brings up the one fact the
- * resting card leaves out — the date it went live. Everything a card
- * shows at rest is about the post; the date is about the file, so it
- * waits until you ask. Click opens the full record.
+ * The entries themselves carry no mount: each is shown at the shape it
+ * was shot in, so the board reads as the work first and the record
+ * second. Everything about an entry waits under the pointer — who made
+ * it, what it said, how it did, when it went live — which is also when a
+ * reel starts playing. Click opens the full file.
  *
  * `kind` is decided by the backend from Instagram's own `product_type`,
  * not by whether a video URL happens to be present — a feed video carries
- * one too and would otherwise autoplay here, contradicting the pin it's
- * stuck with. See 5th-internal-back/portalReels.js.
+ * one too and would otherwise autoplay here, contradicting the label the
+ * entry is given. See 5th-internal-back/portalReels.js.
  *
  * Under prefers-reduced-motion, nothing swings and nothing autoplays; a
  * reel behaves like a still until it is opened, where the lightbox gives
@@ -27,10 +27,10 @@
  * Reels come from usePortalReels() (lib/usePortalData.js) — the same
  * client-scoped fetch lifecycle Campaigns/Overview/Settings use. toViewReel()
  * (components/reels/mapping.js) is the one place backend field names get
- * translated, so the card and lightbox below never have to know whether a
+ * translated, so the tile and lightbox below never have to know whether a
  * field is called `video_url`, `video`, or `video_versions[0].url`.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { Heart, MessageCircle, ExternalLink, X, Eye, Calendar } from "lucide-react";
 import { fmtNum, prettyDate } from "../lib/format";
@@ -42,15 +42,14 @@ import { toViewReel } from "../components/reels/mapping";
 // re-runs the fetch effect whenever `map` changes identity.
 const mapReels = (data) => (data.reels ?? data).map(toViewReel);
 
-const GRID_COLS = "repeat(auto-fill, minmax(272px, 1fr))";
+const GRID_COLS = "repeat(auto-fill, minmax(230px, 1fr))";
 
 /* ═══ TOKENS ═════════════════════════════════════════════════════════════
  * board  — the cork backing the whole page sits on
- * paper  — the index-card stock every post is printed on
+ * paper  — the stock the header chips and the opened file are printed on
  * ink    — text on paper
- * red    — pushpins, the rec tally, the case stamp
- * ochre / teal — the two washi-tape colors, alternated by id so the board
- *                doesn't read as one flat color of tape
+ * red    — the focus ring and the case stamp
+ * slate  — the header's mono eyebrow
  */
 const TOKENS = {
   board: "#f5efe5",
@@ -60,7 +59,6 @@ const TOKENS = {
   ink: "#201d1a",
   mute: "#4f4a42",
   red: "#7a2e2a",
-  navy: "#33475b",
   slate: "#5c5347",
 };
 
@@ -81,15 +79,69 @@ function FontFaces() {
   return null;
 }
 
-function hashStr(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-const tapeSideFor = (id) => (hashStr(id + "s") % 2 === 0 ? TOKENS.navy : TOKENS.slate);
+/* ═══ PLATFORM MARK ══════════════════════════════════════════════════════
+ * Each platform's own badge, in its own colours — lucide dropped its brand
+ * glyphs at v1, and these are a handful of paths against a second icon
+ * dependency. Drawn filled rather than stroked: at badge size a solid mark
+ * stays legible over whatever the frame happens to be, where an outline
+ * disappears into a bright one.
+ *
+ * A platform with no mark renders nothing, which is the honest answer to
+ * "we don't know where this ran" — better than badging it as Instagram
+ * because that is what the shelf usually holds.
+ */
+const PLATFORM_MARKS = {
+  // Instagram's gradient runs corner to corner, warm at the bottom-left.
+  instagram: (gid) => (
+    <>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="1" x2="0.85" y2="0">
+          <stop offset="0%" stopColor="#FFD65C" />
+          <stop offset="25%" stopColor="#FA7E1E" />
+          <stop offset="55%" stopColor="#D62976" />
+          <stop offset="78%" stopColor="#962FBF" />
+          <stop offset="100%" stopColor="#4F5BD5" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="22" height="22" rx="6.4" fill={`url(#${gid})`} />
+      <g fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round">
+        <rect x="5.7" y="5.7" width="12.6" height="12.6" rx="3.9" />
+        <circle cx="12" cy="12" r="3.15" />
+        <line x1="17.1" y1="6.9" x2="17.11" y2="6.9" strokeWidth="2.3" />
+      </g>
+    </>
+  ),
+  youtube: () => (
+    <>
+      <rect x="1.2" y="4.6" width="21.6" height="14.8" rx="4.4" fill="#FF0033" />
+      <path d="M10 8.6v6.8l5.9-3.4z" fill="#fff" />
+    </>
+  ),
+};
 
-/* ═══ CARD ═══════════════════════════════════════════════════════════════ */
-function PinnedCard({ reel, index, onOpen }) {
+function PlatformMark({ platform, size = 17, ...rest }) {
+  // Scoped per instance so many badges on one page can't collide on the
+  // gradient's id — the whole reason this is a render fn and not a node.
+  // Colons stripped to match charts/Funnel.tsx: React's ids carry them on
+  // some versions, and they are not safe inside a `url(#…)` reference.
+  const gid = useId().replace(/:/g, "");
+  const mark = PLATFORM_MARKS[platform];
+  if (!mark) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...rest}>
+      {mark(gid)}
+    </svg>
+  );
+}
+
+/* ═══ TILE ═══════════════════════════════════════════════════════════════
+ * The entry at the shape it was shot in, with nothing mounted around it.
+ * At rest it is only the frame and a platform badge — a wall of work
+ * rather than a wall of index cards. Every fact about it (who made it,
+ * what it said, how it did, when it went live) waits under the pointer,
+ * which is also when a reel starts playing. Click opens the full file.
+ */
+function ReelTile({ reel, index, onOpen }) {
   const [hovered, setHovered] = useState(false);
   const [playing, setPlaying] = useState(false);
   const videoRef = useRef(null);
@@ -97,8 +149,6 @@ function PinnedCard({ reel, index, onOpen }) {
 
   const isReel = reel.kind === "reel" && !!reel.video;
   const canPlay = isReel && !reduced;
-
-  const tapeColor = tapeSideFor(reel.id);
 
   useEffect(() => {
     if (!hovered) setPlaying(false);
@@ -112,13 +162,18 @@ function PinnedCard({ reel, index, onOpen }) {
     }
   }, [hovered]);
 
-  const eng = (reel.likes ?? 0) + (reel.comments ?? 0);
-  const fileNo = `No. ${String(index + 1).padStart(3, "0")}`;
+  // Built as a list so the row lays itself out and a missing metric simply
+  // isn't there, rather than three near-identical conditional blocks.
+  const stats = [
+    reel.views != null && [Eye, "views", fmtNum(reel.views)],
+    reel.likes != null && [Heart, "likes", fmtNum(reel.likes)],
+    reel.comments != null && [MessageCircle, "comments", fmtNum(reel.comments)],
+  ].filter(Boolean);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -28, rotate: 0 }}
-      whileInView={{ opacity: 1, y: 0, rotate: 0 }}
+      initial={{ opacity: 0, y: -20 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{
         type: "spring",
@@ -126,20 +181,7 @@ function PinnedCard({ reel, index, onOpen }) {
         damping: 26,
         delay: Math.min(index * 0.035, 0.4),
       }}
-      className="relative"
-      style={{ transformOrigin: "50% -6px" }}
     >
-      {/* Filing tab — stills only. Nothing to play, so nothing to lift off. */}
-      {!isReel && (
-        <div
-          className="pointer-events-none absolute -top-2 left-1/2 z-20 h-5 w-16 -translate-x-1/2 opacity-95 shadow-[0_2px_4px_rgba(0,0,0,0.22)]"
-          style={{
-            background: tapeColor,
-            transform: "translateX(-50%)",
-          }}
-        />
-      )}
-
       <motion.button
         type="button"
         onMouseEnter={() => setHovered(true)}
@@ -150,132 +192,117 @@ function PinnedCard({ reel, index, onOpen }) {
         aria-label={`${isReel ? "Reel" : "Post"} by ${reel.username || "creator"}${
           reel.caption ? ` — ${reel.caption.slice(0, 80)}` : ""
         }`}
-        animate={
-          reduced
-            ? {}
-            : {
-                rotate: 0,
-                y: hovered ? -9 : 0,
-                scale: hovered ? 1.045 : 1,
-              }
-        }
+        animate={reduced ? {} : { y: hovered ? -6 : 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
-        className="group relative block w-full rounded-[3px] p-2.5 pb-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--wall-red)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--wall-board)]"
+        className="relative block w-full overflow-hidden rounded-[14px] bg-black text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--wall-red)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--wall-board)]"
         style={{
           "--wall-red": TOKENS.red,
           "--wall-board": TOKENS.board,
-          background: TOKENS.paper,
+          aspectRatio: "9 / 16",
           boxShadow: hovered
-            ? `0 26px 40px -12px rgba(0,0,0,0.55), 0 2px 0 ${TOKENS.paperEdge}`
-            : `0 10px 18px -8px rgba(0,0,0,0.45), 0 2px 0 ${TOKENS.paperEdge}`,
+            ? "0 26px 40px -12px rgba(0,0,0,0.55)"
+            : "0 10px 18px -8px rgba(0,0,0,0.45)",
         }}
       >
-        {/* Photo/tape well */}
-        <div className="relative overflow-hidden rounded-[2px] bg-black" style={{ aspectRatio: "4 / 5" }}>
-          <img
-            src={reel.thumbnail}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className={`h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
-              hovered ? "scale-[1.07]" : "scale-100"
+        <img
+          src={reel.thumbnail}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={`h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            hovered ? "scale-[1.05]" : "scale-100"
+          }`}
+        />
+
+        {canPlay && hovered && (
+          <video
+            ref={videoRef}
+            src={reel.video}
+            poster={reel.thumbnail}
+            muted
+            loop
+            playsInline
+            preload="none"
+            onCanPlay={() => setPlaying(true)}
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+              playing ? "opacity-100" : "opacity-0"
             }`}
           />
+        )}
 
-          {canPlay && hovered && (
-            <video
-              ref={videoRef}
-              src={reel.video}
-              poster={reel.thumbnail}
-              muted
-              loop
-              playsInline
-              preload="none"
-              onCanPlay={() => setPlaying(true)}
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-                playing ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          )}
+        {/* The one mark on a resting frame: where the post ran. It stands in
+            for the play glyph — on a shelf that is almost all reels, "this
+            moves" was the fact the eye already had, and the hover row still
+            names reel or still outright. */}
+        <PlatformMark
+          platform={reel.platform}
+          className={`pointer-events-none absolute right-2.5 top-2.5 transition-opacity duration-200 ${
+            hovered ? "opacity-0" : "opacity-100"
+          }`}
+          style={{ filter: "drop-shadow(0 1px 2.5px rgba(0,0,0,0.45))" }}
+        />
 
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent" />
+        {/* Scrim — carries the text, so it arrives with it rather than
+            dimming every frame on the board at rest. */}
+        <div
+          className={`pointer-events-none absolute inset-0 transition-opacity duration-300 ${
+            hovered ? "opacity-100" : "opacity-0"
+          }`}
+          style={{
+            background:
+              "linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.6) 34%, rgba(0,0,0,0.14) 62%, rgba(0,0,0,0.5) 100%)",
+          }}
+        />
 
-          {/* Kind tag — the plain-language echo of the pin/tab signal */}
-          <div
-            className="pointer-events-none absolute left-2 top-2 rounded-[2px] px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.14em] text-white/90"
-            style={{ fontFamily: "'JetBrains Mono', monospace", background: "rgba(0,0,0,0.48)" }}
-          >
+        {/* What it is, and when it went live */}
+        <div
+          className={`pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2.5 transition-all duration-200 ease-out ${
+            hovered ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
+          }`}
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          <span className="text-[9.5px] font-medium uppercase tracking-[0.14em] text-white/85">
             {isReel ? "reel" : "still"}
-          </div>
-
-          {/* When it went live — only while the card is held. It is the one
-              thing about the file rather than the post, and printing it on
-              every card at rest made a wall of dates compete with the work
-              they belong to. Opposite the kind tag, which is the corner the
-              eye is already using to read the card. */}
+          </span>
           {reel.takenAt && (
-            <div
-              className={`pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-[2px] px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.1em] text-white/95 transition-all duration-200 ease-out ${
-                hovered ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
-              }`}
-              style={{ fontFamily: "'JetBrains Mono', monospace", background: "rgba(0,0,0,0.6)" }}
-            >
+            <span className="flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-[0.1em] text-white/85">
               <Calendar size={10} strokeWidth={2.4} /> {prettyDate(reel.takenAt)}
-            </div>
+            </span>
           )}
-
-          {/* Entry number — the register's own indexing, not a step count */}
-          <div
-            className="pointer-events-none absolute bottom-2 right-2 text-[9.5px] font-medium tracking-[0.08em] text-white/70"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            {fileNo}
-          </div>
-
-          {/* No play badge. Hovering the card already starts the reel (see the
-              effect above), so a button sitting over the thumbnail promised a
-              second, separate control that never existed — and it covered the
-              part of the frame the card is there to show. */}
         </div>
 
-        {/* The paper margin below the photo — a real polaroid strip */}
-        <div className="px-1 pt-3">
+        {/* Who made it, what it said, how it did */}
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-0 p-3 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            hovered ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+          }`}
+        >
           {reel.username && (
             <div
-              className="mb-1 truncate text-[14px] font-medium"
-              style={{ fontFamily: "'Fraunces', serif", color: TOKENS.ink }}
+              className="truncate text-[14px] font-medium text-white"
+              style={{ fontFamily: "'Fraunces', serif" }}
             >
               @{reel.username}
             </div>
           )}
           {reel.caption && (
-            <div
-              className="mb-2 line-clamp-2 text-[11.5px] leading-snug"
-              style={{ fontFamily: "Inter, sans-serif", color: TOKENS.mute }}
+            <p
+              className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-white/70"
+              style={{ fontFamily: "Inter, sans-serif" }}
             >
               {reel.caption}
-            </div>
+            </p>
           )}
-          {(eng > 0 || reel.views != null) && (
+          {stats.length > 0 && (
             <div
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] font-medium"
-              style={{ fontFamily: "'JetBrains Mono', monospace", color: TOKENS.ink }}
+              className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] font-medium text-white"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
-              {reel.views != null && (
-                <span className="inline-flex items-center gap-1">
-                  <Eye size={11} strokeWidth={2.2} /> {fmtNum(reel.views)}
+              {stats.map(([Icon, label, value]) => (
+                <span key={label} className="inline-flex items-center gap-1">
+                  <Icon size={11} strokeWidth={2.2} /> {value}
                 </span>
-              )}
-              {reel.likes != null && (
-                <span className="inline-flex items-center gap-1">
-                  <Heart size={11} strokeWidth={2.2} /> {fmtNum(reel.likes)}
-                </span>
-              )}
-              {reel.comments != null && (
-                <span className="inline-flex items-center gap-1">
-                  <MessageCircle size={11} strokeWidth={2.2} /> {fmtNum(reel.comments)}
-                </span>
-              )}
+              ))}
             </div>
           )}
         </div>
@@ -339,7 +366,7 @@ function Dossier({ reel, onClose }) {
             loop
             playsInline
             controls
-            className="aspect-[4/5] w-full bg-black object-cover"
+            className="aspect-[9/16] max-h-[68vh] w-full bg-black object-contain"
           />
         ) : (
           <img
@@ -467,7 +494,7 @@ export default function ReelsPage() {
                 {noun}{n === 1 ? "" : "s"} on file
               </span>
             ))}
-            <span>Hover an entry to preview it — select one to open the full record.</span>
+            <span>Hover an entry for its details — select one to open the full record.</span>
           </div>
         </header>
 
@@ -494,16 +521,12 @@ export default function ReelsPage() {
             </button>
           </div>
         ) : reels === null ? (
-          <div className="grid gap-8" style={{ gridTemplateColumns: GRID_COLS }}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: GRID_COLS }}>
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="animate-pulse rounded-[3px]"
-                style={{
-                  aspectRatio: "4 / 5",
-                  background: TOKENS.paperEdge,
-                  transform: "rotate(0deg)",
-                }}
+                className="animate-pulse rounded-[14px]"
+                style={{ aspectRatio: "9 / 16", background: TOKENS.paperEdge }}
               />
             ))}
           </div>
@@ -517,9 +540,9 @@ export default function ReelsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-x-6 gap-y-10" style={{ gridTemplateColumns: GRID_COLS }}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: GRID_COLS }}>
             {reels.map((reel, i) => (
-              <PinnedCard key={reel.id} reel={reel} index={i} onOpen={setOpenReel} />
+              <ReelTile key={reel.id} reel={reel} index={i} onOpen={setOpenReel} />
             ))}
           </div>
         )}
