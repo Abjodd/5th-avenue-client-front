@@ -104,8 +104,13 @@ export function InfoHint({ children, label = "What this shows", align = "right",
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onClick={() => setOpen(true)}
-        className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full border border-line bg-accent/[0.12] text-[10px] font-bold leading-none text-accent transition-colors duration-200 hover:bg-accent/[0.22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full border border-line bg-accent/[0.12] font-serif text-[12px] font-semibold italic normal-case leading-none text-accent transition-colors duration-200 hover:bg-accent/[0.22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
+        {/* Lowercase serif italic, never the sans bold "I". `normal-case`
+            is load-bearing: this button is dropped beside `microlabel`
+            headings (StatTile, PanelTitle), and an inherited `uppercase`
+            turns the glyph into a capital I with no tittle — which reads as
+            a stray letter rather than an information affordance. */}
         i
       </button>
       {open && at && createPortal(

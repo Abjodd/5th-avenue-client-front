@@ -34,6 +34,17 @@ function rawVideo(versions) {
   return (versions.find((v) => v?.type === 101) || versions[0])?.url || null;
 }
 
+/** Where the post lives, off whatever the row already carries — a
+ *  `platform` string from the creator roster, or the permalink itself.
+ *  Instagram is the only source feeding the reel cache today (see
+ *  5th-internal-back/portalReels.js), so it is the default rather than a
+ *  guess; deriving it here means the day a YouTube link reaches the shelf
+ *  the tile is already right, with no schema change and no extra field on
+ *  the wire. */
+function platformOf(s) {
+  return /youtube|youtu\.be/i.test(String(s ?? "")) ? "youtube" : "instagram";
+}
+
 /** Poster frame from a raw `image_versions2`. */
 function rawThumb(iv2) {
   return iv2?.candidates?.[0]?.url || iv2?.additional_candidates?.first_frame?.url || null;
@@ -87,5 +98,7 @@ export function toViewReel(r = {}) {
     takenAt: r.takenAt ?? (r.taken_at ? new Date(r.taken_at * 1000).toISOString() : null),
     slides: num(r.slides) ?? (Array.isArray(r.carousel_media) ? r.carousel_media.length : null),
     campaign: r.campaign ?? null,
+    // Badged on the resting tile, so the shelf says where each entry ran.
+    platform: platformOf(r.platform ?? r.permalink ?? r.postUrl),
   };
 }
