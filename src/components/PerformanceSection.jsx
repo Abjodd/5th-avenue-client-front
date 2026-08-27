@@ -95,6 +95,20 @@ function fmtCPV5(value) {
   return Number(value).toFixed(5);
 }
 
+function neutralShade(color, alpha) {
+  if (typeof color !== "string") return color;
+  const match = color.replace("#", "").match(/^([\da-f]{3}|[\da-f]{6})$/i);
+  if (!match) return color;
+  const hex = match[1].length === 3
+    ? match[1].split("").map((ch) => ch + ch).join("")
+    : match[1];
+  const value = parseInt(hex, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export default function PerformanceSection({ clientName: clientNameProp }) {
   const { P } = useApp();
   const { axisProps, gridStroke, tooltipStyle } = chartTheme(P);
@@ -207,9 +221,9 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
      its creator's followers genuinely outruns it (500K followers, 3.6M views),
      and scaling to reach pinned that stage at 730% of the track. */
   const funnelStages = useMemo(() => [
-    { stage: "Reach",       value: totals.reach, display: fmtNum(totals.reach), color: P.pink   },
-    { stage: "Views",       value: totals.views, display: fmtNum(totals.views), color: P.accent },
-    { stage: "Engagements", value: totals.eng,   display: fmtNum(totals.eng),   color: P.amber  },
+    { stage: "Reach",       value: totals.reach, display: fmtNum(totals.reach), color: neutralShade(P.neutral, 0.88) },
+    { stage: "Views",       value: totals.views, display: fmtNum(totals.views), color: neutralShade(P.neutral, 0.7) },
+    { stage: "Engagements", value: totals.eng,   display: fmtNum(totals.eng),   color: neutralShade(P.neutral, 0.55) },
   ], [totals, P]);
 
   const isLoading = analytics === null && !error;
@@ -239,10 +253,10 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
               same neutral treatment — a coloured hue on it claimed a status
               the number doesn't carry. */}
           <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.neutral}/>
-          <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.accent}/>
-          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.amber}/>
-          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.purple}/>
-          <StatTile label="CPV"            value={totals.cpv}    format={fmtCPV5} loading={isLoading} color={P.green}
+          <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.neutral}/>
+          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.neutral}/>
+          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.neutral}/>
+          <StatTile label="CPV"            value={totals.cpv}    format={fmtCPV5} loading={isLoading} color={P.neutral}
             info="Cost per view across every campaign in the selected period. For one campaign's own CPV, open that campaign."/>
         </div>
 
@@ -269,11 +283,11 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
 
           <div className="mb-3 flex gap-5">
             <span className="flex items-center gap-1.5 text-[11px] text-ink">
-              <span className="inline-block h-px w-6 rounded" style={{ background: toggle==="reach" ? P.pink : P.amber, height: 2 }}/>
+              <span className="inline-block h-px w-6 rounded" style={{ background: "#3B82F6", height: 2 }}/>
               {toggle === "reach" ? "Reach · left axis" : "Engagements · left axis"}
             </span>
             <span className="flex items-center gap-1.5 text-[11px] text-ink">
-              <span className="inline-block h-px w-6 rounded" style={{ background: P.purple, height: 2 }}/>
+              <span className="inline-block h-px w-6 rounded" style={{ background: "#9CA3AF", height: 2 }}/>
               Spend · right axis
             </span>
           </div>
@@ -330,18 +344,18 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                 <Line yAxisId="left" type="monotone"
                   dataKey={toggle === "reach" ? "reach" : "engagements"}
                   name={toggle === "reach" ? "Reach" : "Engagements"}
-                  stroke={toggle === "reach" ? P.pink : P.amber}
+                  stroke={toggle === "reach" ? P.neutral : P.neutral}
                   strokeWidth={2.5}
                   // A month with no roster has no audience figure, so the line
                   // stops rather than being drawn down to zero and back.
                   connectNulls={false}
-                  dot={showDots ? { r: 4, fill: toggle==="reach" ? P.pink : P.amber, strokeWidth: 2, stroke: "#fff" } : false}
+                  dot={showDots ? { r: 4, fill: toggle==="reach" ? P.neutral : P.neutral, strokeWidth: 2, stroke: "#fff" } : false}
                   activeDot={{ r: 6, strokeWidth: 2, stroke: "#fff" }} />
                 <Line yAxisId="right" type="monotone"
                   dataKey="spend" name="Spend"
-                  stroke={P.purple}
+                  stroke={P.neutral}
                   strokeWidth={2.5}
-                  dot={showDots ? { r: 4, fill: P.purple, strokeWidth: 2, stroke: "#fff" } : false}
+                  dot={showDots ? { r: 4, fill: P.neutral, strokeWidth: 2, stroke: "#fff" } : false}
                   activeDot={{ r: 6, strokeWidth: 2, stroke: "#fff" }} />
               </ComposedChart>
             </ResponsiveContainer>

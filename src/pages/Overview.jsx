@@ -4,12 +4,21 @@
  * Reads as a briefing rather than a wall of tiles: a greeting that names the
  * day and what needs a decision, then five sections that each answer one
  * question — what the numbers say, where the plan is working, who moves the
- * needle, what lands, and what happened lately.
+ * needle, what lands, and what happened lately. Signals — the decisions
+ * waiting on the brand — close the page rather than open it, so the reader
+ * sees the account's shape before being asked to act on it.
  *
  * Every figure is derived in lib/portalMetrics.js from GET /api/portal/campaigns
  * (plus GET /api/portal/analytics inside PerformanceSection). Nothing on this
  * page is authored: where the DB has no answer the panel says so instead of
  * drawing an empty chart at zero.
+ *
+ * Color: every figure on this page — KPIs, the health ring, progress and
+ * budget numbers, chart values, and count badges — reads in the same neutral
+ * ink (P.neutral) that "Combined audience" always used. One number-color
+ * means the eye never has to relearn what a hue means from panel to panel;
+ * category coding (pipeline phase dots/bars, activity-kind icons) is left
+ * alone, since those distinguish groups rather than report a value.
  */
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
@@ -53,29 +62,138 @@ const SIGNAL_ICONS = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HERO
+   HERO — activity panel (Recent activity + Needs you, side by side)
    ═════════════════════════════════════════════════════════════════════════ */
 
-/** One "needs a decision" row. Clicking it goes where the decision is made. */
-function SignalRow({ signal, tone, onGo }) {
+/**
+ * Sits beside Campaign health in the hero, in the spot Signals used to hold.
+ * Two questions — "what happened" and "what's waiting on me" — read better
+ * side by side than stacked, since neither needs the other's full column
+ * width, and the hero is wide enough to hold both without crowding.
+ *
+ * Each half scrolls independently (min-h-0 + overflow-y-auto) so a long
+ * history or a long queue can't stretch the hero taller than Campaign
+ * health — the grid's items-stretch already pins both hero panels to the
+ * same height, so the content inside has to yield to it, not the other way
+ * round.
+ */
+function HeroActivityPanel({ activity, queues, setPage, P }) {
+  const hasActivity = activity.length > 0;
+  const hasQueues = queues.length > 0;
+  const totalQueue = queues.reduce((s, q) => s + q.count, 0);
+
+  return (
+    <Panel reveal delay={0.06} className="flex h-full flex-col gap-5 px-6 py-5 lg:flex-row">
+      {/* Recent activity */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <PanelTitle title="Recent activity" hint="Dated events across your campaigns" />
+        {hasActivity ? (
+          <div className="mt-1 min-h-0 flex-1 overflow-y-auto pr-1">
+            {activity.slice(0, 6).map((a) => {
+              const tone = a.kind === "live" ? P.green : a.kind === "metrics" ? P.accent : a.kind === "end" ? P.doneTxt : P.purple;
+              const Icon = a.kind === "live" ? Radio : a.kind === "metrics" ? TrendingUp : Rocket;
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => setPage("campaigns", { campaignId: a.campaignId })}
+                  className="group flex w-full items-center gap-3 border-b border-line py-2.5 text-left last:border-b-0 hover:bg-accent/[0.03]"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-[10px]" style={{ background: `${tone}14`, color: tone }}>
+                    <Icon size={13} strokeWidth={2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] font-semibold text-ink">{a.title}</span>
+                    <span className="block truncate text-[10.5px] text-mute">{a.meta}</span>
+                  </span>
+                  <span className="shrink-0 text-[10.5px] text-mute">{prettyDate(a.at)}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <PanelEmpty>Nothing dated to show yet. Posts going live and metric refreshes appear here as they happen.</PanelEmpty>
+        )}
+      </div>
+
+      <div className="hidden shrink-0 border-l border-line lg:block" />
+
+      {/* Needs you */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <PanelTitle
+          title="Needs you"
+          hint="Creators sitting in your court"
+          action={
+            hasQueues && (
+              <span
+                className="tnum flex size-6 items-center justify-center rounded-full text-[11px] font-bold"
+                style={{ background: `${P.neutral}14`, color: P.neutral }}
+              >
+                {totalQueue}
+              </span>
+            )
+          }
+        />
+        {hasQueues ? (
+          <div className="mt-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+            {queues.map((q, i) => (
+              <Subpanel
+                key={q.campaignId}
+                className={`shrink-0 overflow-hidden transition-all duration-200 hover:-translate-y-px hover:shadow-md ${
+                  i === 0 ? "border-accent/25 bg-accent/[0.06]" : ""
+                }`}
+              >
+                <button
+                  onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                  className="group flex w-full items-center gap-2.5 px-4 py-2.5 text-left"
+                >
+                  {i === 0 && <span className="size-1.5 shrink-0 rounded-full" style={{ background: P.neutral }} />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] font-semibold text-ink">
+                      {q.lead.name} {q.count > 1 ? `+${q.count - 1} more` : ""} need{q.count === 1 ? "s" : ""} a decision
+                    </span>
+                    <span className="block truncate text-[10.5px] text-mute">{q.campaignName} · {q.lead.statusLabel}</span>
+                  </span>
+                  <ArrowRight size={13} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
+                </button>
+              </Subpanel>
+            ))}
+          </div>
+        ) : (
+          <PanelEmpty>Nothing needs your call right now.</PanelEmpty>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIGNALS — closing section, one card per decision waiting on the brand
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/** A single signal as a card rather than a list row — the closing section
+    has the full page width to spend, where the hero never did, so each
+    signal gets room to breathe instead of queuing in a narrow column. */
+function SignalCard({ signal, onGo, P }) {
   const Icon = SIGNAL_ICONS[signal.icon] || Sparkles;
   return (
     <button
       onClick={onGo}
-      className="group flex w-full items-center gap-3.5 border-b border-line px-1 py-3.5 text-left transition-colors duration-200 last:border-b-0 hover:bg-accent/[0.03]"
+      className="group flex flex-col gap-4 rounded-[16px] border border-line bg-well/60 p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
     >
       <span
         className="flex size-9 shrink-0 items-center justify-center rounded-[12px] transition-transform duration-200 group-hover:scale-105"
-        style={{ background: `${tone}14`, color: tone }}
+        style={{ background: `${P.neutral}14`, color: P.neutral }}
       >
         <Icon size={16} strokeWidth={2} />
       </span>
       <span className="min-w-0 flex-1 text-[13.5px] leading-snug text-sub">
-        {signal.count != null && <b className="text-[15px] font-bold text-ink">{signal.count} </b>}
+        {signal.count != null && (
+          <b className="text-[15px] font-bold" style={{ color: P.neutral }}>{signal.count} </b>
+        )}
         {signal.lead && <b className="font-semibold text-ink">{signal.lead} </b>}
         {signal.text}
       </span>
-      <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mute transition-colors group-hover:text-accent">
+      <span className="mt-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mute transition-colors group-hover:text-accent">
         {signal.action}
         <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
       </span>
@@ -277,6 +395,10 @@ const PANEL_H = 300;
  * plot nothing ever enters. The breakdown answers the question that empty
  * space never did — which post is carrying this — and reads whichever day the
  * cursor is on, so the two halves always describe the same moment.
+ *
+ * Both metrics plot in the same neutral ink as every other figure on the
+ * page — "views" and "engagements" are a choice of what to measure, not two
+ * different stories, so they no longer wear two different colors.
  */
 function AccountGrowth({ growth, palette }) {
   const [metricId, setMetricId] = useState("views");
@@ -304,7 +426,7 @@ function AccountGrowth({ growth, palette }) {
   }
 
   const metric = GROWTH_METRICS.find((m) => m.id === metricId) ?? GROWTH_METRICS[0];
-  const color = metric.id === "views" ? palette.accent : palette.pink;
+  const color = palette.neutral;
   const first = points[0];
   const last = points[points.length - 1];
 
@@ -382,14 +504,14 @@ function AccountGrowth({ growth, palette }) {
               <div key={post.key}>
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate text-[12px] font-medium text-ink">{post.name}</span>
-                  <span className="tnum shrink-0 text-[12px] font-semibold text-ink">{fmtNum(post.value)}</span>
+                  <span className="tnum shrink-0 text-[12px] font-semibold" style={{ color: palette.neutral }}>{fmtNum(post.value)}</span>
                 </div>
                 <div className="mt-0.5 flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate text-[10px] text-mute">{post.campaign || "—"}</span>
                   {/* The day's gain, not the running total — the one number
                       that says whether this post is still moving. */}
                   {post.gain != null && post.gain > 0 && (
-                    <span className="tnum shrink-0 text-[10px] font-semibold text-green">+{fmtNum(post.gain)}</span>
+                    <span className="tnum shrink-0 text-[10px] font-semibold" style={{ color: palette.neutral }}>+{fmtNum(post.gain)}</span>
                   )}
                 </div>
                 <div className="mt-1.5 h-[4px] overflow-hidden rounded-full bg-well">
@@ -463,9 +585,12 @@ export default function OverviewDashboard() {
   const ranked = useMemo(() => rankCampaigns(list, creators), [list, creators]);
   // The two groupings share one panel, so they are declared as one list: a
   // third way of cutting the roster is one entry here and nothing else.
+  // Both views now plot in the same neutral ink as every other figure on the
+  // page — the grouping switch already tells the reader which cut is on
+  // screen, so the color no longer has to do that job too.
   const creatorViews = useMemo(() => [
-    { id: "niche", label: "By niche", hint: "Grouped by content niche", chart: "column", color: P.accent, rows: groupBy(creators, "niche") },
-    { id: "size", label: "By follower tier", hint: "Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+", chart: "bar", color: P.teal, rows: groupBy(creators, "size") },
+    { id: "niche", label: "By niche", hint: "Grouped by content niche", chart: "column", color: P.neutral, rows: groupBy(creators, "niche") },
+    { id: "size", label: "By follower tier", hint: "Nano <10K · Micro 10K–100K · Macro 100K–1M · Mega 1M+", chart: "bar", color: P.neutral, rows: groupBy(creators, "size") },
   ], [creators, P]);
   const creatorView = creatorViews.find((v) => v.id === creatorViewId) ?? creatorViews[0];
   const platforms = useMemo(() => platformPerformance(creators), [creators]);
@@ -488,7 +613,6 @@ export default function OverviewDashboard() {
   }), [clientName, kpis]);
 
   const phaseColors = phaseColorsFor(P);
-  const SIGNAL_TONES = [P.amber, P.pink, P.accent, P.green, P.purple];
 
   const go = (signal) => {
     if (signal.page) return setPage(signal.page, signal.params);
@@ -564,16 +688,18 @@ export default function OverviewDashboard() {
                       value={health.value}
                       size={168}
                       stroke={13}
-                      // Always green. The ring reports how far the work has
-                      // come, not a grade: amber and red at low percentages
-                      // read as "your campaigns are in trouble" on a campaign
-                      // that has simply only just started.
-                      color={P.green}
+                      // Neutral, not a grade: this ring reports how far the
+                      // work has come, and a fixed color regardless of value
+                      // keeps a campaign that's simply just started from
+                      // reading as "in trouble." It also now matches every
+                      // other figure on the page instead of standing out
+                      // as the one green number.
+                      color={P.neutral}
                       showLabel={false}
                     />
                     <div className="pointer-events-none absolute inset-0 flex items-baseline justify-center gap-0.5 pt-[68px]">
-                      <span className="tnum text-[46px] font-bold leading-none tracking-tight text-ink">{health.value}</span>
-                      <span className="text-[17px] font-semibold text-mute">%</span>
+                      <span className="tnum text-[46px] font-bold leading-none tracking-tight" style={{ color: P.neutral }}>{health.value}</span>
+                      <span className="text-[17px] font-semibold" style={{ color: P.neutral, opacity: 0.55 }}>%</span>
                     </div>
                   </div>
                   <div className="mt-4 text-center">
@@ -588,22 +714,8 @@ export default function OverviewDashboard() {
               )}
             </Panel>
 
-            {/* Signals — the decisions waiting on the brand today */}
-            <Panel reveal delay={0.06} className="px-6 py-2">
-              {signalRows.length ? (
-                signalRows.map((s, i) => (
-                  <SignalRow key={s.id} signal={s} tone={SIGNAL_TONES[i % SIGNAL_TONES.length]} onGo={() => go(s)} />
-                ))
-              ) : (
-                <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 text-center">
-                  <Radio size={22} className="text-green" />
-                  <div className="text-[13.5px] font-semibold text-ink">All clear</div>
-                  <p className="max-w-xs text-[12px] text-mute">
-                    Nothing is waiting on your call. We'll surface approvals and uploads here the moment they land.
-                  </p>
-                </div>
-              )}
-            </Panel>
+            {/* Recent activity + Needs you — what happened, and what's waiting */}
+            <HeroActivityPanel activity={activity} queues={queues} setPage={setPage} P={P} />
           </motion.div>
         </motion.header>
 
@@ -624,17 +736,17 @@ export default function OverviewDashboard() {
 
           <Stagger animate="show" stagger={0.07} className="mb-5 grid gap-3.5"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.accent} />
-            <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.green} />
+            <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral} />
+            <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral} />
             <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral} />
-            <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.amber} />
+            <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.neutral} />
             {/* The sublabel names what the figure leaves out. Campaigns raised
                 before a budget was agreed contribute nothing to this total, so
                 without saying so it reads as the account's whole commitment
                 when it is only the agreed part of it. */}
             <KPI index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR}
               sublabel={kpis.budgetPending ? `committed · ${kpis.budgetPending} to be confirmed` : "committed"}
-              color={P.purple} />
+              color={P.neutral} />
           </Stagger>
 
           <PerformanceSection clientName={clientName} />
@@ -664,7 +776,7 @@ export default function OverviewDashboard() {
                         {g.from ? prettyDate(g.from) : "—"} – {g.to ? prettyDate(g.to) : "—"}
                       </div>
                     </div>
-                    <span className="tnum shrink-0 text-[17px] font-bold text-accent">{g.progress}%</span>
+                    <span className="tnum shrink-0 text-[17px] font-bold" style={{ color: P.neutral }}>{g.progress}%</span>
                   </div>
 
                   {g.regions.length > 0 && (
@@ -680,7 +792,8 @@ export default function OverviewDashboard() {
                   </div>
                   <div className="mt-1.5 h-[7px] overflow-hidden rounded-full bg-well">
                     <motion.div
-                      className="h-full rounded-full bg-accent"
+                      className="h-full rounded-full"
+                      style={{ background: P.neutral }}
                       initial={{ width: 0 }} whileInView={{ width: `${g.progress}%` }}
                       viewport={{ once: true }} transition={{ duration: 0.7, ease: EASE, delay: i * 0.06 }}
                     />
@@ -688,7 +801,7 @@ export default function OverviewDashboard() {
 
                   <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[12.5px]">
                     <span className="text-sub">{fmtNum(g.reach)} reach</span>
-                    <span className="font-semibold text-ink">{fmtINR(g.budget || null)}</span>
+                    <span className="font-semibold" style={{ color: P.neutral }}>{fmtINR(g.budget || null)}</span>
                   </div>
                 </Panel>
               ))}
@@ -709,7 +822,7 @@ export default function OverviewDashboard() {
                       <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
                         <Dot color={phaseColors[p.id]} /> {p.short}
                       </span>
-                      <span className="tnum text-[13.5px] font-bold" style={{ color: p.count ? phaseColors[p.id] : P.doneTxt }}>{p.count}</span>
+                      <span className="tnum text-[13.5px] font-bold" style={{ color: p.count ? P.neutral : P.doneTxt }}>{p.count}</span>
                     </div>
                     <div className="h-[7px] overflow-hidden rounded-full bg-well">
                       <motion.div
@@ -736,6 +849,7 @@ export default function OverviewDashboard() {
                     display: fmtNum(c.reach),
                     sub: c.er != null ? `${c.er.toFixed(1)}% ER` : undefined,
                   }))}
+                  color={P.neutral}
                 />
               ) : list.length ? (
                 <PanelEmpty>No creators are attached to these campaigns yet, so there's no reach to rank.</PanelEmpty>
@@ -803,12 +917,12 @@ export default function OverviewDashboard() {
                    beside it — same rule the other paired panels follow. */
                 <div className="flex flex-1 flex-col justify-center">
                   <PlatformScorecard
-                    rows={platforms.map((p, i) => ({
+                    rows={platforms.map((p) => ({
                       label: p.label,
                       avgViews: p.avgViews,
                       er: p.er ?? null,
                       live: p.live || p.count,
-                      color: [P.accent, P.green, P.pink, P.amber, P.purple][i % 5],
+                      color: P.neutral,
                     }))}
                     viewsFormat={fmtNum}
                   />
@@ -845,11 +959,11 @@ export default function OverviewDashboard() {
                         </span>
                       </span>
                       <span className="shrink-0 text-right">
-                        <span className="tnum block text-[12.5px] font-bold text-ink">{p.views != null ? fmtNum(p.views) : "—"}</span>
+                        <span className="tnum block text-[12.5px] font-bold" style={{ color: P.neutral }}>{p.views != null ? fmtNum(p.views) : "—"}</span>
                         <span className="block text-[9px] uppercase tracking-[0.08em] text-mute">views</span>
                       </span>
                       <span className="w-[52px] shrink-0 text-right">
-                        <span className="tnum block text-[12.5px] font-bold text-pink">{p.er != null ? `${p.er.toFixed(1)}%` : "—"}</span>
+                        <span className="tnum block text-[12.5px] font-bold" style={{ color: P.neutral }}>{p.er != null ? `${p.er.toFixed(1)}%` : "—"}</span>
                         <span className="block text-[9px] uppercase tracking-[0.08em] text-mute">er</span>
                       </span>
                       <ExternalLink size={13} className="shrink-0 text-mute opacity-0 transition-opacity group-hover:opacity-100" />
@@ -863,84 +977,32 @@ export default function OverviewDashboard() {
           </div>
         </Section>
 
-        {/* ── ACTIVITY ─────────────────────────────────────────────────── */}
-        <Section id="activity" eyebrow="Activity" title="Latest & pending">
-          <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-            <Panel reveal className="flex h-full flex-col px-6 py-5">
-              <PanelTitle title="Recent activity" hint="Dated events across your campaigns" />
-              {activity.length ? (
-                <div className="flex flex-col">
-                  {activity.map((a) => {
-                    const tone = a.kind === "live" ? P.green : a.kind === "metrics" ? P.accent : a.kind === "end" ? P.doneTxt : P.purple;
-                    const Icon = a.kind === "live" ? Radio : a.kind === "metrics" ? TrendingUp : Rocket;
-                    return (
-                      <button
-                        key={a.id}
-                        onClick={() => setPage("campaigns", { campaignId: a.campaignId })}
-                        className="group flex items-center gap-3 border-b border-line py-3 text-left last:border-b-0 hover:bg-accent/[0.03]"
-                      >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-[11px]" style={{ background: `${tone}14`, color: tone }}>
-                          <Icon size={14} strokeWidth={2} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] font-semibold text-ink">{a.title}</span>
-                          <span className="block truncate text-[11px] text-mute">{a.meta}</span>
-                        </span>
-                        <span className="shrink-0 text-[11px] text-mute">{prettyDate(a.at)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <PanelEmpty>
-                  Nothing dated to show yet. Posts going live and metric refreshes appear here as they happen.
-                </PanelEmpty>
-              )}
+        {/* ── SIGNALS ──────────────────────────────────────────────────── */}
+        {/* Closes the page rather than opening it: by the time the reader
+            reaches here they've seen the account's whole shape, so "what
+            needs a decision today" lands as a to-do list off the back of
+            that context instead of the very first thing before any of it. */}
+        <Section
+          id="signals"
+          eyebrow="Signals"
+          title="What needs a decision"
+          hint="Approvals, uploads, and briefs waiting on your call today."
+        >
+          {signalRows.length ? (
+            <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+              {signalRows.map((s) => (
+                <SignalCard key={s.id} signal={s} onGo={() => go(s)} P={P} />
+              ))}
+            </div>
+          ) : (
+            <Panel reveal className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+              <Radio size={22} className="text-green" />
+              <div className="text-[13.5px] font-semibold text-ink">All clear</div>
+              <p className="max-w-xs text-[12px] text-mute">
+                Nothing is waiting on your call. We'll surface approvals and uploads here the moment they land.
+              </p>
             </Panel>
-
-            <Panel reveal delay={0.06} className="flex h-full flex-col px-6 py-5">
-              <PanelTitle
-                title="Needs you"
-                hint="Creators sitting in your court"
-                info="Creators we've proposed who are waiting on your approval. The top row is the one holding a campaign up — select it to open that campaign."
-                action={
-                  queues.length > 0 && (
-                    <span className="tnum flex size-6 items-center justify-center rounded-full bg-amber/[0.12] text-[11px] font-bold text-amber">
-                      {queues.reduce((s, q) => s + q.count, 0)}
-                    </span>
-                  )
-                }
-              />
-              {queues.length ? (
-                <div className="flex flex-col gap-2">
-                  {queues.map((q, i) => (
-                    <Subpanel
-                      key={q.campaignId}
-                      className={`overflow-hidden transition-all duration-200 hover:-translate-y-px hover:shadow-md ${
-                        i === 0 ? "border-amber/25 bg-amber/[0.06]" : ""
-                      }`}
-                    >
-                      <button
-                        onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
-                        className="group flex w-full items-center gap-2.5 px-4 py-3 text-left"
-                      >
-                        {i === 0 && <span className="size-1.5 shrink-0 rounded-full bg-red" />}
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] font-semibold text-ink">
-                            {q.lead.name} {q.count > 1 ? `+${q.count - 1} more` : ""} need{q.count === 1 ? "s" : ""} a decision
-                          </span>
-                          <span className="block truncate text-[11px] text-mute">{q.campaignName} · {q.lead.statusLabel}</span>
-                        </span>
-                        <ArrowRight size={14} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
-                      </button>
-                    </Subpanel>
-                  ))}
-                </div>
-              ) : (
-                <PanelEmpty>Nothing needs your call right now.</PanelEmpty>
-              )}
-            </Panel>
-          </div>
+          )}
         </Section>
       </div>
     </div>
