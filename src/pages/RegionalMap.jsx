@@ -232,12 +232,12 @@ function RankRow({ color, title, sub, stats, share, onClick, index = 0 }) {
   const Tag = onClick ? "button" : "div";
   return (
     <Tag onClick={onClick}
-      // A colour spine down the left edge rather than only a dot: at a glance
-      // it is the row's region, and it is what stops a stack of these reading
-      // as one undifferentiated block.
-      className="anim-up group relative mb-3 block w-full overflow-hidden rounded-[16px] border border-line bg-[--color-glass] py-4 pl-5 pr-5 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
+      // The row's colour is carried by the dot and its share bar alone. A
+      // colour spine down the left edge as well said the same thing a third
+      // time, and a stack of them read as a chart of stripes rather than a
+      // ranked list.
+      className="anim-up group relative mb-3 block w-full overflow-hidden rounded-[16px] border border-line bg-[--color-glass] px-5 py-4 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
       style={{ animationDelay: `${index * 30}ms` }}>
-      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: color }} />
       <div className="flex items-center gap-4">
         <span className="relative flex size-9 shrink-0 items-center justify-center">
           <span className="absolute inset-0 rounded-full opacity-20 transition-transform duration-300 group-hover:scale-125" style={{ background: color }} />
@@ -260,7 +260,7 @@ function RankRow({ color, title, sub, stats, share, onClick, index = 0 }) {
       {share != null && (
         <span className="mt-3.5 block h-[6px] overflow-hidden rounded-full bg-well">
           <span className="block h-full rounded-full transition-[width] duration-700 ease-out"
-            style={{ width: `${Math.max(share, 2)}%`, background: color, boxShadow: `0 0 8px ${color}60` }} />
+            style={{ width: `${Math.max(share, 2)}%`, background: color }} />
         </span>
       )}
     </Tag>

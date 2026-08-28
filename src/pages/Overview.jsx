@@ -2,11 +2,12 @@
  * src/pages/Overview.jsx — the brand's front page.
  *
  * Reads as a briefing rather than a wall of tiles: a greeting that names the
- * day and what needs a decision, then five sections that each answer one
- * question — what the numbers say, where the plan is working, who moves the
- * needle, what lands, and what happened lately. Signals — the decisions
- * waiting on the brand — close the page rather than open it, so the reader
- * sees the account's shape before being asked to act on it.
+ * day and what needs a decision, then sections that each answer one question —
+ * what the numbers say, what the work did once it was live, what the spend
+ * bought, where the plan is working, who moves the needle, and what lands.
+ * Signals — the decisions waiting on the brand — close the page rather than
+ * open it, so the reader sees the account's shape before being asked to act
+ * on it.
  *
  * Every figure is derived in lib/portalMetrics.js from GET /api/portal/campaigns
  * (plus GET /api/portal/analytics inside PerformanceSection). Nothing on this
@@ -66,14 +67,14 @@ const SIGNAL_ICONS = {
    ═════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Sits beside Campaign health in the hero, in the spot Signals used to hold.
+ * Sits beside Campaign progress in the hero, in the spot Signals used to hold.
  * Two questions — "what happened" and "what's waiting on me" — read better
  * side by side than stacked, since neither needs the other's full column
  * width, and the hero is wide enough to hold both without crowding.
  *
  * Each half scrolls independently (min-h-0 + overflow-y-auto) so a long
  * history or a long queue can't stretch the hero taller than Campaign
- * health — the grid's items-stretch already pins both hero panels to the
+ * progress — the grid's items-stretch already pins both hero panels to the
  * same height, so the content inside has to yield to it, not the other way
  * round.
  */
@@ -678,7 +679,7 @@ export default function OverviewDashboard() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.5 }}
           >
-            {/* Campaign health — the mean of the progress Fifth Avenue records on
+            {/* Campaign progress — the mean of the progress Fifth Avenue records on
                 each live campaign. Hidden entirely when nothing is in flight. */}
             <Panel reveal className="flex flex-col items-center justify-center px-6 py-7">
               {health ? (
@@ -703,7 +704,7 @@ export default function OverviewDashboard() {
                     </div>
                   </div>
                   <div className="mt-4 text-center">
-                    <div className="text-[15px] font-bold text-ink">Campaign health</div>
+                    <div className="text-[15px] font-bold text-ink">Campaign Progress</div>
                     <p className="mt-1 text-[11.5px] leading-relaxed text-mute">
                       Average progress across {health.of} active campaign{health.of === 1 ? "" : "s"}
                     </p>
@@ -719,11 +720,11 @@ export default function OverviewDashboard() {
           </motion.div>
         </motion.header>
 
-        {/* ── PERFORMANCE ──────────────────────────────────────────────── */}
+        {/* ── ACCOUNT ──────────────────────────────────────────────────── */}
         <Section
           id="numbers"
-          eyebrow="Performance"
-          title="The numbers"
+          eyebrow="Account"
+          title="Main Data Cards"
           hint="Campaign counts and committed budget cover the whole account; audience figures follow the creator filter."
         >
           <CreatorFilters
@@ -734,7 +735,7 @@ export default function OverviewDashboard() {
             total={allCreators.length}
           />
 
-          <Stagger animate="show" stagger={0.07} className="mb-5 grid gap-3.5"
+          <Stagger animate="show" stagger={0.07} className="grid gap-3.5"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
             <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral} />
             <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral} />
@@ -748,9 +749,28 @@ export default function OverviewDashboard() {
               sublabel={kpis.budgetPending ? `committed · ${kpis.budgetPending} to be confirmed` : "committed"}
               color={P.neutral} />
           </Stagger>
-
-          <PerformanceSection clientName={clientName} />
         </Section>
+
+        {/* ── AUDIENCE ─────────────────────────────────────────────────── */}
+        {/* Sits directly under the main data cards: those report where the
+            account stands today, and this is the same story over time, so the
+            two read as one thought before the page breaks the numbers apart.
+            CONTENT, further down, then breaks the curve down per post. */}
+        <Section
+          id="growth"
+          eyebrow="Audience"
+          title="What the work did once it was live."
+          hint="This curve fills in as live posts are refreshed — two readings are needed before there is a shape to draw."
+        >
+          <AccountGrowth growth={growth} palette={P} />
+        </Section>
+
+        {/* ── PERFORMANCE PANEL ────────────────────────────────────────── */}
+        {/* No Section wrapper: the panel carries its own header, subtitle and
+            period filter, and an eyebrow above it only repeated them. */}
+        <div id="performance" className="scroll-mt-28 pt-6">
+          <PerformanceSection clientName={clientName} />
+        </div>
 
         {/* ── CAMPAIGNS ────────────────────────────────────────────────── */}
         <Section
@@ -878,20 +898,6 @@ export default function OverviewDashboard() {
             <GroupedPanel view={creatorView} />
           </Section>
         )}
-
-        {/* ── AUDIENCE ─────────────────────────────────────────────────── */}
-        {/* Sits ahead of CONTENT because it answers the broader question — how
-            the work built overall — before that section breaks it down per
-            post. Mirrors the same section on the internal Summary page so both
-            sides quote the brand one story. */}
-        <Section
-          id="growth"
-          eyebrow="Audience"
-          title="What the work did once it was live."
-          hint="This curve fills in as live posts are refreshed — two readings are needed before there is a shape to draw."
-        >
-          <AccountGrowth growth={growth} palette={P} />
-        </Section>
 
         {/* ── CONTENT ──────────────────────────────────────────────────── */}
         <Section
