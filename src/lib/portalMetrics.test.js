@@ -383,10 +383,10 @@ test("greeting follows the clock", () => {
 test("heroSummary only claims what the data supports", () => {
   const kpis = summarise(CAMPAIGNS, rows);
   const text = heroSummary({ kpis, health: healthScore(CAMPAIGNS), signalRows: signals(CAMPAIGNS, rows) });
-  assert.match(text, /Campaign health is at 28%/);   // see healthScore above
+  assert.match(text, /Campaign progress is at 28%/);   // see healthScore above
   assert.match(text, /signals need a decision today/);
 
   const quiet = heroSummary({ kpis: summarise([], []), health: null, signalRows: [] });
   assert.match(quiet, /Nothing is waiting on you right now\./);
-  assert.doesNotMatch(quiet, /Campaign health/);
+  assert.doesNotMatch(quiet, /Campaign progress/);
 });

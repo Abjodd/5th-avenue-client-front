@@ -274,7 +274,7 @@ export function summarise(campaigns = [], creators = []) {
 }
 
 /**
- * Campaign health, 0–100 — the mean of `progress` across campaigns that aren't
+ * Campaign progress, 0–100 — the mean of `progress` across campaigns that aren't
  * completed. It is NOT a stored score and not a proprietary index: `progress`
  * is the number Fifth Avenue sets on each campaign as it moves through the
  * pipeline, and this is its average. The UI states that under the ring.
@@ -693,7 +693,7 @@ export const longDate = (date = new Date()) =>
  */
 export function heroSummary({ kpis, health, signalRows, date = new Date() }) {
   const parts = [`It's ${longDate(date)}.`];
-  if (health) parts.push(`Campaign health is at ${health.value}%, averaged across ${health.of} active campaign${health.of === 1 ? "" : "s"}.`);
+  if (health) parts.push(`Campaign progress is at ${health.value}%, averaged across ${health.of} active campaign${health.of === 1 ? "" : "s"}.`);
   if (signalRows.length) {
     parts.push(`${signalRows.length} signal${signalRows.length === 1 ? "" : "s"} need${signalRows.length === 1 ? "s" : ""} a decision today.`);
   } else {
