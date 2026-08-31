@@ -168,35 +168,76 @@ function HeroActivityPanel({ activity, queues, setPage, P }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SIGNALS — closing section, one card per decision waiting on the brand
+   SIGNALS — the closing section: what is in the brand's court, and what is
+   merely worth knowing
    ═════════════════════════════════════════════════════════════════════════ */
 
-/** A single signal as a card rather than a list row — the closing section
-    has the full page width to spend, where the hero never did, so each
-    signal gets room to breathe instead of queuing in a narrow column. */
-function SignalCard({ signal, onGo, P }) {
+/**
+ * One decision, as a row in a single panel rather than a card in a grid.
+ *
+ * A grid of equal cards has no order, so an approval blocking a creator ranked
+ * the same as the note that the roster covers five states. Rows do have one —
+ * top to bottom — and the top one carries the faint accent wash the hero's
+ * "Needs you" queue already uses for its first item.
+ */
+function SignalRow({ signal, onGo, P, first }) {
   const Icon = SIGNAL_ICONS[signal.icon] || Sparkles;
   return (
     <button
       onClick={onGo}
-      className="group flex flex-col gap-4 rounded-[16px] border border-line bg-well/60 p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
+      className={`group flex w-full items-center gap-4 px-5 py-4 text-left transition-colors duration-200 ${
+        first ? "bg-accent/[0.05] hover:bg-accent/[0.08]" : "hover:bg-accent/[0.03]"
+      }`}
     >
       <span
-        className="flex size-9 shrink-0 items-center justify-center rounded-[12px] transition-transform duration-200 group-hover:scale-105"
-        style={{ background: `${P.neutral}14`, color: P.neutral }}
+        className="relative flex size-10 shrink-0 items-center justify-center rounded-[14px] transition-transform duration-200 group-hover:scale-105"
+        style={{ background: `${P.accent}14`, color: P.accent }}
       >
-        <Icon size={16} strokeWidth={2} />
-      </span>
-      <span className="min-w-0 flex-1 text-[13.5px] leading-snug text-sub">
+        <Icon size={17} strokeWidth={1.9} />
+        {/* On the icon, not opening the sentence: "3 creators are waiting on
+            your yes" already says three. */}
         {signal.count != null && (
-          <b className="text-[15px] font-bold" style={{ color: P.neutral }}>{signal.count} </b>
+          <span
+            className="tnum absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none"
+            style={{ background: P.accent, color: P.accentInk }}
+          >
+            {signal.count}
+          </span>
         )}
-        {signal.lead && <b className="font-semibold text-ink">{signal.lead} </b>}
-        {signal.text}
       </span>
-      <span className="mt-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mute transition-colors group-hover:text-accent">
-        {signal.action}
+
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-semibold leading-snug text-ink">{signal.headline}</span>
+        <span className="mt-1 block text-[12px] leading-relaxed text-sub">{signal.detail}</span>
+      </span>
+
+      {/* Sentence case: the old uppercase micro-label matched the section
+          eyebrows, so the one pressable thing looked like a heading. Hidden
+          below `sm`, where the whole row is the target anyway. */}
+      <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-[11.5px] font-semibold text-sub transition-all duration-200 group-hover:border-accent/30 group-hover:bg-accent/[0.07] group-hover:text-accent sm:flex">
+        {signal.cta}
         <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * An observation, as a line of prose with the link inside it. Deliberately not
+ * a card: nothing here is waiting on anyone, and the way to say that in a
+ * layout is to stop giving it a to-do's chrome.
+ */
+function SignalNote({ signal, onGo }) {
+  const Icon = SIGNAL_ICONS[signal.icon] || Sparkles;
+  return (
+    <button onClick={onGo} className="group flex items-start gap-2.5 text-left">
+      <Icon size={14} strokeWidth={1.9} className="mt-[3px] shrink-0 text-mute transition-colors group-hover:text-accent" />
+      <span className="min-w-0 text-[12.5px] leading-relaxed">
+        <span className="font-semibold text-ink">{signal.headline}</span>{" "}
+        <span className="text-sub">{signal.detail}</span>{" "}
+        <span className="whitespace-nowrap font-semibold text-accent decoration-accent/30 underline-offset-[3px] group-hover:underline">
+          {signal.cta} →
+        </span>
       </span>
     </button>
   );
@@ -574,6 +615,15 @@ export default function OverviewDashboard() {
   // Signals and the activity feed describe the account, not the current
   // filter — narrowing to "Nano creators" must not hide an approval request.
   const signalRows = useMemo(() => signals(list, allCreators), [list, allCreators]);
+  /* A decision and an observation are different things, and the closing
+     section renders them differently. `kind` is set by signals(), which is
+     where that difference is actually known. */
+  const actionSignals = signalRows.filter((s) => s.kind === "action");
+  const noteSignals = signalRows.filter((s) => s.kind !== "action");
+  const signalHint =
+    actionSignals.length === 0 ? "Nothing is blocking your campaigns right now."
+    : actionSignals.length === 1 ? "One thing is sitting in your court."
+    : `${actionSignals.length} things are sitting in your court — the top one first.`;
   const activity = useMemo(() => activityFeed(list, allCreators), [list, allCreators]);
   const queues = useMemo(() => needsYou(list, allCreators), [list, allCreators]);
 
@@ -990,24 +1040,51 @@ export default function OverviewDashboard() {
             that context instead of the very first thing before any of it. */}
         <Section
           id="signals"
-          eyebrow="Signals"
-          title="What needs a decision"
-          hint="Approvals, uploads, and briefs waiting on your call today."
+          eyebrow="Over to you"
+          title="Your call"
+          hint={signalHint}
         >
-          {signalRows.length ? (
-            <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-              {signalRows.map((s) => (
-                <SignalCard key={s.id} signal={s} onGo={() => go(s)} P={P} />
+          {/* Decisions first, ranked, in one panel. */}
+          {actionSignals.length > 0 && (
+            <Panel reveal className="divide-y divide-line overflow-hidden">
+              {actionSignals.map((s, i) => (
+                <SignalRow
+                  key={s.id} signal={s} onGo={() => go(s)} P={P}
+                  /* The wash means "start here", so it needs somewhere else to
+                     start: on a lone row it is a tint saying nothing. */
+                  first={i === 0 && actionSignals.length > 1}
+                />
               ))}
-            </div>
+            </Panel>
+          )}
+
+          {/* Nothing to decide. The full empty-state panel would be a large box
+              announcing an absence directly above real content, so it shrinks
+              to one line whenever there are notes to follow it. */}
+          {actionSignals.length === 0 && (noteSignals.length > 0 ? (
+            <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+              <Radio size={15} className="text-green" />
+              You&rsquo;re all caught up — nothing is waiting on your call.
+            </p>
           ) : (
             <Panel reveal className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-6 py-10 text-center">
               <Radio size={22} className="text-green" />
               <div className="text-[13.5px] font-semibold text-ink">All clear</div>
               <p className="max-w-xs text-[12px] text-mute">
-                Nothing is waiting on your call. We'll surface approvals and uploads here the moment they land.
+                Nothing is waiting on your call. We&rsquo;ll surface approvals and uploads here the moment they land.
               </p>
             </Panel>
+          ))}
+
+          {noteSignals.length > 0 && (
+            <div className={actionSignals.length ? "mt-6" : "mt-4"}>
+              <div className="microlabel mb-3">Also worth knowing</div>
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                {noteSignals.map((s) => (
+                  <SignalNote key={s.id} signal={s} onGo={() => go(s)} />
+                ))}
+              </div>
+            </div>
           )}
         </Section>
       </div>

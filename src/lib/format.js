@@ -46,11 +46,43 @@ export const fmtINR = (n) => {
   return `${sign}₹${a.toLocaleString("en-IN")}`;
 };
 
-// Cost per view, in rupees and paise. fmtINR's lakh/crore scale is useless
-// here — an external CPV lives between ₹0.05 and ₹5, where the two decimals
-// ARE the number.
-export const fmtCPV = (n) =>
-  n == null || !Number.isFinite(Number(n)) ? "—" : `₹${Number(n).toFixed(2)}`;
+// Cost per view. Neither fmtINR's lakh/crore scale nor a flat two decimals
+// works here: a real CPV is routinely a fraction of a paisa (₹0.005264,
+// ₹0.03578), which toFixed(2) collapses to a uniform "₹0.01" — while printing
+// all six decimals gives the reader a number they must count zeros in.
+//
+// So: two significant digits past the leading zeros, at any magnitude.
+// 0.005264 → ₹0.0053, 0.03578 → ₹0.036, and at/above ₹1 it settles back to the
+// ordinary ₹1.25. Rounded, not truncated — truncating would understate the
+// cost of a view every time.
+const CPV_SIGNIFICANT = 2;
+
+// toFixed, not toPrecision: toPrecision returns exponent notation ("5.3e-3")
+// on exactly the small numbers this exists for.
+function cpvDecimals(a) {
+  if (!(a > 0) || a >= 1) return CPV_SIGNIFICANT;
+  // The exponent counts the zeros between the point and the first real digit.
+  return Math.min(20, -Math.floor(Math.log10(a)) - 1 + CPV_SIGNIFICANT);
+}
+
+/**
+ * fmtCPV with its precision pinned to `target`.
+ *
+ * AnimatedNumber calls its formatter on every frame from 0 upward, so a
+ * magnitude-adaptive formatter re-decides its decimal count sixty times a
+ * second and the tile visibly changes width on the way up. Locking the
+ * decimals to where the number is GOING leaves only the value moving.
+ */
+export const fmtCPVTo = (target) => {
+  const decimals = cpvDecimals(Math.abs(Number(target) || 0));
+  return (n) => {
+    const v = Number(n);
+    if (n == null || n === "" || !Number.isFinite(v)) return "—";
+    return `${v < 0 ? "-" : ""}₹${Math.abs(v).toFixed(decimals)}`;
+  };
+};
+
+export const fmtCPV = (n) => fmtCPVTo(n)(n);
 
 export const initials = (name) =>
   (name || "?").split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
