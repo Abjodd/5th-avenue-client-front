@@ -167,10 +167,12 @@ function MetricCard({ label, value, breakdowns, onOpen, suffix = "" }) {
    away from the views it is computed from. Likes, comments and shares haven't
    gone anywhere: they're one hover inside the total they add up to.
 
-   CPV here is budget ÷ views, shown to six decimal places rather than
-   rounded to a currency-style two — at typical view counts a campaign's
-   real cost-per-view is a fraction of a paisa, and rounding to 2dp collapses
-   most campaigns to the same "₹0.00". */
+   CPV here is budget ÷ views. At typical view counts that is a fraction of a
+   paisa, so a currency-style two decimals collapses most campaigns to the
+   same "₹0.00" — but six decimals is a number you have to count zeros in to
+   read. fmtCPV keeps two significant digits past the leading zeros instead
+   (₹0.005264 → ₹0.0053), which is the same rule the Overview's CPV tile
+   uses, so the two screens can't disagree about what a view cost. */
 function LivePerformance({ totals, lastFetched, cpv }) {
   const P = useP();
   const [openBd, setOpenBd] = useState(false);
@@ -187,10 +189,10 @@ function LivePerformance({ totals, lastFetched, cpv }) {
     totals.views > 0 && { label: "Views", node: <AnimatedNumber value={totals.views} format={fmtNum} duration={900}/> },
     eng > 0 && { label: "Engagements", node: <AnimatedNumber value={eng} format={fmtNum} duration={900}/>, parts },
     // cpv is null until the campaign has both a budget and measured views, so
-    // this drops out on its own rather than printing an invented rate. Shown
-    // to 6dp (not run through fmtCPV's currency rounding) since budget/views
-    // is routinely a sub-paisa number.
-    cpv != null && { label: "CPV", node: `₹${cpv.toFixed(6)}` },
+    // this drops out on its own rather than printing an invented rate. Green
+    // is the hue the Overview's CPV tile carries, so a brand reading both
+    // recognises the same measure.
+    cpv != null && { label: "CPV", node: fmtCPV(cpv), color: P.green },
   ].filter(Boolean);
   if (!tiles.length) return null;
 
@@ -210,7 +212,7 @@ function LivePerformance({ totals, lastFetched, cpv }) {
           <div key={t.label} className="relative px-4 py-3"
             onMouseEnter={() => t.parts && setOpenBd(true)}
             onMouseLeave={() => setOpenBd(false)}>
-            <div className="tnum text-[19px] font-bold leading-none text-ink">{t.node}</div>
+            <div className="tnum text-[19px] font-bold leading-none text-ink" style={{ color: t.color }}>{t.node}</div>
             <div className="mt-1 flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-mute">
               {/* The dotted rule is the only thing telling you the total opens
                   — without it the breakdown is a feature you find by accident. */}

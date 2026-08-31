@@ -300,30 +300,47 @@ export function pipeline(campaigns = []) {
    ═════════════════════════════════════════════════════════════════════════ */
 
 /**
- * The hero's action list. Every row is a real, countable thing with somewhere
- * to go; a row with nothing behind it is omitted rather than rendered as zero.
- * `page`/`params` feed straight into AppShell's setPage().
+ * Every row is a real, countable thing with somewhere to go; a row with
+ * nothing behind it is omitted rather than rendered as zero. `page`/`params`
+ * feed straight into AppShell's setPage().
+ *
+ * `kind` splits decisions from observations. Three of these rows genuinely
+ * block work — a creator waiting on a yes, a cut waiting to be watched, a
+ * brief waiting to be written. The other two just describe the account. Filing
+ * an observation under "needs a decision" both overstates it and buries the
+ * rows that are urgent, so the page renders the two groups differently.
+ *
+ * `headline`/`detail`/`cta` replace the old `count` + `lead` + `text`
+ * fragments the card used to glue together. Every row came out of that
+ * assembly with the identical shape, which is what made the section read as
+ * machine output; whole sentences also let a row phrase itself for its own
+ * data — singular vs plural, a named campaign, a tier.
  */
 export function signals(campaigns = [], creators = []) {
   const out = [];
+  const plural = (n, one, many) => (n === 1 ? one : many);
 
   const approvals = creators.filter((cr) => cr.waiting && cr.demoStatus !== "received");
   if (approvals.length) {
     out.push({
-      id: "approvals", icon: "approvals", action: "Review", page: "campaigns",
-      params: { campaignId: approvals[0].campaignId },
+      id: "approvals", kind: "action", icon: "approvals",
+      page: "campaigns", params: { campaignId: approvals[0].campaignId },
       count: approvals.length,
-      text: `creator approval${approvals.length === 1 ? "" : "s"} awaiting your call`,
+      headline: `${approvals.length} ${plural(approvals.length, "creator is", "creators are")} waiting on your yes`,
+      detail: "Shortlisted and ready to go — nothing moves on them until you approve.",
+      cta: plural(approvals.length, "Review", "Review them"),
     });
   }
 
   const uploads = creators.filter((cr) => cr.demoStatus === "received" || cr.conceptStatus === "received");
   if (uploads.length) {
     out.push({
-      id: "uploads", icon: "uploads", action: "Content", page: "campaigns",
-      params: { campaignId: uploads[0].campaignId },
+      id: "uploads", kind: "action", icon: "uploads",
+      page: "campaigns", params: { campaignId: uploads[0].campaignId },
       count: uploads.length,
-      text: `new upload${uploads.length === 1 ? "" : "s"} from creators to review`,
+      headline: `${uploads.length} new ${plural(uploads.length, "upload is", "uploads are")} in for review`,
+      detail: "Concepts and demo cuts your creators have sent since you last looked.",
+      cta: plural(uploads.length, "Watch it", "Watch them"),
     });
   }
 
@@ -331,11 +348,17 @@ export function signals(campaigns = [], creators = []) {
     .filter((c) => phaseOf(c.stage) === "brief")
     .sort((a, b) => (num(b.budget) || 0) - (num(a.budget) || 0))[0];
   if (briefing) {
+    const budget = num(briefing.budget);
     out.push({
-      id: "brief", icon: "brief", action: "Brief", page: "campaigns",
-      params: { campaignId: briefing.id },
-      lead: fmtINR(num(briefing.budget)),
-      text: `— ${briefing.name} is entering the pipeline`,
+      id: "brief", kind: "action", icon: "brief",
+      page: "campaigns", params: { campaignId: briefing.id },
+      headline: `${briefing.name} is ready for its brief`,
+      // A budgetless campaign is a real state in the internal app, so the
+      // money clause has to be able to drop out rather than print "₹0".
+      detail: budget > 0
+        ? `${fmtINR(budget)} is committed and the brief is the next thing it needs from you.`
+        : "It is in the pipeline and the brief is the next thing it needs from you.",
+      cta: "Open the brief",
     });
   }
 
@@ -347,9 +370,10 @@ export function signals(campaigns = [], creators = []) {
   if (byState.length) {
     const top = [...byState].sort((a, b) => b.count - a.count)[0];
     out.push({
-      id: "regional", icon: "regional", action: "Map", page: "regional",
-      lead: `${byState.length} state${byState.length === 1 ? "" : "s"}`,
-      text: `covered — ${top.label} leads with ${top.count} creator${top.count === 1 ? "" : "s"}`,
+      id: "regional", kind: "note", icon: "regional", page: "regional",
+      headline: `Your roster reaches ${byState.length} ${plural(byState.length, "state", "states")}`,
+      detail: `${top.label} is the densest, with ${top.count} ${plural(top.count, "creator", "creators")}.`,
+      cta: "See the map",
     });
   }
 
@@ -360,9 +384,10 @@ export function signals(campaigns = [], creators = []) {
   if (tiers.length > 1) {
     const best = [...tiers].sort((a, b) => b.er - a.er)[0];
     out.push({
-      id: "insight", icon: "insight", action: "Insight", anchor: "creators",
-      lead: `${best.label} creators`,
-      text: `lead on engagement — ${best.er.toFixed(1)}% avg ER`,
+      id: "insight", kind: "note", icon: "insight", anchor: "creators",
+      headline: `${best.label} creators are pulling ahead`,
+      detail: `${best.er.toFixed(1)}% average engagement — the strongest of the ${tiers.length} tiers on your roster.`,
+      cta: "See the breakdown",
     });
   }
 

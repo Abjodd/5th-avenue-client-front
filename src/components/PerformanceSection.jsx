@@ -24,7 +24,7 @@ import AnimatedNumber from "./AnimatedNumber";
 import { useApp } from "../context";
 import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/dates";
 import { chartTheme } from "../lib/chartTheme";
-import { fmtNum, fmtINR } from "../lib/format";
+import { fmtNum, fmtINR, fmtCPVTo } from "../lib/format";
 import { Funnel } from "./charts";
 import { InfoHint } from "./portal/Shell";
 import { PortalAPI } from "../lib/api";
@@ -38,6 +38,12 @@ const CHART_BLURB = {
   reach: "Reach is the combined following of the creators live in each period; spend is what was committed in the same one. Climbing together means the budget is buying audience.",
   engagement: "Engagements are the likes, comments and shares your live posts earned; spend is what was committed in the same period. Outpacing spend means the work is doing the lifting.",
 };
+
+/* Dash pattern for the spend line, shared with its legend swatch so the key
+   looks like the line it describes. Spend is dashed as well as differently
+   coloured because hue alone fails on a printout, a pasted screenshot, or a
+   monochrome display. */
+const SPEND_DASH = "6 4";
 
 // `totalCreators` is bucketed alongside the metrics so a period can be asked
 // whether it had a ROSTER at all — see audienceKnown below. Without it a
@@ -90,9 +96,19 @@ function StatTile({ label, value, format = fmtNum, loading, color, info }) {
   );
 }
 
-function fmtCPV5(value) {
-  if (value == null || !Number.isFinite(value)) return "0.00000";
-  return Number(value).toFixed(5);
+/* A key entry. The swatch is an SVG line rather than a coloured <span> so it
+   can carry the same dash as the series it stands for — a solid block beside a
+   dashed line is a key describing something else. */
+function Legend({ color, dash, children }) {
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-ink">
+      <svg width="24" height="2" aria-hidden="true" className="shrink-0 overflow-visible">
+        <line x1="0" y1="1" x2="24" y2="1" stroke={color} strokeWidth="2.5"
+          strokeDasharray={dash} strokeLinecap="round"/>
+      </svg>
+      {children}
+    </span>
+  );
 }
 
 function neutralShade(color, alpha) {
@@ -112,6 +128,13 @@ function neutralShade(color, alpha) {
 export default function PerformanceSection({ clientName: clientNameProp }) {
   const { P } = useApp();
   const { axisProps, gridStroke, tooltipStyle } = chartTheme(P);
+  /* One source for both series' colours, so the line, its dot, its legend
+     swatch and the single-bucket fallback cannot drift apart — which is what
+     had happened: both lines drew in P.neutral while the legend showed a
+     hardcoded #3B82F6/#9CA3AF, describing colours on no line. Cool vs warm
+     rather than two neighbouring blues, so the lines stay separable where they
+     cross and survive red/green colour blindness. */
+  const LINE = { audience: P.accent, spend: P.gold };
   const { user } = useAuth();
   const clientName = clientNameProp || user?.clientName;
 
@@ -256,8 +279,12 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.neutral}/>
           <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.neutral}/>
           <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.neutral}/>
-          <StatTile label="CPV"            value={totals.cpv}    format={fmtCPV5} loading={isLoading} color={P.neutral}
-            info="Cost per view across every campaign in the selected period. For one campaign's own CPV, open that campaign."/>
+          {/* The only rate on a strip of totals, and the only figure here where
+              lower is better — hence the one tile carrying a hue. fmtCPVTo,
+              not fmtCPV, so the count-up doesn't re-decide its decimal count
+              every frame; see lib/format.js. */}
+          <StatTile label="CPV"            value={totals.cpv}    format={fmtCPVTo(totals.cpv)} loading={isLoading} color={P.green}
+            info="Cost per view across every campaign in the selected period — committed spend ÷ measured views, to two significant digits. For one campaign's own CPV, open that campaign."/>
         </div>
 
         {/* Row 1: Dual-axis line chart */}
@@ -281,15 +308,11 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
             </div>
           </div>
 
-          <div className="mb-3 flex gap-5">
-            <span className="flex items-center gap-1.5 text-[11px] text-ink">
-              <span className="inline-block h-px w-6 rounded" style={{ background: "#3B82F6", height: 2 }}/>
+          <div className="mb-3 flex flex-wrap gap-5">
+            <Legend color={LINE.audience}>
               {toggle === "reach" ? "Reach · left axis" : "Engagements · left axis"}
-            </span>
-            <span className="flex items-center gap-1.5 text-[11px] text-ink">
-              <span className="inline-block h-px w-6 rounded" style={{ background: "#9CA3AF", height: 2 }}/>
-              Spend · right axis
-            </span>
+            </Legend>
+            <Legend color={LINE.spend} dash={SPEND_DASH}>Spend · right axis</Legend>
           </div>
 
           {isLoading ? (
@@ -311,7 +334,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
               <div className="flex flex-wrap gap-10">
                 <div>
                   <div className="text-[26px] font-bold leading-none"
-                    style={{ color: toggle === "reach" ? P.pink : P.amber }}>
+                    style={{ color: LINE.audience }}>
                     {fmtNum(toggle === "reach" ? series[0].reach : series[0].engagements)}
                   </div>
                   <div className="mt-1.5 text-[11px] text-sub">
@@ -319,7 +342,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[26px] font-bold leading-none" style={{ color: P.purple }}>
+                  <div className="text-[26px] font-bold leading-none" style={{ color: LINE.spend }}>
                     {fmtINR(series[0].spend)}
                   </div>
                   <div className="mt-1.5 text-[11px] text-sub">Spend</div>
@@ -341,22 +364,25 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                 <Tooltip {...tooltipStyle}
                   formatter={(v, name) => name === "Spend" ? [fmtINR(v), name] : [fmtNum(v), name]}
                 />
+                {/* Dot rings take P.surface, not "#fff" — white rings on the
+                    dark theme read as pinholes punched through the line. */}
                 <Line yAxisId="left" type="monotone"
                   dataKey={toggle === "reach" ? "reach" : "engagements"}
                   name={toggle === "reach" ? "Reach" : "Engagements"}
-                  stroke={toggle === "reach" ? P.neutral : P.neutral}
+                  stroke={LINE.audience}
                   strokeWidth={2.5}
                   // A month with no roster has no audience figure, so the line
                   // stops rather than being drawn down to zero and back.
                   connectNulls={false}
-                  dot={showDots ? { r: 4, fill: toggle==="reach" ? P.neutral : P.neutral, strokeWidth: 2, stroke: "#fff" } : false}
-                  activeDot={{ r: 6, strokeWidth: 2, stroke: "#fff" }} />
+                  dot={showDots ? { r: 4, fill: LINE.audience, strokeWidth: 2, stroke: P.surface } : false}
+                  activeDot={{ r: 6, strokeWidth: 2, stroke: P.surface }} />
                 <Line yAxisId="right" type="monotone"
                   dataKey="spend" name="Spend"
-                  stroke={P.neutral}
+                  stroke={LINE.spend}
                   strokeWidth={2.5}
-                  dot={showDots ? { r: 4, fill: P.neutral, strokeWidth: 2, stroke: "#fff" } : false}
-                  activeDot={{ r: 6, strokeWidth: 2, stroke: "#fff" }} />
+                  strokeDasharray={SPEND_DASH}
+                  dot={showDots ? { r: 4, fill: LINE.spend, strokeWidth: 2, stroke: P.surface } : false}
+                  activeDot={{ r: 6, strokeWidth: 2, stroke: P.surface }} />
               </ComposedChart>
             </ResponsiveContainer>
           )}
