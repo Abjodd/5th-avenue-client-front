@@ -25,6 +25,25 @@ async function request(path, options = {}) {
   return res.json();
 }
 
+/**
+ * A reel's cover frame, served from our own backend rather than Instagram.
+ *
+ * Instagram signs every CDN link it hands out and the poster signature dies
+ * ~106h later, so a stored `thumbnail` is a broken image on a clock. The
+ * backend copies the JPEG once into bytes it owns (see 5th-internal-back
+ * portalReels.js) and serves them from this route, immutably cached and
+ * versioned by `?v=` so a replaced poster is picked up instantly anyway.
+ *
+ * null when the backend has no copy yet — the caller falls back to the signed
+ * `thumbnail`, which is right for a row cached before posters were stored.
+ * Mirrors avatarUrlFor() in 5th-internal-front/src/lib/api.js.
+ */
+export const reelPosterUrl = (reel) => {
+  if (!reel?.hasPoster || !reel?.code) return null;
+  const v = reel.posterUpdatedAt ? `?v=${encodeURIComponent(reel.posterUpdatedAt)}` : "";
+  return `${BASE}/api/portal/reels/${encodeURIComponent(reel.code)}/poster${v}`;
+};
+
 export const PortalAPI = {
   // All campaigns (with sanitized embedded creators) for the given client —
   // pass the logged-in user's clientName so each brand only sees its own data.
@@ -53,6 +72,26 @@ export const PortalAPI = {
   // See 5th-internal-back/portalReels.js.
   reels: (clientName) =>
     request(`/api/portal/reels?client=${encodeURIComponent(clientName)}`),
+
+  /* The brand's note on a creator's concept or demo cut — the portal's one
+     write against campaign data. `ref` is the roster row's opaque key (see
+     mapping.js); `asset` is "concept" or "demo". Returns the whole thread,
+     including any team reply landed since the page loaded, so the caller
+     replaces its list rather than appending. */
+  addAssetComment: (campaignId, ref, asset, { clientName, text, author, accountId }) =>
+    request(
+      `/api/portal/campaigns/${encodeURIComponent(campaignId)}/creators/${encodeURIComponent(ref)}/${asset}/comments`,
+      { method: "POST", body: JSON.stringify({ client: clientName, text, author, accountId }) },
+    ),
+
+  /* The brand's yes or no on a creator we suggested. Writes the roster row's
+     status internally — shortlisted or brand_reject — so the team reads the
+     answer where they already work. Returns the new status. */
+  decideCreator: (campaignId, ref, decision, { clientName, author, accountId }) =>
+    request(
+      `/api/portal/campaigns/${encodeURIComponent(campaignId)}/creators/${encodeURIComponent(ref)}/decision`,
+      { method: "POST", body: JSON.stringify({ client: clientName, decision, author, accountId }) },
+    ),
 
   // Pre-aggregated analytics timeseries + spend split.
   // from / to are ISO strings (optional — defaults to YTD on the backend).

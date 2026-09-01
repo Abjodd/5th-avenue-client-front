@@ -114,3 +114,13 @@ export function prettyDate(s) {
     ? (s || "—")
     : new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
+
+// A comment's timestamp — the date plus the time, unlike prettyDate. A thread
+// can carry several notes on one day, and a list of identical dates says
+// nothing about their order.
+export const prettyDateTime = (s) => {
+  const t = Date.parse(s || "");
+  return isNaN(t) ? "" : new Date(t).toLocaleString("en-IN", {
+    day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
+  });
+};

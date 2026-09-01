@@ -790,7 +790,13 @@ export default function OverviewDashboard() {
             <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral} />
             <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral} />
             <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral} />
-            <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`} sublabel="creators with ER data" color={P.neutral} />
+            {/* Measured on live posts only — see summarise() in portalMetrics.js
+                for why the stored profile rate no longer feeds this tile. */}
+            <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`}
+              sublabel={kpis.erMeasured
+                ? `measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}`
+                : "nothing live to measure yet"}
+              color={P.neutral} />
             {/* The sublabel names what the figure leaves out. Campaigns raised
                 before a budget was agreed contribute nothing to this total, so
                 without saying so it reads as the account's whole commitment

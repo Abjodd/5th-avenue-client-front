@@ -13,6 +13,8 @@
  * Mirrors components/campaigns/mapping.js — same role, same reason: view code
  * stays ignorant of the wire format.
  */
+import { reelPosterUrl } from "../../lib/api";
+
 
 /** First finite number among the candidates. A real 0 wins over a later value;
  *  only null/undefined mean "not reported", which the card reads as "hide the
@@ -93,8 +95,15 @@ export function toViewReel(r = {}) {
     // Null on a still, so the card has nothing to swap in even if something
     // downstream mistakes it for a reel.
     video: isReel ? video : null,
+    // Our own copy first, then the signed link, then a raw media object's own.
+    // The order is the point: `r.thumbnail` is an Instagram CDN URL whose
+    // signature expires ~106h after it was issued, so preferring it would keep
+    // the shelf on the clock the poster route exists to remove. A row with no
+    // stored poster yet falls through to it and still renders.
+    //
     // A carousel's cover lives on its first child, not on the parent.
     thumbnail:
+      reelPosterUrl(r) ??
       r.thumbnail ??
       r.thumbnail_url ??
       rawThumb(r.image_versions2) ??

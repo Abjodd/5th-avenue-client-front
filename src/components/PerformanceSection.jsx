@@ -169,13 +169,26 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   // Backend returns one dated event per campaign (already range-filtered);
   // build the chart series here per the selected interval so the Daily /
   // Weekly / Monthly toggle re-slices instantly without refetching.
+  //
+  // `live: false` events are campaigns with nothing posted yet. They are
+  // dropped from every figure on this panel — spend is committed at booking
+  // but performance starts at the first post, so leaving them in charted real
+  // budget against no audience and divided CPV by views nobody had earned.
+  // `!== false` rather than `=== true`: a payload predating the flag can't be
+  // gated, and silently blanking it would be worse than not gating.
   const events = useMemo(() =>
     (analytics?.events || [])
+      .filter(ev => ev.live !== false)
       // The backend still calls measured post views "impressions"; the
       // portal says views, so the rename lives here and nowhere else.
       .map(ev => ({ ...ev, views: ev.impressions, date: parsePortalDate(ev.date) }))
       .filter(ev => ev.date)
   , [analytics]);
+
+  // What the panel is NOT reporting, so it can say so rather than presenting a
+  // partial account as the whole one. Pre-aggregated server-side on the same
+  // rule as spendByService.
+  const excluded = analytics?.excluded || null;
 
   const series = useMemo(() => {
     if (!events.length) return [];
@@ -187,7 +200,11 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
     // trimLeading: the line starts at the first bucket that actually has
     // activity rather than at the left edge of the chosen window — see
     // buildTimeSeries for why leading zeros misrepresent the trend.
-    return buildTimeSeries(events, { from, to: range.to }, chartInterval, SERIES_FIELDS, { trimLeading: true });
+    // Trimmed at BOTH ends: an empty bucket before the first campaign and an
+    // empty one after the last are both periods with no data, not periods that
+    // performed at zero — and either one drawn as 0 is a cliff on the line.
+    return buildTimeSeries(events, { from, to: range.to }, chartInterval, SERIES_FIELDS,
+      { trimLeading: true, trimTrailing: true });
   }, [events, preset, range, chartInterval]);
 
   // What the chart plots: the same buckets, with the audience metrics blanked
@@ -286,6 +303,17 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           <StatTile label="CPV"            value={totals.cpv}    format={fmtCPVTo(totals.cpv)} loading={isLoading} color={P.green}
             info="Cost per view across every campaign in the selected period — committed spend ÷ measured views, to two significant digits. For one campaign's own CPV, open that campaign."/>
         </div>
+
+        {/* Says what the figures above leave out. Without it the panel reports
+            a smaller spend than the board shows committed, with nothing to
+            explain the difference. */}
+        {!isLoading && excluded?.campaigns > 0 && (
+          <p className="mb-4 -mt-1 text-[10.5px] text-mute">
+            {excluded.campaigns} campaign{excluded.campaigns === 1 ? " has" : "s have"} no post live yet
+            {excluded.spend > 0 && <> ({fmtINR(excluded.spend)} committed)</>} and {excluded.campaigns === 1 ? "is" : "are"} left
+            out of every figure here — {excluded.campaigns === 1 ? "it joins" : "they join"} the moment {excluded.campaigns === 1 ? "its" : "their"} first post goes up.
+          </p>
+        )}
 
         {/* Row 1: Dual-axis line chart */}
         <div className="mb-4 overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">

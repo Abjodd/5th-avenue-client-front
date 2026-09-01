@@ -12,17 +12,20 @@ import {
 } from "recharts";
 import {
   Target, Users, MessageSquareQuote, Package, IndianRupee, CalendarRange,
-  FileText, Eye, Heart, MessageCircle, Share2, FileSignature, Clapperboard, Check,
+  FileText, Eye, Heart, MessageCircle, Share2, Check, X, Sparkles,
 } from "lucide-react";
 import { useApp } from "../../context";
+import { useAuth } from "../../context/AuthContext";
+import { PortalAPI } from "../../lib/api";
 import { PHASES } from "../../lib/phases";
 import { PHASE_ICONS } from "../../lib/phaseIcons";
 import { chartTheme } from "../../lib/chartTheme";
-import { fmtNum, fmtCPV, prettyDate, dayLabel } from "../../lib/format";
+import { fmtNum, fmtINR, fmtCPV, prettyDate, dayLabel } from "../../lib/format";
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
-import { STATUS_MAP, ACTIONABLE_STATUSES, BCOLORS, chipOn } from "./mapping";
+import { STATUS_MAP, ACTIONABLE_STATUSES, BCOLORS, chipOn, toAssetComments } from "./mapping";
+import AssetReview, { ASSETS } from "./AssetReview";
 
 const useP = () => useApp().P;
 
@@ -69,17 +72,68 @@ function PhaseTracker({ currentPhase }) {
 }
 
 /* ═══ BUDGET CARD ═══ */
-// Plain figure only — the DB doesn't store an operational budget split, so
-// none is invented here. A real split can return once the backend has one.
+// The figure, and — on hover — what it was spent on, creator by creator.
+//
+// The split is REAL now, which is the whole reason this card can carry one: the
+// internal roster prices each creator for the client (`clientCost` there), and
+// the backend maps that onto each creator's `cost` on the portal wire. What the
+// agency itself pays a creator is a different number and is not on the wire at
+// all — nothing here can, or should, add up to it.
+//
+// Priced creators only. An unpriced one is left out rather than listed at ₹0,
+// and the footer counts the rows against the whole roster ("1 of 2 creators"),
+// so a partial split is legible as a partial split instead of quietly
+// under-stating the spend. The card holds
+// its own total for the same reason: the listed rows rarely sum to `value` (an
+// unpriced creator, or budget that isn't creator spend at all), and a
+// breakdown that silently disagreed with the number above it would read as an
+// error in one of the two.
 //
 // `pending` is a campaign that was raised before a budget was agreed. It reads
 // smaller and in amber, with a line saying so: the same card printing a bold
 // "To be confirmed" at 18px would give a non-figure the visual weight of a
-// figure, on a card whose whole job is to state one.
-function BudgetCard({ value, pending }) {
+// figure, on a card whose whole job is to state one. No breakdown there either
+// — a split of a budget nobody has agreed is a split of nothing.
+function BudgetCard({ value, budgetNum = 0, agencyFee = null, pending, creators = [] }) {
+  const [open, setOpen] = useState(false);
+  const priced = creators
+    .filter(c => c.cost != null && c.cost > 0)
+    .sort((a, b) => b.cost - a.cost);
+  // The agency fee is a line of the budget like any creator is, and it is drawn
+  // as one — sorted below them rather than into them, because it is the one row
+  // that isn't a person. It is already part of the budget on the card face
+  // (the internal app adds it in, see baseBudgetOf), so listing it here itemises
+  // the total rather than adding to it.
+  const rows = [
+    ...priced.map(c => ({ key: c.handle || c.name, label: c.name, value: c.cost })),
+    ...(agencyFee > 0 ? [{ key: "__fee", label: "Agency fee", value: agencyFee, fee: true }] : []),
+  ];
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  // Shares are of the BUDGET, not of the rows on show.
+  //
+  // Against the listed total, a roster with one creator priced drew that
+  // creator at 100% — under a card headed ₹49,500, beside a row reading
+  // ₹30,000. The popover hangs off the budget figure, so the only denominator
+  // that can't contradict it is that figure: ₹30,000 of ₹49,500 is 61%, the bar
+  // sits 61% across, and the part of the budget the roster doesn't account for
+  // is visible as the space the bars don't fill. Falls back to the listed total
+  // only if a campaign somehow reaches here with no budget, which `pending`
+  // already keeps out.
+  const base = budgetNum > 0 ? budgetNum : total;
+  const has = !pending && rows.length > 0 && base > 0;
   return (
-    <div className="rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Budget</div>
+    // relative + z-20 for the same reason LivePerformance carries them: every
+    // card on this grid is backdrop-blurred, and a blur creates a stacking
+    // context that a popover with only a local z-index paints underneath.
+    <div className={`relative rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has ? "z-20" : ""}`}
+      onMouseEnter={() => has && setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <div className="flex items-center gap-1">
+        {/* The dotted rule is the only thing telling you the total opens —
+            without it the breakdown is a feature you find by accident. Same
+            convention as the Engagements tile in Live performance. */}
+        <span className={`text-[10px] font-semibold uppercase tracking-[0.1em] text-mute ${has ? "cursor-help border-b border-dotted border-mute/60 pb-px" : ""}`}>Budget</span>
+        {has && <span className="inline-flex size-4 items-center justify-center rounded-full border border-mute/40 text-[8px] font-bold text-mute">i</span>}
+      </div>
       {pending ? (
         <>
           <div className="mt-1 text-[13px] font-semibold text-amber">To be confirmed</div>
@@ -88,6 +142,79 @@ function BudgetCard({ value, pending }) {
       ) : (
         <div className="mt-1 text-[18px] font-bold text-ink">{value}</div>
       )}
+      {/* Downward, not sideways: this card is the leftmost of a three-up row and
+          has no empty half of its own to unfurl into, unlike the wide Live
+          performance tiles. Hover-only by nature, so it never appears on touch.
+
+          OPAQUE — `bg-modal`/`shadow-modal`, the app's floating-panel pair
+          (PeriodFilter uses the same), not the .glass-panel this first used. A panel that
+          hangs OUTSIDE its parent cannot be glass here: this card already
+          carries backdrop-blur, which makes it a backdrop root, so a nested
+          backdrop-filter has nothing left to sample and the translucent fill
+          resolves to plain translucency. The Engagement Rate card underneath
+          read straight through the breakdown. Live performance gets away with
+          glass because its popover sits INSIDE its own panel, over that panel's
+          own fill.
+
+          Not pointer-events-none either: the popover is a DOM child of the card,
+          so the pointer entering it never fires the card's mouseleave — which
+          is what lets a long roster be scrolled instead of just clipped. */}
+      <AnimatePresence>
+        {has && open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute left-0 top-full z-30 mt-1.5 w-[268px] rounded-[14px] border border-line bg-modal px-3.5 py-3 shadow-modal">
+            <div className="mb-2 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">By creator</div>
+            {/* Capped, not paginated — a 20-creator roster scrolls inside the
+                popover rather than growing it past the card it hangs off. */}
+            <div className="flex max-h-[184px] flex-col gap-2 overflow-y-auto">
+              {rows.map((r, i) => {
+                const pct = (r.value / base) * 100;
+                return (
+                  <div key={`${r.key}-${i}`}>
+                    <div className="flex items-baseline gap-2">
+                      <span className={`min-w-0 flex-1 truncate text-[11px] font-medium ${r.fee ? "text-sub" : "text-ink"}`}>{r.label}</span>
+                      <span className="tnum shrink-0 text-[11px] font-semibold text-ink">{fmtINR(r.value)}</span>
+                    </div>
+                    {/* The bar is what makes this a breakdown rather than a
+                        list of numbers — same device, same palette, as every
+                        other split on this page (HBars). */}
+                    <div className="mt-1 flex items-center gap-2">
+                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-well">
+                        <motion.div className="h-full rounded-full"
+                          initial={{ width: 0 }} animate={{ width: `${Math.min(Math.max(pct, 2), 100)}%` }}
+                          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
+                          style={{ background: r.fee ? "var(--color-mute)" : BCOLORS[i % BCOLORS.length] }}/>
+                      </div>
+                      {/* A creator who is a rounding error of the spend still
+                          isn't 0% of it — "0%" beside a real figure reads as
+                          broken. */}
+                      <span className="tnum w-8 shrink-0 text-right text-[9px] text-mute">
+                        {pct < 0.5 ? "<1%" : `${Math.round(pct)}%`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2.5 flex items-baseline justify-between gap-2 border-t border-line pt-2 text-[9.5px] text-mute">
+              {/* Counts the rows against the whole roster, and totals them.
+                  The rows rarely add up to the budget above — a creator with no
+                  price agreed yet, or budget that was never creator spend — and
+                  a breakdown that quietly disagreed with the figure it hangs off
+                  would read as one of the two being wrong. "n of N creators" is
+                  what makes a partial split legible as a partial split.
+
+                  Deliberately not "itemised" / "pending" / "priced": this is
+                  read by a brand, not by the account team, and the honest thing
+                  to say is simply how many of their creators the split covers. */}
+              <span>{priced.length} of {creators.length} creator{creators.length === 1 ? "" : "s"} · {Math.round((total / base) * 100)}% of budget</span>
+              <span className="tnum font-semibold text-ink">{fmtINR(total)}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -499,46 +626,180 @@ function Observations({ creators, topAssets }) {
   );
 }
 
-/* ═══ CREATOR ROW — independent approvals + live tracking data ═══ */
-function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
+/* One reviewable asset on a creator row: the way in, and the state beside it.
+   The button says what you can do; the label says whether you need to. */
+function AssetButton({ label, Icon, asset, onOpen }) {
+  const notes = asset.comments.length;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button onClick={onOpen}
+        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-2.5 py-1 text-[11.5px] font-semibold text-accent shadow-sm transition-all duration-200 hover:-translate-y-px hover:border-accent/30 hover:shadow-md">
+        <Icon size={13} strokeWidth={1.9} /> {label}
+        {notes > 0 && (
+          <span className="rounded-full bg-accent/[0.12] px-1.5 text-[10px] font-bold leading-[15px]">{notes}</span>
+        )}
+      </button>
+      <span className={`text-[11.5px] font-medium ${ASSET_TIER_CLS[asset.t] || "text-mute"}`}>{asset.label}</span>
+    </span>
+  );
+}
+
+/* ═══ LIVE POST ═══
+   What this creator's post actually did — the link and its figures, rendered
+   on the row itself rather than inside a disclosure. Only ever mounted when
+   something is up, so it never has to say "not live yet". */
+function LivePost({ cr }) {
+  const P = useP();
+  const t = cr.tracking;
+  const pos = t?.positivityScore;
+  const posColor = pos == null ? null : pos >= 66 ? P.green : pos >= 40 ? P.amber : P.red;
+  return (
+    <div className="mt-2 rounded-[12px] border border-green/20 bg-green/[0.04] px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2.5 text-[11.5px]">
+        <span className="flex items-center gap-1.5">
+          <Dot color={P.green} sz={5}/>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Live</span>
+        </span>
+        <a href={cr.live.postUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+          className="rounded-full border border-line bg-[--color-glass] px-2.5 py-0.5 font-semibold text-accent no-underline transition-colors hover:border-accent/30">View post ↗</a>
+        {cr.live.postedDate && <span className="text-mute">posted {prettyDate(cr.live.postedDate)}</span>}
+        {pos != null && (
+          <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold shadow-sm"
+            style={{ color: posColor, background: posColor + "14" }}>
+            {pos}/100 positive
+          </span>
+        )}
+      </div>
+      {/* Line icons, not emoji: these four sit in a row, and an emoji set
+          renders at its own size and colour on every platform. */}
+      {t && (t.views || t.likes || t.comments || t.forwards) ? (
+        <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-sub">
+          {t.views != null && <Metric Icon={Eye} value={t.views} label="views" />}
+          {t.likes != null && <Metric Icon={Heart} value={t.likes} label="likes" />}
+          {t.comments != null && <Metric Icon={MessageCircle} value={t.comments} label="comments" />}
+          {t.forwards != null && <Metric Icon={Share2} value={t.forwards} label="shares" />}
+        </div>
+      ) : null}
+      {t?.commentAnalysis && <div className="mt-1.5 text-[11px] italic leading-normal text-ink">"{t.commentAnalysis}"</div>}
+    </div>
+  );
+}
+
+/* One answer to that question. Filled and tinted when it's the standing one,
+   quiet otherwise — so the pair reads as a choice with a state rather than two
+   buttons that both look pressable. */
+function Choice({ tone, Icon, label, active, disabled, onClick }) {
+  const on  = tone === "green" ? "border-green bg-green/[0.12] text-green shadow-sm"
+                               : "border-red bg-red/[0.10] text-red shadow-sm";
+  const off = tone === "green" ? "border-line bg-[--color-glass] text-sub hover:border-green/50 hover:text-green"
+                               : "border-line bg-[--color-glass] text-sub hover:border-red/50 hover:text-red";
+  return (
+    <motion.button type="button" onClick={onClick} disabled={disabled}
+      whileHover={disabled ? undefined : { y: -1 }} whileTap={disabled ? undefined : { scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 500, damping: 28 }}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-semibold transition-colors duration-200 disabled:opacity-50 ${active ? on : off}`}>
+      <Icon size={13} strokeWidth={2.6}/> {label}
+    </motion.button>
+  );
+}
+
+/* ═══ BRAND DECISION ═══
+   The brand's yes or no on a creator we've put forward. One strip, two shapes:
+   an open question while nobody has answered, and the answer once somebody
+   has — still changeable, because a mind changed before we've reached out
+   costs nothing.
+
+   Writes the roster row's own status (shortlisted / brand_reject), so the
+   internal Creators tab reads the answer where it already looks and there is
+   no second field to keep in step. That is also why a decision the TEAM made
+   by hand renders here identically — it is the same field.
+
+   Replaces a pair of exec/mgmt tick boxes that only ever set component state:
+   the brand could press them, and nothing left the page. */
+function BrandDecision({ cr, onDecide }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const answered = !!cr.decision;
+  const yes = cr.decision === "approve";
+
+  const choose = async (decision) => {
+    if (busy || decision === cr.decision) return;
+    setBusy(true);
+    setError(null);
+    try { await onDecide(decision); }
+    catch (e) { setError(e.body?.error || "Couldn't save that — try again."); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <motion.div layout transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className={`mt-2 rounded-[12px] border px-3 py-2 ${
+        !answered ? "border-amber/30 bg-amber/[0.05]"
+        : yes ? "border-green/20 bg-green/[0.04]" : "border-red/20 bg-red/[0.03]"}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {/* Keyed on the answer so the line swaps with a small lift instead of
+            blinking between two sentences in place. */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span key={cr.decision || "open"}
+            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18 }} className="flex items-center gap-1.5 text-[11.5px]">
+            {!answered ? (
+              <>
+                <Sparkles size={13} strokeWidth={1.9} className="text-amber"/>
+                <span className="font-medium text-ink">We&rsquo;ve suggested them &mdash; are they a yes?</span>
+              </>
+            ) : (
+              <>
+                <motion.span initial={{ scale: 0.4 }} animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 600, damping: 18 }}
+                  className={`flex size-[18px] items-center justify-center rounded-full ${yes ? "bg-green/[0.12] text-green" : "bg-red/[0.10] text-red"}`}>
+                  {yes ? <Check size={11} strokeWidth={3}/> : <X size={11} strokeWidth={3}/>}
+                </motion.span>
+                {/* Named only when the brand made the call themselves. A status
+                    the team set by hand lands on the same field, and telling
+                    the brand they said something they didn't is worse than
+                    saying it plainly. */}
+                <span className="text-sub">
+                  {yes
+                    ? (cr.decidedBy ? `${cr.decidedBy} said yes to this creator` : "Approved \u2014 they\u2019re on the shortlist")
+                    : (cr.decidedBy ? `${cr.decidedBy} passed on this creator` : "Not going ahead with this one")}
+                </span>
+              </>
+            )}
+          </motion.span>
+        </AnimatePresence>
+        <div className="ml-auto flex gap-1.5">
+          <Choice tone="green" Icon={Check} label="Yes" active={yes}
+            disabled={busy} onClick={() => choose("approve")}/>
+          <Choice tone="red" Icon={X} label="Pass" active={answered && !yes}
+            disabled={busy} onClick={() => choose("reject")}/>
+        </div>
+      </div>
+      {error && <p className="mt-1.5 text-[11px] text-red">{error}</p>}
+    </motion.div>
+  );
+}
+
+/* ═══ CREATOR ROW — the brand's call, their assets, and the live post ═══ */
+function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments }) {
   const P = useP();
   const st = STATUS_MAP[cr.status] || STATUS_MAP.yet_to_pick;
-  const actionable = ["pending_brand", "in_negotiation"].includes(cr.status);
   const [expanded, setExpanded] = useState(false);
-  const a = cr.approval || { exec: null, mgmt: null, execLocked: false, mgmtLocked: false };
-  const bothLocked = a.execLocked && a.mgmtLocked;
-  const autoResult = bothLocked ? (a.exec === "tick" && a.mgmt === "tick" ? "approved" : "rejected") : null;
-  const t = cr.tracking;
-
-  const renderApprovalUI = (role, label) => {
-    const isOwn = (role === "exec" && userRole === "execution") || (role === "mgmt" && userRole === "management");
-    const val = a[role]; const locked = a[`${role}Locked`];
-    return (
-      <div className="flex items-center gap-1">
-        <span className="w-9 text-[10px] font-semibold text-mute">{label}</span>
-        {locked ? (
-          <span className={`flex items-center gap-0.5 text-[11px] font-semibold ${val==="tick"?"text-green":"text-red"} ${isOwn?"":"opacity-50"}`}>
-            {val === "tick" ? "✓ Yes" : "✗ No"}<span className="ml-0.5 text-[9px] text-mute">locked</span>
-          </span>
-        ) : (isOwn ? (
-          <div className="flex gap-1">
-            <button onClick={() => onUpdateApproval(idx, role, "tick")} className={`flex size-[24px] items-center justify-center rounded-[7px] border-[1.5px] text-[12px] text-green transition-all duration-150 ${val==="tick"?"border-green bg-green/[0.08] shadow-sm":"border-line bg-transparent hover:border-green/40"}`}>✓</button>
-            <button onClick={() => onUpdateApproval(idx, role, "cross")} className={`flex size-[24px] items-center justify-center rounded-[7px] border-[1.5px] text-[12px] text-red transition-all duration-150 ${val==="cross"?"border-red bg-red/[0.08] shadow-sm":"border-line bg-transparent hover:border-red/40"}`}>✗</button>
-            {val && <button onClick={() => onUpdateApproval(idx, role + "Lock", true)} className="rounded-full border border-accent/15 bg-accent/[0.06] px-2 py-0.5 text-[10px] font-semibold text-accent shadow-sm">Lock</button>}
-          </div>
-        ) : (
-          <span className={`text-[11px] opacity-50 ${val==="tick"?"text-green":val==="cross"?"text-red":"text-mute"}`}>{val === "tick" ? "✓" : "✗"}{val ? " (" + label + ")" : "pending"}</span>
-        ))}
-      </div>
-    );
-  };
+  // null, or the key of the asset whose review panel is open.
+  const [reviewing, setReviewing] = useState(null);
+  // Waiting on the brand's own yes/no — the one row state that should pull the
+  // eye, because nothing on it moves until they answer.
+  const pending = cr.decidable && !cr.decision;
+  // A creator the brand hasn't taken on yet has no concept or cut to review, so
+  // the two buttons would read "Not received" on the one row asking a question.
+  const showAssets = !(pending || cr.decision === "reject");
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(idx * 0.035, 0.4), duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       className="mb-2 rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md"
-      style={{ borderColor: actionable ? P.amber + "25" : autoResult === "approved" ? P.green + "25" : autoResult === "rejected" ? P.red + "20" : "var(--color-line)" }}>
+      style={{ borderColor: pending ? P.amber + "40" : cr.decision === "reject" ? P.red + "20" : "var(--color-line)" }}>
       <div className="flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[12.5px] font-semibold text-accent shadow-sm">{cr.avatar || cr.name[0]}</div>
         <div className="min-w-0 flex-1">
@@ -581,87 +842,67 @@ function CreatorRow({ cr, idx, userRole, onUpdateApproval }) {
             {cr.avgLikes != null && <span>♥ {fmtNum(cr.avgLikes)} avg</span>}
           </div>
         </div>
-        {autoResult && <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] shadow-sm ${autoResult==="approved"?"bg-green/[0.08] text-green":"bg-red/[0.06] text-red"}`}>{autoResult}</span>}
         <StatusPill tier={st.t}>{st.label}</StatusPill>
       </div>
-      <button onClick={() => setExpanded(!expanded)} className="mt-1.5 p-0 text-[11px] font-medium text-accent transition-opacity hover:opacity-70">{expanded ? "Show less ▴" : "See more ▾"}</button>
+
+      {/* The brand's call, at the top of the row: while a creator is still
+          theirs to accept or turn down, it is the only thing on it that needs
+          them. It stays on afterwards so an answer given early can be changed
+          right up until we act on it. */}
+      {cr.decidable && <BrandDecision cr={cr} onDecide={(d) => onDecide(idx, d)}/>}
+      {/* The live post, inline. It used to sit two clicks down inside "See
+          more", which is where the brand's own results were hidden behind a
+          toggle — the one thing on this row they open the page for. */}
+      {cr.live && <LivePost cr={cr} />}
+
+      {/* Both assets the brand is asked to sign off, each opening the same
+          review panel. Neither is a status word any more: the state still
+          reads beside the button, but the button is the thing to press. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px]">
+        {showAssets && Object.values(ASSETS).map(({ key, label, Icon }) => (
+          <AssetButton key={key} label={label} Icon={Icon}
+            asset={cr[`${key}Asset`]} onOpen={() => setReviewing(key)} />
+        ))}
+        <button onClick={() => setExpanded(!expanded)}
+          className="ml-auto p-0 text-[11px] font-medium text-accent transition-opacity hover:opacity-70">
+          {expanded ? "Less ▴" : "Profile ▾"}
+        </button>
+      </div>
+
       <AnimatePresence initial={false}>
         {expanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
-            <div className="mt-1.5 flex flex-col gap-1 border-t border-line pt-2">
-              <div className="flex flex-wrap gap-2.5 text-[11px] text-sub"><span>Niche: <b className="text-ink">{cr.niche}</b></span><span>Size: <b className="text-ink">{cr.size}</b></span><span>State: <b className="text-ink">{cr.region}</b></span><span>Language: <b className="text-ink">{cr.language}</b></span></div>
-              <div className="mt-0.5 flex flex-wrap gap-3.5 text-[12px]">
-                <span className="text-mute">Brief: <AssetState asset={cr.briefAsset} Icon={FileSignature} /></span>
-                <span className="text-mute">Video: <AssetState asset={cr.videoAsset} Icon={Clapperboard} /></span>
-              </div>
-              {/* Live block — only when this creator's post is actually up */}
-              {cr.live && (
-                <div className="mt-1.5 rounded-[12px] border border-line bg-well/50 px-3 py-2">
-                  <div className="flex flex-wrap items-center gap-2.5 text-[11.5px]">
-                    <span className="flex items-center gap-1.5"><Dot color={P.green} sz={5}/><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Live</span></span>
-                    <a href={cr.live.postUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                      className="rounded-full border border-line bg-[--color-glass] px-2.5 py-0.5 font-semibold text-accent no-underline transition-colors hover:border-accent/30">View post ↗</a>
-                    {cr.live.postedDate && <span className="text-mute">posted {prettyDate(cr.live.postedDate)}</span>}
-                    {cr.tracking?.positivityScore != null && (
-                      <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold shadow-sm"
-                        style={{ color: cr.tracking.positivityScore >= 66 ? P.green : cr.tracking.positivityScore >= 40 ? P.amber : P.red,
-                          background: (cr.tracking.positivityScore >= 66 ? P.green : cr.tracking.positivityScore >= 40 ? P.amber : P.red) + "14" }}>
-                        {cr.tracking.positivityScore}/100 positive
-                      </span>
-                    )}
-                  </div>
-                  {/* Line icons, not emoji: these four sit in a row, and an
-                      emoji set renders at its own size and colour on every
-                      platform — so the row arrived ragged, in whatever hues the
-                      OS font shipped. */}
-                  {t && (t.views || t.likes || t.comments || t.forwards) ? (
-                    <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-sub">
-                      {t.views != null && <Metric Icon={Eye} value={t.views} label="views" />}
-                      {t.likes != null && <Metric Icon={Heart} value={t.likes} label="likes" />}
-                      {t.comments != null && <Metric Icon={MessageCircle} value={t.comments} label="comments" />}
-                      {t.forwards != null && <Metric Icon={Share2} value={t.forwards} label="shares" />}
-                    </div>
-                  ) : null}
-                  {t?.commentAnalysis && <div className="mt-1.5 text-[11px] italic leading-normal text-ink">"{t.commentAnalysis}"</div>}
-                </div>
-              )}
+            <div className="mt-2 flex flex-wrap gap-2.5 border-t border-line pt-2 text-[11px] text-sub">
+              <span>Niche: <b className="text-ink">{cr.niche}</b></span>
+              <span>Size: <b className="text-ink">{cr.size}</b></span>
+              <span>State: <b className="text-ink">{cr.region}</b></span>
+              <span>Language: <b className="text-ink">{cr.language}</b></span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      {actionable && !autoResult && (
-        <div className="mt-2 flex items-center gap-4 border-t border-line pt-2">
-          {renderApprovalUI("exec", "Exec")}{renderApprovalUI("mgmt", "Mgmt")}
-        </div>
-      )}
+      <AnimatePresence>
+        {reviewing && (
+          <AssetReview key={reviewing} creator={cr} asset={reviewing} campaignId={campaignId}
+            onClose={() => setReviewing(null)}
+            onPosted={(asset, comments) => onAssetComments(idx, asset, comments)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-/* Where a concept or demo has got to, tinted by the same tier vocabulary the
-   status pills use. The file link is an enhancement, not the fact — see
-   assetView() in mapping.js for why asking only "is there a link?" told brands
-   their signed-off brief had never been uploaded. */
+/* Where an asset has got to, tinted by the same tier vocabulary the status
+   pills use. The file link is an enhancement, not the fact — see assetView()
+   in mapping.js for why asking only "is there a link?" told brands their
+   signed-off concept had never been uploaded. */
 const ASSET_TIER_CLS = {
   neutral:  "text-mute",
   progress: "text-accent",
   action:   "text-amber",
   done:     "text-green",
 };
-
-function AssetState({ asset, Icon }) {
-  const cls = ASSET_TIER_CLS[asset?.t] || "text-mute";
-  const body = <><Icon size={13} strokeWidth={1.9} />{asset?.label || "Not received"}</>;
-  return asset?.url ? (
-    <a href={asset.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-      className={`inline-flex items-center gap-1 align-middle font-medium no-underline hover:underline ${cls}`}>
-      {body} <span className="text-[10px]">↗</span>
-    </a>
-  ) : (
-    <span className={`inline-flex items-center gap-1 align-middle font-medium ${cls}`}>{body}</span>
-  );
-}
 
 /* One measured number on a live post: icon, value, unit. Shared so the four
    never drift apart in size or spacing. */
@@ -744,16 +985,32 @@ function BriefPage({ lockedBrief, pendingBrief }) {
 /* ═══ CAMPAIGN DETAIL ═══ */
 export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const P = useP();
+  const { user } = useAuth();
   const [tab, setTab] = useState("overview");
   const [creators, setCreators] = useState(c.creators || []);
 
-  const updateApproval = (idx, role, val) => {
-    setCreators(prev => prev.map((cr, i) => {
-      if (i !== idx) return cr;
-      const a = { ...cr.approval };
-      if (role.endsWith("Lock")) { a[role.replace("Lock", "") + "Locked"] = true; } else { a[role] = val; }
-      return { ...cr, approval: a };
-    }));
+  /* The brand's yes/no on a suggested creator. Writes through to the roster
+     row's status — the internal app's own vocabulary — then folds the server's
+     answer back into local state so the pill and the row's tint move with it.
+     Errors are left to throw: BrandDecision shows them on the row that asked. */
+  const decideCreator = async (idx, decision) => {
+    const cr = creators[idx];
+    const { status } = await PortalAPI.decideCreator(c.id, cr.ref, decision, {
+      clientName: user.clientName, author: user.name, accountId: user.id,
+    });
+    setCreators(prev => prev.map((x, i) => i === idx
+      ? { ...x, decision, rawStatus: status, status, decidedBy: user.name || "You" }
+      : x));
+  };
+
+  /* The server hands back the whole thread, not just the new note, so this
+     replaces rather than appends — a reply the team landed while the panel was
+     open arrives with it. Mapped through the same normaliser the initial
+     payload uses, so a posted note and a fetched one are one shape. */
+  const setAssetComments = (idx, asset, comments) => {
+    const key = `${asset}Asset`;
+    setCreators(prev => prev.map((cr, i) =>
+      i === idx ? { ...cr, [key]: { ...cr[key], comments: toAssetComments(comments) } } : cr));
   };
 
   const isAEO = c.service === "AEO"; const numCr = creators.length;
@@ -825,7 +1082,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                       used to sit down here, a row away from the views it is
                       divided by. */}
                   <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <BudgetCard value={c.budget} pending={c.budgetPending} creators={creators}/>
+                    <BudgetCard value={c.budget} budgetNum={c.budgetNum} agencyFee={c.agencyFee} pending={c.budgetPending} creators={creators}/>
                     {/* The roster is a list, not three bars — this opens the
                         Creators tab, which shows every creator with their
                         niche, tier and state on the row. AEO campaigns have no
@@ -884,7 +1141,10 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                       wants a jiggling animation — and it left the reader
                       without the one thing worth saying, which is what happens
                       next. */}
-                  {creators.length > 0 ? creators.map((cr, i) => <CreatorRow key={i} cr={cr} idx={i} userRole={userRole} onUpdateApproval={updateApproval}/>) : (
+                  {creators.length > 0 ? creators.map((cr, i) => (
+                    <CreatorRow key={i} cr={cr} idx={i} campaignId={c.id}
+                      onDecide={decideCreator} onAssetComments={setAssetComments}/>
+                  )) : (
                     <div className="px-5 py-[34px] text-center">
                       <Users size={24} strokeWidth={1.5} className="mx-auto mb-2 text-mute opacity-40" />
                       <div className="text-[12.5px] font-medium text-ink">No creators yet</div>

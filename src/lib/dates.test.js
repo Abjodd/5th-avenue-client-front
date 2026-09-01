@@ -55,6 +55,22 @@ test("trimLeading keeps TRAILING empties — the current period is still filling
   assert.equal(s[s.length - 1].label, "Jun '26");
 });
 
+test("trimTrailing drops an EMPTY final bucket — it hasn't happened, it didn't fail", () => {
+  const s = buildTimeSeries(
+    [{ date: d("2026-04-10"), spend: 100, reach: 1000 }],
+    { from: FROM, to: TO }, "monthly", FIELDS, { trimLeading: true, trimTrailing: true },
+  );
+  assert.equal(s.length, 1, "Apr only — May and Jun would draw a cliff to zero");
+  assert.equal(s[0].label, "Apr '26");
+});
+
+test("trimTrailing still keeps interior gaps — a quiet month between two busy ones is real", () => {
+  const s = buildTimeSeries(EVENTS, { from: FROM, to: TO }, "monthly", FIELDS,
+    { trimLeading: true, trimTrailing: true });
+  assert.deepEqual(s.map((r) => r.label), ["Apr '26", "May '26", "Jun '26"]);
+  assert.equal(s[1].count, 0, "May stays");
+});
+
 test("with no events at all, the empty frame survives rather than becoming []", () => {
   // The chart distinguishes "no data for this period" (draw axes, say so) from
   // an empty array, which would flip it to a different panel entirely.
