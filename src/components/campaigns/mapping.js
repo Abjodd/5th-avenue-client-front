@@ -10,7 +10,7 @@ import { STATES_META, stateCode } from "../../lib/geo.js";
 // would leave two import paths for one registry.
 import { phaseOf, progressOf, briefLockedOf } from "../../lib/phases.js";
 import {
-  STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf, cpvOf,
+  STATUS_MAP, ACTIONABLE_STATUSES, DECIDABLE_STATUSES, creatorStatus, erOf, cpvOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
   growthSeries, growthByCreator,
 } from "../../lib/portalMetrics.js";
@@ -111,6 +111,24 @@ const assetView = (a) => ({
   url: a?.fileLink || null,
 });
 
+/* A note on an asset. Written from both sides — the portal appends the brand's,
+   the internal app appends replies — so `fromClient` decides which side of the
+   conversation it renders on. Anything without a body is dropped: an empty
+   bubble is not a comment. */
+export const toAssetComments = (raw) =>
+  (Array.isArray(raw) ? raw : [])
+    .map((c, i) => ({
+      id: c?.id || `c${i}`,
+      body: String(c?.body ?? "").trim(),
+      at: c?.at || null,
+      author: String(c?.author || "").trim() || (c?.role === "client" ? "You" : "5th Avenue"),
+      fromClient: c?.role === "client",
+    }))
+    .filter((c) => c.body);
+
+/* A reviewable asset: its state, its file, and the thread on it. */
+const reviewView = (a) => ({ ...assetView(a), comments: toAssetComments(a?.comments) });
+
 /* How the post goes up: a paid collaboration (co-authored, so it carries the
    brand's own handle) or on the creator's account alone. Set on the internal
    Creators tab, where it is a precondition of locking — the fee is committed at
@@ -122,6 +140,13 @@ const assetView = (a) => ({
    dash — same rule as the rest of this module, an unanswered question is not a
    value. Labels mirror COLLAB_TYPES in 5th-internal-front Campaigns/index.jsx. */
 const COLLAB_LABELS = { collab: "Collab", non_collab: "Non-Collab" };
+
+/* The brand's answer, read off the roster status rather than off the audit
+   record beside it — a status the TEAM set by hand has to read here exactly
+   like one the brand set from this page, which is the whole point of both
+   sides writing the same field. `brandDecision` only says who made the call,
+   for the row to name them back. */
+const DECISION_OF = { shortlisted: "approve", brand_reject: "reject" };
 
 /**
  * `campaign` is required to read deliverables: what a creator owes is their own
@@ -167,16 +192,49 @@ export function toViewCreator(cr, campaign) {
     ),
     avgLikes: numOrNull(cr.avgLikes),
     niche: cr.niche || "—",
+    // What this creator cost on this campaign — the figure the Budget card
+    // breaks the total down by on hover.
+    //
+    // It is NOT the agency's internal fee, which stays inside the internal app
+    // and is not on the wire at all. The backend maps the internal
+    // `clientCost` onto this key on the way out (5th-internal-back server.js,
+    // withClientCost), so `cost` here means, and only means, what the brand was
+    // charged for this creator.
+    //
+    // Null when the key is absent — a creator who hasn't been priced for the
+    // client yet. The breakdown leaves them out rather than listing them at ₹0,
+    // which would read as a creator working for nothing.
+    cost: numOrNull(cr.cost),
     collab: COLLAB_LABELS[cr.collab] || null,
     size: sizeOf(followers),
     region: STATES_META[stateCode(cr.state)]?.name || cr.state || "—",
     language: cr.languages?.length ? cr.languages.join(", ") : cr.language || "—",
     avatar: initials(cr.name),
-    briefAsset: assetView(cr.concept),
-    videoAsset: assetView(cr.demo),
+    /* Both are reviewable, so both carry a thread. Named `conceptAsset`, not
+       `briefAsset`: this is `cr.concept` on the wire and "Concept" on the
+       internal Deliverables tab, while "Brief" on this page already means the
+       campaign brief in its own tab. One name for one thing. */
+    conceptAsset: reviewView(cr.concept),
+    demoAsset: reviewView(cr.demo),
+    // Opaque handle on this roster row, minted internally and renamed on the
+    // wire (server.js withRosterRef). The only thing that can address a
+    // comment at the right creator; null on a legacy payload, and the review
+    // panel goes read-only without it.
+    ref: cr.ref || null,
     live: cr.live?.postUrl ? { postUrl: cr.live.postUrl, postedDate: cr.live.postedDate || null } : null,
     tracking: hasTracking ? tracking : null,
-    approval: { exec: null, mgmt: null, execLocked: false, mgmtLocked: false },
+    /* The brand's call on taking this creator on: the answer, whether it is
+       still theirs to change, and who gave it. Replaces a mock `approval`
+       object of exec/mgmt ticks that lived in component state and was never
+       sent anywhere — the brand could press it and nothing happened. */
+    decision: DECISION_OF[cr.status] || null,
+    decidable: DECIDABLE_STATUSES.includes(cr.status),
+    // Named only while the stored answer still matches the status. A brand
+    // that approved someone the team later turned down must not be told they
+    // passed on them — once the two disagree, the record is history and the
+    // row says what happened without putting a name to it.
+    decidedBy: cr.brandDecision?.decision && cr.brandDecision.decision === DECISION_OF[cr.status]
+      ? (cr.brandDecision.by || null) : null,
   };
 }
 
@@ -245,15 +303,14 @@ export function toViewCampaign(c) {
   const hasTrackTotals = Object.values(trackTotals).some(v => v > 0);
   const views = trackTotals.views;
 
-  /* Campaign ER off the campaign's own totals once anything is live — NOT the
-     mean of the per-creator rates, which weights a creator with 2k views the
-     same as one with 2m. Before the first post, the roster's profile rates are
-     the only estimate there is, and there the plain mean is the honest one. */
-  const profileERs = (c.creators || []).map(cr => Number(cr.avgER)).filter(v => v > 0);
-  const avgER = fmtER(
-    erOf(trackTotals.likes, trackTotals.comments, trackTotals.views)
-    ?? (profileERs.length ? profileERs.reduce((a, b) => a + b, 0) / profileERs.length : null)
-  );
+  /* Campaign ER off the campaign's own totals — NOT the mean of the per-creator
+     rates, which weights a creator with 2k views the same as one with 2m.
+
+     No profile-`avgER` fallback any more. It used to stand in before the first
+     post, which is exactly where it did the damage: a campaign still in brief
+     printed "Avg ER 545.2%" off one creator's stored forecast. A campaign with
+     nothing live now reads "—". See the LIVE block in lib/portalMetrics.js. */
+  const avgER = fmtER(erOf(trackTotals.likes, trackTotals.comments, trackTotals.views));
   const positivities = creators.map(cr => cr.tracking?.positivityScore).filter(v => v != null);
   const avgPositivity = positivities.length ? positivities.reduce((a, b) => a + b, 0) / positivities.length : null;
   const lastFetched = creators.map(cr => cr.tracking?.lastFetched).filter(Boolean).sort().pop() || null;
@@ -284,6 +341,12 @@ export function toViewCampaign(c) {
     end: realValue(c.end) || "—",
     budget: Number(c.budget) > 0 ? fmtINR(Number(c.budget)) : "To be confirmed",
     budgetNum: Number(c.budget) || 0,
+    // The agency's fee, charged on top of the campaign budget and already
+    // included in `budget` above — so it is a LINE of the total, never an
+    // addition to it. The internal app resolves it on the campaign
+    // (5th-internal-front lib/campaign.js agencyFeeOf); the rate it was agreed
+    // at is deliberately not on the wire.
+    agencyFee: Number(c.agencyFee) > 0 ? Number(c.agencyFee) : null,
     // Whether a number has been agreed at all, kept separate from budgetNum
     // being 0 — the cards and the KPI strip need to say "not yet" rather than
     // print a zero or quietly drop the campaign out of a total.
@@ -298,6 +361,9 @@ export function toViewCampaign(c) {
     deliverablesPosted: postedDeliverables(c),
     deliverablesPerCreator: Number(c.deliverablesPerCreator) || 1,
     liveCount: creators.filter(cr => cr.live).length,
+    // Is anything actually posted? Gates every performance figure the board and
+    // the detail view show for this campaign.
+    live: creators.some(cr => cr.live),
     waiting: creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status)).length,
     trackTotals: hasTrackTotals ? trackTotals : null,
     growth,

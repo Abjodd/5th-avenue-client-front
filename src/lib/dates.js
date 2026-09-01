@@ -98,10 +98,16 @@ export function bucketLabel(date, interval) {
    the scale started at 0 and squashed the part of the chart that had something
    in it.
 
-   Only LEADING buckets are trimmed. A gap in the middle is a genuine quiet
-   month and has to stay, and trailing empties are the current period still
-   filling in. */
-export function buildTimeSeries(events, { from, to }, interval, fields, { trimLeading = false } = {}) {
+   `trimTrailing` does the same at the other end, and for the same reason: an
+   EMPTY final bucket is not a period that performed at zero, it is a period
+   that hasn't happened yet. A window ending on 1 Sep drew September as ₹0
+   spend and the line fell off a cliff on its last segment — the shape a reader
+   takes as a collapse. (A partially-filled current bucket has real events in
+   it, so it is never trimmed.)
+
+   Gaps in the MIDDLE always stay: a quiet month between two busy ones is a
+   genuine zero and the chart must show it. */
+export function buildTimeSeries(events, { from, to }, interval, fields, { trimLeading = false, trimTrailing = false } = {}) {
   const series = [];
   const index = new Map();
   for (let t = bucketStart(from, interval); t <= to; t = nextBucket(t, interval)) {
@@ -118,9 +124,11 @@ export function buildTimeSeries(events, { from, to }, interval, fields, { trimLe
     fields.forEach(f => { row[f] += Number(ev[f]) || 0; });
     row.count++;
   });
-  if (!trimLeading) return series;
+  if (!trimLeading && !trimTrailing) return series;
   const first = series.findIndex(r => r.count > 0);
   // No events at all: hand back the empty frame rather than an empty array, so
   // the chart still draws its axes instead of switching to a "no data" panel.
-  return first <= 0 ? series : series.slice(first);
+  if (first < 0) return series;
+  const last = series.findLastIndex(r => r.count > 0);
+  return series.slice(trimLeading ? first : 0, trimTrailing ? last + 1 : series.length);
 }

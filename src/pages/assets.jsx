@@ -124,8 +124,13 @@ function ReelTile({ reel, index, onOpen }) {
   const videoRef = useRef(null);
   const reduced = useReducedMotion();
 
-  const isReel = reel.kind === "reel" && !!reel.video;
-  const canPlay = isReel && !reduced;
+  // What it IS and what it can DO are separate questions now. The backend
+  // withholds a video URL whose Instagram signature has expired (see
+  // portalReels.js getClientReels), so an archived reel arrives playable=false
+  // — but it is still a reel, and folding the two together would relabel it
+  // "still" in the hover row and in the aria-label.
+  const isReel = reel.kind === "reel";
+  const canPlay = isReel && !!reel.video && !reduced;
   const stats = statsOf(reel);
 
   useEffect(() => {
@@ -247,11 +252,13 @@ function ReelTile({ reel, index, onOpen }) {
           {reel.username && (
             <div className="truncate font-serif text-[15px] italic text-white">@{reel.username}</div>
           )}
+          {/* Figures sized just under the handle above them (15px): they are
+              what the tile is read for, but the name still leads. */}
           {stats.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] font-medium text-white">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-[13px] font-medium text-white">
               {stats.map(([Icon, label, value]) => (
-                <span key={label} className="inline-flex items-center gap-1">
-                  <Icon size={11} strokeWidth={2.2} /> {value}
+                <span key={label} className="inline-flex items-center gap-1.5">
+                  <Icon size={13} strokeWidth={2.2} /> {value}
                 </span>
               ))}
             </div>
@@ -270,7 +277,12 @@ function ReelTile({ reel, index, onOpen }) {
  * who, when, how it did, what it said, and the way back to the original.
  */
 function Dossier({ reel, onClose }) {
-  const isReel = reel.kind === "reel" && !!reel.video;
+  // Same split as the tile: the aspect follows what the entry is, the player
+  // follows whether we hold a link that still resolves. A reel we cannot play
+  // is shown at 9:16 as a still, with "Open on Instagram" as the way to watch
+  // it — not letterboxed into a 4:5 frame as though it were a photo.
+  const isReel = reel.kind === "reel";
+  const canPlay = isReel && !!reel.video;
   const ratio = isReel ? 9 / 16 : 4 / 5;
   const stats = statsOf(reel);
   const source = PLATFORM_LABELS[reel.platform];
@@ -281,7 +293,7 @@ function Dossier({ reel, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const media = isReel ? (
+  const media = canPlay ? (
     <video
       key={reel.id}
       src={reel.video}
@@ -375,10 +387,10 @@ function Dossier({ reel, onClose }) {
             </div>
 
             {stats.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-y border-line py-2.5 font-mono text-[12px] font-medium text-ink">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-y border-line py-2.5 font-mono text-[13.5px] font-medium text-ink">
                 {stats.map(([Icon, label, value]) => (
                   <span key={label} className="inline-flex items-center gap-1.5" title={label}>
-                    <Icon size={12} strokeWidth={2.2} className="text-mute" /> {value}
+                    <Icon size={14} strokeWidth={2.2} className="text-mute" /> {value}
                   </span>
                 ))}
               </div>

@@ -29,6 +29,10 @@ import { stateCode, STATES_META } from "./geo.js";
    client-facing tier rendered by components/StatusPill. */
 export const STATUS_MAP = {
   yet_to_pick:      { label: "Yet to Pick",   t: "neutral"  },
+  // Where a generated roster starts: we've put the name forward and the brand
+  // hasn't answered yet. Their answer is what moves it to shortlisted or
+  // brand_reject — see BrandDecision in components/campaigns/CampaignDetail.
+  suggested:        { label: "Your call",     t: "action"   },
   shortlisted:      { label: "Shortlisted",   t: "progress" },
   reached_out:      { label: "Reached Out",   t: "progress" },
   in_negotiation:   { label: "Negotiating",   t: "action"   },
@@ -49,8 +53,13 @@ export const STATUS_MAP = {
 
 /** Statuses that mean "this is sitting in the brand's court". */
 export const ACTIONABLE_STATUSES = [
-  "pending_brand", "in_negotiation", "rework", "concept_received", "video_received",
+  "suggested", "pending_brand", "in_negotiation", "rework", "concept_received", "video_received",
 ];
+
+/** Statuses at which the brand's yes/no on a creator is still theirs to give.
+    Mirrors DECIDABLE in 5th-internal-back server.js — the row must not offer a
+    control the server is going to refuse. */
+export const DECIDABLE_STATUSES = ["suggested", "shortlisted", "brand_reject"];
 
 /** A creator's display status: the furthest workflow signal we actually have. */
 export function creatorStatus(cr) {
@@ -78,9 +87,15 @@ export const erOf = (likes, comments, views) =>
 /* ── EXTERNAL CPV ────────────────────────────────────────────────────────────
    What the brand paid per measured view: committed budget ÷ views on live
    posts. "External" because it is the client-facing rate — the agency's own
-   per-creator cost never leaves the internal app, so this is the only cost per
-   view the portal can state truthfully. Null unless both sides are real, so a
-   campaign that hasn't gone live shows "—" rather than an infinite rate. */
+   per-creator fee never leaves the internal app, so a rate built from it could
+   only ever be an internal number. Null unless both sides are real, so a
+   campaign that hasn't gone live shows "—" rather than an infinite rate.
+
+   A creator's `cost` on the portal wire is what the CLIENT was billed for them
+   (5th-internal-back maps `clientCost` onto it), not that internal fee — so a
+   per-creator client rate is derivable now. This stays campaign-wide on
+   purpose: it is the number the brand agreed, over every view the campaign
+   produced. */
 export const cpvOf = (spend, views) =>
   spend > 0 && views > 0 ? spend / views : null;
 
@@ -120,6 +135,24 @@ export const deliverableTarget = (campaign, cr) =>
     `postUrl` is the mirrored first link kept for back-compat. */
 export const deliverablesPosted = (cr) =>
   cr?.live?.postUrls?.length ?? (cr?.live?.postUrl ? 1 : 0);
+
+/* ── LIVE ────────────────────────────────────────────────────────────────────
+   Every performance number on the portal is gated on this.
+
+   Spend is committed when a campaign is booked; performance only exists once
+   something is posted. Counting both meant a campaign still in brief entered
+   the Overview as real budget against no audience — the reach line stopped
+   dead, CPV divided spend by views nobody had earned, and the brand read a
+   collapse into a campaign that had not run. A campaign with nothing live now
+   contributes nothing to any aggregate; it still appears on the board with its
+   committed budget, which is true and theirs to see.
+
+   Mirrors isCreatorLive() in 5th-internal-back/server.js. */
+export const isCreatorLive = (cr) => deliverablesPosted(cr) > 0;
+
+/** Is a single post up? Takes a RAW campaign, so callers can ask before mapping. */
+export const campaignIsLive = (campaign) =>
+  (campaign?.creators || []).some(isCreatorLive);
 
 /**
  * Total posts the campaign expects. Locked creators contribute their real
@@ -252,7 +285,13 @@ export function applyFilters(creators, filters) {
  */
 export function summarise(campaigns = [], creators = []) {
   const active = campaigns.filter((c) => phaseOf(c.stage) !== "completed");
-  const ers = creators.map((cr) => cr.er).filter((v) => v != null && v > 0);
+  /* MEASURED rates only — not the profile `avgER` every roster entry carries.
+     That is a forecast typed in at signup, and not always a sane one: a
+     creator stored at 545% dragged this brand's headline to 235.9%. The
+     forecast still serves the tier breakdown (`cr.er`), where it is labelled
+     an estimate; it has no place in a headline. `erPending` counts what this
+     leaves out so the tile can say what the figure covers. */
+  const ers = creators.filter((cr) => cr.erMeasured && cr.er > 0).map((cr) => cr.er);
   return {
     campaigns: campaigns.length,
     active: active.length,
@@ -262,6 +301,8 @@ export function summarise(campaigns = [], creators = []) {
     followers: sum(creators, (cr) => cr.followers),
     views: sum(creators, (cr) => cr.views),
     avgER: mean(ers),
+    erMeasured: ers.length,
+    erPending: creators.length - ers.length,
     budget: sum(campaigns, (c) => num(c.budget)),
     // Campaigns with no budget agreed yet contribute nothing to the total
     // above — correctly, since there is nothing to add — but that makes the
@@ -430,9 +471,14 @@ const sortTiers = (rows) => rows.sort((a, b) => TIER_ORDER.indexOf(a.value) - TI
 
 /**
  * Metrics a grouped view can be switched between. `available` keeps a metric
- * out of the switcher until the data behind it exists — the reference design's
- * CPV tab is absent for exactly this reason: per-creator cost isn't exposed to
- * the portal, so a cost-per-view column could only ever be made up.
+ * out of the switcher until the data behind it exists.
+ *
+ * The reference design's CPV tab is still absent, but the reason has changed:
+ * per-creator client cost IS on the wire now (see toViewCreator's `cost`), so a
+ * group CPV is computable. It is left out until it is asked for rather than
+ * added because it became possible — and it would have to state that it covers
+ * priced creators only, since a group holding an unpriced one would divide a
+ * partial spend by every view in the group.
  */
 export const GROUP_METRICS = [
   { id: "er",        label: "ER",        pick: (g) => g.er,        format: (v) => `${v.toFixed(1)}%`, hint: "avg engagement rate" },
