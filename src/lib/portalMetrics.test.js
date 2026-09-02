@@ -16,7 +16,7 @@ import {
   rankCampaigns, platformPerformance, livePosts, activityFeed, needsYou,
   regionalRollup, erOf, creatorStatus, greeting, heroSummary,
   isLocked, perCreatorDeliverables, deliverableTarget, deliverablesPosted,
-  totalDeliverables, postedDeliverables,
+  totalDeliverables, postedDeliverables, budgetLines, countsInMetrics,
 } from "./portalMetrics.js";
 
 /* ── Fixture ─────────────────────────────────────────────────────────────── */
@@ -389,4 +389,97 @@ test("heroSummary only claims what the data supports", () => {
   const quiet = heroSummary({ kpis: summarise([], []), health: null, signalRows: [] });
   assert.match(quiet, /Nothing is waiting on you right now\./);
   assert.doesNotMatch(quiet, /Campaign progress/);
+});
+
+/* ── budgetLines ────────────────────────────────────────────────────────────
+   The Budget card's hover and the Billing page both render this split, and a
+   brand checks it against an invoice. The invariant worth guarding is not any
+   single figure but that the column always RECONCILES: creator lines + fee +
+   diff === the budget it hangs off, whichever way the numbers fall. */
+test("budgetLines itemises creators then the fee, and always reconciles", () => {
+  // Pronto's real "Brainrot" shape: two priced creators + a fee that closes the
+  // gap to the budget exactly.
+  const split = budgetLines({
+    budget: 49500,
+    agencyFee: 4500,
+    creators: [
+      { name: "Shoaib", handle: "the.handsome.scam", cost: 38000 },
+      { name: "Eraquie", handle: "matiyabruz", cost: 7000 },
+    ],
+  });
+  assert.equal(split.creatorTotal, 45000);
+  assert.equal(split.listed, 49500);
+  assert.equal(split.diff, 0);
+  // The fee is the last row and is flagged, so callers can draw it apart from
+  // the people above it without re-deriving which row it is.
+  assert.equal(split.rows.length, 3);
+  assert.equal(split.rows.at(-1).fee, true);
+  assert.equal(split.rows.at(-1).label, "Agency fee");
+  // Shares are of the BUDGET, not of the rows on show.
+  assert.equal(Math.round(split.rows[0].share), 77);
+  // Highest first, so the biggest line is never buried.
+  assert.ok(split.rows[0].amount > split.rows[1].amount);
+});
+
+test("budgetLines leaves unpriced creators out but still counts them", () => {
+  const split = budgetLines({
+    budget: 100000,
+    agencyFee: 0,
+    creators: [{ name: "A", cost: 30000 }, { name: "B" }, { name: "C", cost: 0 }],
+  });
+  // Two creators have no agreed cost — listing them at ₹0 would read as
+  // "working for nothing" rather than "not priced yet".
+  assert.equal(split.rows.length, 1);
+  assert.equal(split.itemised, 1);
+  assert.equal(split.rosterCount, 3);
+  // The shortfall is reported rather than absorbed, so the caller can draw it.
+  assert.equal(split.diff, 70000);
+  assert.equal(split.listed + split.diff, split.base);
+});
+
+test("budgetLines reports an overspend as a negative diff", () => {
+  const split = budgetLines({
+    budget: 50000,
+    agencyFee: 10000,
+    creators: [{ name: "A", cost: 60000 }],
+  });
+  assert.equal(split.listed, 70000);
+  assert.equal(split.diff, -20000);
+  assert.equal(split.listed + split.diff, split.base);
+});
+
+test("budgetLines falls back to the listed total when no budget is agreed", () => {
+  // A campaign with no budget can still have priced creators; shares then have
+  // to divide by something real rather than by zero.
+  const split = budgetLines({ budget: 0, agencyFee: 0, creators: [{ name: "A", cost: 20000 }] });
+  assert.equal(split.base, 20000);
+  assert.equal(split.rows[0].share, 100);
+});
+
+test("budgetLines survives an empty or absent roster", () => {
+  const split = budgetLines({ budget: 10000 });
+  assert.deepEqual(split.rows, []);
+  assert.equal(split.listed, 0);
+  assert.equal(split.diff, 10000);
+  assert.equal(budgetLines().base, 0);
+});
+
+/* ── countsInMetrics ────────────────────────────────────────────────────────
+   Drafts show on the brand's board but must not move a figure they are asked
+   to trust: an unagreed budget and a shortlist nobody has walked them through. */
+test("countsInMetrics counts only campaigns that have gone live", () => {
+  assert.equal(countsInMetrics({ stage: "invoice_raised" }), true);   // live
+  assert.equal(countsInMetrics({ stage: "payment_done" }), true);     // completed
+  assert.equal(countsInMetrics({ stage: "draft" }), false);
+  assert.equal(countsInMetrics({ stage: "brief_locked" }), false);
+  // The regression this guards: keyed on "not draft", assigning a team to a
+  // campaign silently re-admitted its unagreed budget to the brand's headline.
+  assert.equal(countsInMetrics({ stage: "team_assigned" }), false);
+  assert.equal(countsInMetrics({ stage: "advance_received" }), false); // production
+  // Unknown stages normalise to draft — excluded rather than silently counted.
+  assert.equal(countsInMetrics({}), false);
+  assert.equal(countsInMetrics({ stage: "nonsense" }), false);
+  // Pronto's real shape: three campaigns on the board, two in the numbers.
+  const pronto = [{ stage: "payment_done" }, { stage: "invoice_raised" }, { stage: "team_assigned" }];
+  assert.equal(pronto.filter(countsInMetrics).length, 2);
 });

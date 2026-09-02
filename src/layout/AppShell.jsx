@@ -15,6 +15,9 @@ const NAV_ITEMS = [
   { id: "campaigns", label: "Campaigns",    icon: "▤" },
   { id: "regional",  label: "Regional Map", icon: "◯" },
   { id: "assets",    label: "Assets",       icon: "⚙" },
+  // After Assets deliberately: the tabs run from what the account IS doing to
+  // what it has cost, and money is the thing you check last and least often.
+  { id: "billing",   label: "Billing",      icon: "₹" },
 ];
 
 // The signed-in user's photo in the nav pill, ringed by profile completion.

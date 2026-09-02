@@ -19,7 +19,7 @@
 // Vite's resolver) so plain Node can import this module — that's what lets the
 // test suite run without a bundler or a test framework.
 import { parseFollowers, sizeOf, fmtNum, fmtINR } from "./format.js";
-import { PHASES, phaseOf, progressOf } from "./phases.js";
+import { PHASES, phaseOf, progressOf, normStage } from "./phases.js";
 import { stateCode, STATES_META } from "./geo.js";
 
 /* ── Creator status vocabulary ───────────────────────────────────────────────
@@ -271,6 +271,70 @@ export function applyFilters(creators, filters) {
   const active = Object.entries(filters).filter(([, sel]) => sel?.length);
   if (!active.length) return creators;
   return creators.filter((cr) => active.every(([g, sel]) => sel.includes(cr[g])));
+}
+
+/* Which campaigns a brand's NUMBERS are drawn from: the ones that have gone
+   live, and the ones that have been live and finished.
+
+   Not which they SEE — the Campaigns board shows every campaign at every phase,
+   because planned work is real work and belongs on their board. But a campaign
+   still being briefed, shortlisted or produced has a budget that can still
+   move and a roster still being argued over, so counting it puts figures the
+   brand is asked to trust at the mercy of an internal stage change. One such
+   campaign carried Pronto's headline from ₹1.5L to ₹4.8L and its creator count
+   from 4 to 15.
+
+   Deliberately keyed on the PHASE, not on "anything past draft": the stage
+   moves through the pipeline as the team works, and a rule written against
+   draft alone silently re-admits the same campaign the moment it is assigned.
+
+   The trade-off, stated: budget committed on a campaign in production is not in
+   these totals until it goes live. That is the honest direction — it counts
+   what has actually run rather than what is still being arranged.
+
+   Mirrored by METRIC_CAMPAIGNS in 5th-internal-back/server.js. */
+const COUNTED_PHASES = new Set(["live", "completed"]);
+export const countsInMetrics = (c) => COUNTED_PHASES.has(phaseOf(normStage(c?.stage)));
+
+/* ── BUDGET, ITEMISED ────────────────────────────────────────────────────────
+   A campaign budget as the lines that make it up: a row per priced creator,
+   then the agency fee. Read by both screens that show the split — the Budget
+   card's hover and the Billing page — so they cannot quote a brand differently.
+
+   · `cost` on the wire is what the BRAND was charged (internal `clientCost`);
+     what we pay a creator never reaches the portal.
+   · The fee is already inside `budget`, so it is a LINE of the total.
+   · Unpriced creators are left out, not listed at ₹0 — `itemised`/`rosterCount`
+     let the caller say how many.
+   · Shares are of the BUDGET. Against the listed total, one priced creator drew
+     100% under a card headed with a much larger figure.
+   · `diff` is the unaccounted remainder, drawn as its own row so the column
+     always reconciles. Negative means the lines exceed the budget. */
+export function budgetLines({ budget = 0, agencyFee = 0, creators = [] } = {}) {
+  const fee = num(agencyFee) || 0;
+  const rows = (creators || [])
+    .map((cr) => ({
+      key: cr.handle || cr.name || "",
+      label: cr.name || "—",
+      handle: cr.handle || "",
+      amount: num(cr.cost) || 0,
+    }))
+    .filter((r) => r.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  const creatorTotal = rows.reduce((s, r) => s + r.amount, 0);
+  if (fee > 0) rows.push({ key: "__fee", label: "Agency fee", amount: fee, fee: true });
+  const listed = creatorTotal + fee;
+  const base = num(budget) > 0 ? num(budget) : listed;
+  return {
+    rows: rows.map((r) => ({ ...r, share: base > 0 ? (r.amount / base) * 100 : null })),
+    fee,
+    creatorTotal,
+    listed,
+    base,
+    diff: base - listed,
+    itemised: rows.filter((r) => !r.fee).length,
+    rosterCount: (creators || []).length,
+  };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

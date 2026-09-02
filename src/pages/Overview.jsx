@@ -33,7 +33,6 @@ import { useAuth } from "../context/AuthContext";
 import { usePortalCampaigns } from "../lib/usePortalData";
 import { usePersistentState } from "../lib/usePersistentState";
 import { fmtNum, fmtINR, prettyDate, initials, dayLabel } from "../lib/format";
-import { phaseColors as phaseColorsFor } from "../lib/phases";
 import { INTRO_KEY } from "../lib/session";
 import { EASE, fadeUp } from "../lib/motion";
 import {
@@ -41,7 +40,7 @@ import {
   summarise, healthScore, pipeline, signals, groupBy, availableMetrics,
   GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
   platformPerformance, livePosts, activityFeed, needsYou,
-  greeting, heroSummary, growthAcross,
+  greeting, heroSummary, growthAcross, countsInMetrics,
 } from "../lib/portalMetrics";
 
 import { Dot } from "../components/Dot";
@@ -603,8 +602,12 @@ export default function OverviewDashboard() {
     }
   }, [reducedMotion, introDone]);
 
-  /* ── Derived data. One flatten, then every panel reads from it. ───────── */
-  const list = useMemo(() => campaigns ?? [], [campaigns]);
+  /* ── Derived data. One flatten, then every panel reads from it. ─────────
+     Drafts are filtered out HERE, once, so every figure on this page covers the
+     same set. They are still on the Campaigns board — a draft is planned work —
+     but an unagreed budget and a shortlist nobody has been shown should not
+     move a number the brand is asked to trust (portalMetrics countsInMetrics). */
+  const list = useMemo(() => (campaigns ?? []).filter(countsInMetrics), [campaigns]);
   const allCreators = useMemo(() => flattenCreators(list), [list]);
   const options = useMemo(() => filterOptions(allCreators), [allCreators]);
   const creators = useMemo(() => applyFilters(allCreators, filters), [allCreators, filters]);
@@ -662,8 +665,6 @@ export default function OverviewDashboard() {
     avgER: kpis.avgER ?? 0,
     budget: kpis.budget,
   }), [clientName, kpis]);
-
-  const phaseColors = phaseColorsFor(P);
 
   const go = (signal) => {
     if (signal.page) return setPage(signal.page, signal.params);
