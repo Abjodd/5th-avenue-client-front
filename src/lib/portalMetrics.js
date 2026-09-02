@@ -19,7 +19,7 @@
 // Vite's resolver) so plain Node can import this module — that's what lets the
 // test suite run without a bundler or a test framework.
 import { parseFollowers, sizeOf, fmtNum, fmtINR } from "./format.js";
-import { PHASES, phaseOf, progressOf, normStage } from "./phases.js";
+import { PHASES, phaseOf, campaignPhaseOf, progressOf, normStage } from "./phases.js";
 import { stateCode, STATES_META } from "./geo.js";
 
 /* ── Creator status vocabulary ───────────────────────────────────────────────
@@ -102,76 +102,21 @@ export const cpvOf = (spend, views) =>
 /** Numeric-or-null: never coerces a missing metric into a zero. */
 const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
-/* ── DELIVERABLES ────────────────────────────────────────────────────────────
-   Mirrors lib/campaign.js in 5th-internal-front — the two apps must quote a
-   brand the same number of posts, so these three rules are copied deliberately
-   rather than re-derived:
+/* ── DELIVERABLES & LIVE ─────────────────────────────────────────────────────
+   Moved to lib/delivery.js and re-exported here, so every existing
+   `from "./portalMetrics.js"` import still resolves.
 
-     · `campaign.deliverablesPerCreator` is the PLAN, the default each creator
-       is briefed with — not a cap.
-     · `creator.numDeliverables` overrides the plan for that one creator, so a
-       roster where one hero creator does two reels and the rest do one is
-       expressible without inventing a second campaign.
-     · A creator only owes deliverables once they're LOCKED. Before that
-       they're a candidate, and counting a candidate's posts as committed
-       inventory is how the client portal's total drifts from the internal one.
+   They had to move to break a cycle. phases.js now derives a brand's phase and
+   percentage from the WORK as well as the stored finance stage (see the header
+   of delivery.js for why), and this module imports phases.js — so the delivery
+   primitives cannot live here and be visible there. delivery.js imports nothing
+   local, which lets both sides read it. */
+export {
+  isLocked, perCreatorDeliverables, deliverableTarget, deliverablesPosted,
+  isCreatorLive, campaignIsLive, totalDeliverables, postedDeliverables,
+  deliveryStats, deliveryStarted,
+} from "./delivery.js";
 
-   The client portal previously hardcoded `deliverables: "—"` on every creator
-   and then summed the digits out of that string, so the campaign's
-   "Deliverables" tile read 0 for every campaign ever loaded. */
-
-/** Is this creator locked in? `status` is the negotiation state and stays
-    "locked" while concept/demo/live progress independently of it. */
-export const isLocked = (cr) => cr?.status === "locked";
-
-/** The campaign-wide plan: posts each creator is briefed for. */
-export const perCreatorDeliverables = (campaign) => num(campaign?.deliverablesPerCreator) || 1;
-
-/** What THIS creator owes — their own override, else the campaign plan. */
-export const deliverableTarget = (campaign, cr) =>
-  num(cr?.numDeliverables) || perCreatorDeliverables(campaign);
-
-/** How many of them are actually live. `live.postUrls` is the real array;
-    `postUrl` is the mirrored first link kept for back-compat. */
-export const deliverablesPosted = (cr) =>
-  cr?.live?.postUrls?.length ?? (cr?.live?.postUrl ? 1 : 0);
-
-/* ── LIVE ────────────────────────────────────────────────────────────────────
-   Every performance number on the portal is gated on this.
-
-   Spend is committed when a campaign is booked; performance only exists once
-   something is posted. Counting both meant a campaign still in brief entered
-   the Overview as real budget against no audience — the reach line stopped
-   dead, CPV divided spend by views nobody had earned, and the brand read a
-   collapse into a campaign that had not run. A campaign with nothing live now
-   contributes nothing to any aggregate; it still appears on the board with its
-   committed budget, which is true and theirs to see.
-
-   Mirrors isCreatorLive() in 5th-internal-back/server.js. */
-export const isCreatorLive = (cr) => deliverablesPosted(cr) > 0;
-
-/** Is a single post up? Takes a RAW campaign, so callers can ask before mapping. */
-export const campaignIsLive = (campaign) =>
-  (campaign?.creators || []).some(isCreatorLive);
-
-/**
- * Total posts the campaign expects. Locked creators contribute their real
- * target; slots not yet filled contribute the plan, so the figure is
- * meaningful from the moment the campaign is created and only sharpens as the
- * roster locks. Never below what the locked creators alone owe — a campaign
- * that over-locked its target still owes every post it committed to.
- */
-export function totalDeliverables(campaign) {
-  const creators = campaign?.creators || [];
-  const locked = creators.filter(isLocked);
-  const committed = locked.reduce((s, cr) => s + deliverableTarget(campaign, cr), 0);
-  const unfilled = Math.max(0, (num(campaign?.numReq) || 0) - locked.length);
-  return committed + unfilled * perCreatorDeliverables(campaign);
-}
-
-/** Posts actually live across the campaign, for the "n of N" reading. */
-export const postedDeliverables = (campaign) =>
-  (campaign?.creators || []).filter(isLocked).reduce((s, cr) => s + deliverablesPosted(cr), 0);
 const sum = (rows, pick) => rows.reduce((s, r) => s + (pick(r) || 0), 0);
 const mean = (values) => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : null);
 
@@ -294,6 +239,22 @@ export function applyFilters(creators, filters) {
 
    Mirrored by METRIC_CAMPAIGNS in 5th-internal-back/server.js. */
 const COUNTED_PHASES = new Set(["live", "completed"]);
+// The STAGE, deliberately, and NOT the delivery reading that now advances a
+// campaign's phase on the board.
+//
+// These are two different questions and the board is allowed to answer its one
+// differently. The board asks "where is the work", so a campaign with seven
+// posts up belongs under Live whatever its paperwork says. This gate asks "may
+// this campaign's money move a figure the brand is asked to trust", and the
+// answer stays no until the commercial track has actually started — the PO
+// raised, the campaign live in the sense that matters to a bill.
+//
+// Admitting a delivery-live campaign here was tried and was wrong. BAU is the
+// case: eleven creators locked, seven live, and not one of them priced yet. It
+// entered Billing as a card reading "No creator costs agreed", "Total ₹0" and
+// "Not yet allocated ₹3,30,000" — a campaign whose bill does not exist yet,
+// rendered as a bill. The unpriced roster is not an oversight to route around;
+// it is what "the commercials have not started" looks like in the data.
 export const countsInMetrics = (c) => COUNTED_PHASES.has(phaseOf(normStage(c?.stage)));
 
 /* ── BUDGET, ITEMISED ────────────────────────────────────────────────────────
@@ -348,7 +309,7 @@ export function budgetLines({ budget = 0, agencyFee = 0, creators = [] } = {}) {
  * brand's budget appear to shrink.
  */
 export function summarise(campaigns = [], creators = []) {
-  const active = campaigns.filter((c) => phaseOf(c.stage) !== "completed");
+  const active = campaigns.filter((c) => campaignPhaseOf(c) !== "completed");
   /* MEASURED rates only — not the profile `avgER` every roster entry carries.
      That is a forecast typed in at signup, and not always a sane one: a
      creator stored at 545% dragged this brand's headline to 235.9%. The
@@ -387,7 +348,7 @@ export function summarise(campaigns = [], creators = []) {
  * rather than reading a meaningless 0%.
  */
 export function healthScore(campaigns = []) {
-  const live = campaigns.filter((c) => phaseOf(c.stage) !== "completed");
+  const live = campaigns.filter((c) => campaignPhaseOf(c) !== "completed");
   if (!live.length) return null;
   const progress = live.map(progressOf);
   return { value: Math.round(mean(progress)), of: live.length };
@@ -396,7 +357,7 @@ export function healthScore(campaigns = []) {
 /** Campaign count per client-facing phase, in pipeline order. */
 export function pipeline(campaigns = []) {
   const counts = Object.fromEntries(PHASES.map((p) => [p.id, 0]));
-  campaigns.forEach((c) => { counts[phaseOf(c.stage)] += 1; });
+  campaigns.forEach((c) => { counts[campaignPhaseOf(c)] += 1; });
   return PHASES.map((p) => ({ ...p, count: counts[p.id] }));
 }
 
@@ -450,7 +411,7 @@ export function signals(campaigns = [], creators = []) {
   }
 
   const briefing = campaigns
-    .filter((c) => phaseOf(c.stage) === "brief")
+    .filter((c) => campaignPhaseOf(c) === "brief")
     .sort((a, b) => (num(b.budget) || 0) - (num(a.budget) || 0))[0];
   if (briefing) {
     const budget = num(briefing.budget);
@@ -599,7 +560,7 @@ export function serviceGroups(campaigns = [], creators = []) {
       return {
         service,
         campaigns: rows.length,
-        active: rows.filter((c) => phaseOf(c.stage) !== "completed").length,
+        active: rows.filter((c) => campaignPhaseOf(c) !== "completed").length,
         progress: weights ? Math.round(weighted / weights) : 0,
         budget,
         reach: sum(roster, (cr) => cr.followers),
@@ -648,9 +609,32 @@ export function platformPerformance(creators = []) {
   }));
 }
 
-/** The live posts themselves, best-engaging first — the honest stand-in for a
-    "topic performance" table, since the DB stores no topic or format on a post. */
-export function livePosts(creators = []) {
+/* The live posts themselves — the honest stand-in for a "topic performance"
+   table, since the DB stores no topic or format on a post.
+
+   Two orderings, because the two answer different questions and the panel lets
+   the brand pick. ER ranks how hard a post worked its audience; views rank how
+   many people it actually reached. A 53K post at 2.4% and a 4.1M post at 0.5%
+   swap ends between them, and which one is "the top post" depends entirely on
+   what the brand bought the campaign for.
+
+   Each ordering falls back to the other, so posts tied on the primary metric
+   still land in a stable, meaningful order rather than in payload order.
+
+   `?? -1` in BOTH keys, not `?? 0`: an unmeasured post is not a post that
+   scored zero, and it must sink below a genuine zero rather than outranking it.
+   The panel prints those as "—". */
+export const POST_SORTS = [
+  { id: "er", label: "ER", hint: "Best engaging first" },
+  { id: "views", label: "Views", hint: "Most viewed first" },
+];
+
+const POST_ORDER = {
+  er: (a, b) => (b.er ?? -1) - (a.er ?? -1) || (b.views ?? -1) - (a.views ?? -1),
+  views: (a, b) => (b.views ?? -1) - (a.views ?? -1) || (b.er ?? -1) - (a.er ?? -1),
+};
+
+export function livePosts(creators = [], sort = "er") {
   return creators
     .filter((cr) => cr.live)
     .map((cr) => ({
@@ -658,7 +642,10 @@ export function livePosts(creators = []) {
       platform: cr.platform, url: cr.live.url, postedDate: cr.live.postedDate,
       views: cr.views, er: cr.erMeasured ? cr.er : null, positivity: cr.positivity,
     }))
-    .sort((a, b) => (b.er ?? -1) - (a.er ?? -1) || (b.views ?? 0) - (a.views ?? 0));
+    // An unknown sort id falls back to ER rather than leaving the list in
+    // payload order, which would look like a broken toggle rather than a
+    // default.
+    .sort(POST_ORDER[sort] || POST_ORDER.er);
 }
 
 /**
@@ -691,7 +678,7 @@ export function activityFeed(campaigns = [], creators = [], limit = 6) {
   }
 
   for (const c of campaigns) {
-    const phase = phaseOf(c.stage);
+    const phase = campaignPhaseOf(c);
     if (c.start) items.push({ id: `start:${c.id}`, kind: "start", at: c.start, title: `${c.name} started`, meta: c.service || "—", campaignId: c.id });
     if (c.end && phase === "completed") items.push({ id: `end:${c.id}`, kind: "end", at: c.end, title: `${c.name} wrapped`, meta: c.service || "—", campaignId: c.id });
   }
@@ -735,7 +722,7 @@ export function regionalRollup(campaigns = [], creators = []) {
   const langs = {};
   const byCampaign = new Map(
     campaigns.map((c) => [c.id, {
-      id: c.id, name: c.name, service: c.service || "—", phase: phaseOf(c.stage),
+      id: c.id, name: c.name, service: c.service || "—", phase: campaignPhaseOf(c),
       progress: progressOf(c), budget: num(c.budget),
       states: new Set(), regions: new Set(), creators: [],
     }]),

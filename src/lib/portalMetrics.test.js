@@ -164,9 +164,13 @@ test("summarise leaves avgER null when no creator has a rate", () => {
 });
 
 test("healthScore averages progress over live campaigns only", () => {
-  // Derived from each stage, not the stale `progress` the fixtures also carry:
-  // execution → 55, draft → 0. (55 + 0) / 2 = 27.5 → 28.
-  assert.deepEqual(healthScore(CAMPAIGNS), { value: 28, of: 2 });
+  // Derived from DELIVERY, not from the stale `progress` the fixtures carry and
+  // no longer from the finance stage either. c1 has one locked creator with her
+  // concept in, her demo in and her post up — four of four milestones against a
+  // campaign with no `numReq`, so the locked roster is the denominator and she
+  // is all of it: 100. c2 has locked nobody, so it falls back to its stage: 0.
+  // (100 + 0) / 2 = 50.
+  assert.deepEqual(healthScore(CAMPAIGNS), { value: 50, of: 2 });
   assert.equal(healthScore([]), null);
   assert.equal(healthScore([{ stage: "completed", progress: 100 }]), null);
 });
@@ -174,7 +178,11 @@ test("healthScore averages progress over live campaigns only", () => {
 test("pipeline returns all five phases in order, zeros included", () => {
   const p = pipeline(CAMPAIGNS);
   assert.deepEqual(p.map((x) => x.id), ["brief", "shortlist", "production", "live", "completed"]);
-  assert.deepEqual(p.map((x) => x.count), [1, 0, 1, 0, 1]);
+  // c1 moved from `production` to `live`: its stage (`execution` → legacy →
+  // `advance_received`) says production, but a creator's post is up, and a
+  // brand looking at a live post should not be told the campaign is in
+  // production. Delivery advances the phase; it never rewinds one.
+  assert.deepEqual(p.map((x) => x.count), [1, 0, 0, 1, 1]);
 });
 
 /* ── signals ─────────────────────────────────────────────────────────────── */
@@ -229,9 +237,9 @@ test("flagOutliers needs a real spread before it calls anything an outlier", () 
 test("serviceGroups weights progress by budget", () => {
   const g = serviceGroups(CAMPAIGNS, rows);
   const im = g.find((x) => x.service === "Influencer Marketing");
-  // Stage-derived, budget-weighted: execution → 55, draft → 0.
-  // (55×1_250_000 + 0×800_000) / 2_050_000 = 33.5 → 34
-  assert.equal(im.progress, 34);
+  // Delivery-derived, budget-weighted: c1 → 100 (see healthScore), c2 → 0.
+  // (100×1_250_000 + 0×800_000) / 2_050_000 = 60.98 → 61
+  assert.equal(im.progress, 61);
   assert.equal(im.campaigns, 2);
   assert.equal(im.active, 2);
   assert.equal(im.budget, 2_050_000);
@@ -261,6 +269,35 @@ test("livePosts ranks by measured ER and reports null where unmeasured", () => {
   assert.equal(posts.length, 1);
   assert.equal(posts[0].name, "Anjali Kitchen");
   assert.ok(posts[0].er > 4);
+});
+
+/* The panel's ER / Views toggle. The two orderings answer different questions —
+   how hard a post worked its audience, against how many people it reached — and
+   the same four posts come out in a different order under each. */
+test("livePosts orders by the metric asked for, either way round", () => {
+  const shaped = (name, views, er) => ({
+    key: name, name, live: { url: "u" }, views, er, erMeasured: er != null,
+  });
+  const feed = [
+    shaped("wide reach", 4_100_000, 0.5),
+    shaped("tight niche", 53_000, 2.4),
+    shaped("both", 6_900_000, 8.4),
+  ];
+  assert.deepEqual(livePosts(feed, "er").map((p) => p.name), ["both", "tight niche", "wide reach"]);
+  assert.deepEqual(livePosts(feed, "views").map((p) => p.name), ["both", "wide reach", "tight niche"]);
+  // Default and unknown ids both fall back to ER rather than payload order.
+  assert.deepEqual(livePosts(feed).map((p) => p.name), livePosts(feed, "er").map((p) => p.name));
+  assert.deepEqual(livePosts(feed, "nonsense").map((p) => p.name), livePosts(feed, "er").map((p) => p.name));
+});
+
+test("an unmeasured post sinks below a genuine zero, in both orderings", () => {
+  const feed = [
+    { key: "unmeasured", name: "unmeasured", live: { url: "u" }, views: null, er: null, erMeasured: false },
+    { key: "zero", name: "zero", live: { url: "u" }, views: 0, er: 0, erMeasured: true },
+  ];
+  for (const sort of ["er", "views"]) {
+    assert.deepEqual(livePosts(feed, sort).map((p) => p.name), ["zero", "unmeasured"], sort);
+  }
 });
 
 test("activityFeed is newest-first and never includes a future date", () => {
@@ -383,7 +420,7 @@ test("greeting follows the clock", () => {
 test("heroSummary only claims what the data supports", () => {
   const kpis = summarise(CAMPAIGNS, rows);
   const text = heroSummary({ kpis, health: healthScore(CAMPAIGNS), signalRows: signals(CAMPAIGNS, rows) });
-  assert.match(text, /Campaign progress is at 28%/);   // see healthScore above
+  assert.match(text, /Campaign progress is at 50%/);   // see healthScore above
   assert.match(text, /signals need a decision today/);
 
   const quiet = heroSummary({ kpis: summarise([], []), health: null, signalRows: [] });
@@ -482,4 +519,24 @@ test("countsInMetrics counts only campaigns that have gone live", () => {
   // Pronto's real shape: three campaigns on the board, two in the numbers.
   const pronto = [{ stage: "payment_done" }, { stage: "invoice_raised" }, { stage: "team_assigned" }];
   assert.equal(pronto.filter(countsInMetrics).length, 2);
+});
+
+/* Posts being up does NOT admit a campaign here, and that is the point.
+   Delivery advances a campaign's phase on the BOARD — a campaign with seven
+   posts live stops reading as "Shortlisting" — but the board is answering
+   "where is the work". This gate answers "may this money move a figure the
+   brand is asked to trust", and only the commercial track can say yes.
+
+   BAU is why the two must not be merged: eleven creators locked, seven live,
+   and not one of them priced. Admitted here it rendered a bill of ₹0 against a
+   ₹3.3L budget with "No creator costs agreed on this campaign yet" where the
+   lines should be. An unpriced roster is not a gap to route around — it is what
+   "the commercials have not started" looks like in the data. */
+test("delivery does not admit a campaign whose commercials have not started", () => {
+  const live = { stage: "team_assigned", creators: [{ status: "locked", live: { postUrls: ["u"] } }] };
+  assert.equal(countsInMetrics(live), false);
+  // And the board still moves for the same campaign — the two answers differ
+  // on purpose. (campaignPhaseOf is pinned in phases.test.js.)
+  const settled = { stage: "payment_done", creators: [{ status: "locked", live: { postUrls: ["u"] } }] };
+  assert.equal(countsInMetrics(settled), true);
 });

@@ -8,7 +8,7 @@ import { STATES_META, stateCode } from "../../lib/geo.js";
 // Both from the phase registry itself. lib/api re-exports phaseOf for callers
 // that already imported it there, but taking one of the pair from each module
 // would leave two import paths for one registry.
-import { phaseOf, progressOf, briefLockedOf } from "../../lib/phases.js";
+import { campaignPhaseOf, progressOf, briefLockedOf } from "../../lib/phases.js";
 import {
   STATUS_MAP, ACTIONABLE_STATUSES, DECIDABLE_STATUSES, creatorStatus, erOf, cpvOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
@@ -252,7 +252,9 @@ const briefText = (v) =>
     : (v || "");
 
 export function toViewCampaign(c) {
-  const phase = phaseOf(c.stage);
+  // campaignPhaseOf, not phaseOf(c.stage): the board column a brand sees is a
+  // delivery story, and the stage alone kept a live campaign in Shortlisting.
+  const phase = campaignPhaseOf(c);
   const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
   const brief = c.brief && typeof c.brief === "object" ? c.brief : null;
   const briefLocked = briefLockedOf(c);
@@ -326,10 +328,10 @@ export function toViewCampaign(c) {
     service: c.service || "Influencer Marketing",
     region: realValue(c.region) || "—",
     phase,
-    // progressOf() reads the stored value where one exists and otherwise
-    // derives it from the stage, matching the internal app's pipeline table.
-    // The old phase-index fallback here rounded five phases into 0/25/50/75/100
-    // and disagreed with the health ring on the same campaign.
+    // progressOf() now derives from DELIVERY — the track this portal actually
+    // draws — and falls back to the stage only where no creator is locked yet.
+    // It used to be the finance stage's number, which is why a campaign with
+    // seven creators live and 2.5M views showed the brand a 16% ring.
     progress: progressOf(c),
     engagement: avgER,
     engRate: avgER,

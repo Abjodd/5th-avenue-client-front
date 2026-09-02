@@ -10,7 +10,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { phaseOf, progressOf, briefLockedOf, STAGE_TO_PHASE } from "./phases.js";
+import {
+  phaseOf, campaignPhaseOf, progressOf, commercialProgressOf, briefLockedOf, STAGE_TO_PHASE,
+} from "./phases.js";
 
 // ── stage → phase ──────────────────────────────────────────────────────────
 
@@ -139,4 +141,73 @@ test("retired stage ids resolve before the draft test", () => {
 
 test("an unknown stage does not fake a sign-off", () => {
   assert.equal(briefLockedOf({ stage: "who_knows" }), false);
+});
+
+/* ── the two tracks ─────────────────────────────────────────────────────────
+   A campaign runs on a stored FINANCE track (the PO, the advance, the invoice)
+   and a derived DELIVERY track (creators locking, submitting, posting). The
+   portal shows a brand only the second — there is no screen here on which a
+   purchase order appears — but both the board column and the ring were derived
+   from the first. Pronto's BAU campaign was the case that surfaced it: stage
+   `team_assigned`, eleven creators locked, seven live, 2.5M views, and a card
+   that read "Shortlisting · 16%". These pin the split. */
+
+// Eleven locked, concepts and demos all in, seven of eleven posted.
+const bau = {
+  stage: "team_assigned",
+  numReq: 11,
+  creators: Array.from({ length: 11 }, (_, i) => ({
+    status: "locked",
+    concept: { status: "locked" },
+    demo: { status: "locked" },
+    live: { postUrls: i < 7 ? ["https://instagram.com/reel/x"] : [] },
+  })),
+};
+
+test("a live campaign is not shown to the brand as Shortlisting", () => {
+  // What the finance stage alone said, and still says on its own.
+  assert.equal(phaseOf("team_assigned"), "shortlist");
+  // What the brand now sees, once the work is taken into account.
+  assert.equal(campaignPhaseOf(bau), "live");
+});
+
+test("progress follows the work, not the purchase order", () => {
+  assert.notEqual(progressOf(bau), 16);
+  assert.ok(progressOf(bau) > 70, `expected the delivery figure, got ${progressOf(bau)}`);
+  // The commercial figure is still available, and still says 16.
+  assert.equal(commercialProgressOf(bau), 16);
+});
+
+test("delivery advances a phase and never rewinds one", () => {
+  // A locked roster with nothing posted is in production, not still shortlisting.
+  const staffed = { stage: "team_assigned", creators: [{ status: "locked", live: {} }] };
+  assert.equal(campaignPhaseOf(staffed), "production");
+  // A candidate is not a roster.
+  const shortlisted = { stage: "team_assigned", creators: [{ status: "shortlisted" }] };
+  assert.equal(campaignPhaseOf(shortlisted), "shortlist");
+  // Delivery can never reopen a settled campaign, nor close an unsettled one:
+  // "Completed" is a commercial fact, and only the stage carries it.
+  const settled = { stage: "payment_done", creators: [{ status: "locked", live: {} }] };
+  assert.equal(campaignPhaseOf(settled), "completed");
+  const allPosted = { stage: "invoice_raised", creators: [{ status: "locked", live: { postUrls: ["u"] } }] };
+  assert.equal(campaignPhaseOf(allPosted), "live");
+});
+
+test("the stage still answers where the work cannot", () => {
+  // Nothing locked yet: a signed-off brief must still read as movement rather
+  // than as a flat zero indistinguishable from an untouched draft.
+  assert.equal(progressOf({ stage: "brief_locked", creators: [] }), 8);
+  assert.equal(progressOf({ stage: "draft", creators: [] }), 0);
+  // A settled campaign reads 100 whatever its roster looks like — some closed
+  // campaigns never locked a full one, and delivery would strand them forever.
+  assert.equal(progressOf({ stage: "payment_done", creators: [{ status: "locked", live: {} }] }), 100);
+});
+
+test("a stage-only caller gets exactly the old behaviour", () => {
+  // lib/api.js re-exports phaseOf for callers holding nothing but a stage
+  // string; passing no delivery reading must not change what they get.
+  for (const stage of Object.keys(STAGE_TO_PHASE)) {
+    assert.equal(phaseOf(stage), STAGE_TO_PHASE[stage]);
+    assert.equal(phaseOf(stage, undefined), STAGE_TO_PHASE[stage]);
+  }
 });

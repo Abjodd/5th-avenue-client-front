@@ -52,6 +52,7 @@ const CareersPage = lazy(() => import("./pages/careers/CareersPage"));
 const ApplyPage = lazy(() => import("./pages/apply/ApplyPage"));
 const StartProjectPage = lazy(() => import("./pages/start/StartProjectPage"));
 const Styleguide = lazy(() => import("./pages/Styleguide"));
+const OverviewPreview = lazy(() => import("./pages/Overview"));
 
 /* ── Client portal (real data) ── */
 const PortalLayout = lazy(() => import("./layout/PortalLayout"));
@@ -132,7 +133,9 @@ export const router = createBrowserRouter([
   { path: "/profile", element: <Navigate to="/portal/profile" replace /> },
 
   ...(import.meta.env.DEV
-    ? [{ path: "/styleguide", element: <S><Styleguide /></S> }]
+    ? [{ path: "/styleguide", element: <S><Styleguide /></S> },
+       { path: "/ov-preview", element: <S portal><PortalLayout /></S>,
+         children: [{ index: true, element: <OverviewPreview /> }] }]
     : []),
 
   { path: "*", element: <NotFound /> },
