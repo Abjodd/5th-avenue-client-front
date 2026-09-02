@@ -25,12 +25,32 @@ import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import { AmbientBackground } from "../components/motion/Motion";
 import AnimatedNumber from "../components/AnimatedNumber";
 
-/* Creator lines share the palette the Budget card's hover uses, so a campaign's
-   split looks the same in both places. The fee and the unallocated remainder
-   are deliberately NOT from it — neither is a creator, and colouring them like
-   one is what made the fee read as another name on the roster. */
-const LINE_COLORS = ["#2C3E7E", "#178E80", "#A2489A", "#A8720C", "#6C55CE", "#17915A", "#96792A", "#5B6FA3", "#4FA97E", "#C27FBA"];
+/* This page asks ONE question — of the money committed, how much went to
+   creators and how much was the agency's fee — so it gets two colours.
+ *
+ * It used to get eleven. LINE_COLORS was a ten-hue rainbow hand-copied from
+ * BCOLORS (campaigns/mapping.js) and handed every creator row an arbitrary hue
+ * that encoded nothing the name printed beside it didn't already say. Worse,
+ * its second entry was #178E80 — byte-identical to the resolved value of
+ * --color-teal — so the SECOND creator on every campaign was painted in the
+ * agency-fee colour, directly under a legend swatch of the same teal labelled
+ * "Agency fee". The one distinction this page exists to draw was the one its
+ * palette erased.
+ *
+ * Creator money is the accent; the fee is the single contrasting hue. Adjacent
+ * creator rows are separated by opacity instead (see creatorTint), which stays
+ * legible on a roster of thirty and can never collide with the fee.
+ *
+ * Tokens, not hex. The old literals were light-theme values frozen into the
+ * page, so every bar on this screen kept its light-mode colour in dark mode
+ * while the type and surfaces around it inverted. */
+const CREATOR_COLOR = "var(--color-accent)";
 const FEE_COLOR = "var(--color-teal)";
+
+/* Rank as fade, capped so the tail never disappears into the well behind it.
+   The bars are a supporting read — the figure and the share are printed on the
+   row itself — so this only has to separate neighbours, not identify them. */
+const creatorTint = (i) => 1 - Math.min(i, 5) * 0.12;
 
 /* One campaign, in the shape this page reads. Local rather than in
    campaigns/mapping.js, which builds the board's view (phases, tracking, growth)
@@ -81,12 +101,12 @@ const TONE = {
  * "nothing allocated" rather than as an animation that hasn't started, which is
  * the same trap AnimatedNumber documents at the top of its own file. An effect
  * always runs; the transition is decoration over an already-correct width. */
-function Bar({ pct, color, className = "h-full rounded-full", delay = 0 }) {
+function Bar({ pct, color, className = "h-full rounded-full", delay = 0, opacity = 1 }) {
   const [grown, setGrown] = useState(false);
   useEffect(() => { setGrown(true); }, []);
   return (
     <div className={className}
-      style={{ width: grown ? `${pct}%` : 0, background: color,
+      style={{ width: grown ? `${pct}%` : 0, background: color, opacity,
                transition: `width 480ms cubic-bezier(0.16,1,0.3,1) ${delay}ms` }} />
   );
 }
@@ -114,13 +134,13 @@ function AllocationBar({ creatorTotal, fee, base, listed, pending }) {
   const pc = (v) => `${(v / scale) * 100}%`;
   const over = !pending && listed > base;
   const segs = [
-    { k: "creators", v: creatorTotal, c: LINE_COLORS[0] },
+    { k: "creators", v: creatorTotal, c: CREATOR_COLOR },
     { k: "fee", v: fee, c: FEE_COLOR },
   ].filter((s) => s.v > 0);
 
   return (
     <div className="mb-3">
-      <div className="relative flex h-2 gap-px overflow-hidden rounded-full bg-well">
+      <div className="relative flex h-1.5 gap-px overflow-hidden rounded-full bg-well">
         {segs.map((s, i) => (
           <Bar key={s.k} pct={(s.v / scale) * 100} color={s.c} delay={i * 60}
             className="h-full first:rounded-l-full last:rounded-r-full" />
@@ -134,7 +154,7 @@ function AllocationBar({ creatorTotal, fee, base, listed, pending }) {
         )}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[9.5px] text-mute">
-        {creatorTotal > 0 && <Key color={LINE_COLORS[0]} label="Creators" value={creatorTotal} />}
+        {creatorTotal > 0 && <Key color={CREATOR_COLOR} label="Creators" value={creatorTotal} />}
         {fee > 0 && <Key color={FEE_COLOR} label="Agency fee" value={fee} />}
         {!pending && listed < base && <Key label="Not yet allocated" value={base - listed} outline />}
         {over && <Key color="var(--color-red)" label={`Over budget by ${fmtINRExact(listed - base)}`} />}
@@ -145,8 +165,15 @@ function AllocationBar({ creatorTotal, fee, base, listed, pending }) {
 
 /* One money row. A creator line carries a share bar under it — the same device
    the Budget card's hover uses — so the big lines are visible without reading
-   every figure. `muted` marks the rows that aren't people. */
-function Line({ label, sub, amount, share, color, muted, strong, tone, index = 0 }) {
+   every figure. `muted` marks the rows that aren't people.
+ *
+ * The bar is deliberately quiet. It was a 3px full-bleed rule in a saturated
+ * hue, which on a two-creator campaign made a 77% share the largest object in
+ * the card — louder than the ₹38,000 it was restating, and louder than the
+ * campaign total underneath. The share is already printed twice on this row (as
+ * a percentage and as a figure); the bar's only job is to let the eye rank the
+ * roster without reading either, and 2px of tinted accent does that. */
+function Line({ label, sub, amount, share, color, muted, strong, tone, index = 0, opacity = 1 }) {
   return (
     <div className="py-[7px]">
       <div className="flex items-baseline gap-3">
@@ -162,8 +189,9 @@ function Line({ label, sub, amount, share, color, muted, strong, tone, index = 0
           style={tone ? { color: tone } : undefined}>{fmtINRExact(amount)}</span>
       </div>
       {color && share != null && (
-        <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-well">
-          <Bar pct={Math.min(Math.max(share, 1), 100)} color={color} delay={100 + index * 50} />
+        <div className="mt-1.5 h-[2px] overflow-hidden rounded-full bg-well">
+          <Bar pct={Math.min(Math.max(share, 1), 100)} color={color} opacity={opacity}
+            delay={100 + index * 50} />
         </div>
       )}
     </div>
@@ -215,7 +243,7 @@ function CampaignBill({ c, index }) {
           ? c.creators.map((cr, i) => (
               <Line key={`${cr.key}-${i}`} label={cr.label} sub={cr.handle ? `@${cr.handle.replace(/^@/, "")}` : null}
                 amount={cr.amount} share={c.pending ? null : cr.share} index={i}
-                color={LINE_COLORS[i % LINE_COLORS.length]} />
+                color={CREATOR_COLOR} opacity={creatorTint(i)} />
             ))
           : <div className="py-2 text-[11px] text-mute">No creator costs agreed on this campaign yet.</div>}
       </div>
@@ -288,35 +316,60 @@ export default function BillingPage() {
           ? <EmptyState icon="₹" title="Nothing billed yet"
               hint="Campaign costs appear here as soon as a budget is agreed and the roster is priced." />
           : <>
-              {/* The three figures the page adds up to, before the detail —
-                  exact, like every line below them. This is the one screen
-                  where "₹3.9L" is the wrong answer. */}
-              <div className="mb-4 grid grid-cols-3 gap-2">
-                {[["Total billed", totals.billed], ["To creators", totals.creators], ["Agency fees", totals.fees]].map(([label, v]) => (
-                  <div key={label} className="rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md">
-                    <div className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</div>
-                    <div className="tnum mt-1 text-[16px] font-bold text-ink sm:text-[17px]">
-                      <AnimatedNumber value={v} format={fmtINRExact} duration={800} />
+              {/* The figures the page adds up to, before the detail — exact,
+                  like every line below them. This is the one screen where
+                  "₹3.9L" is the wrong answer.
+                 *
+                 * One card, not three tiles and an unattached bar. The two
+                 * smaller figures ARE the big one split in two, and drawing all
+                 * three as identical boxes said the opposite: three equal
+                 * quantities, their relationship left for the reader to work
+                 * out from a bar floating in the gap below them. The total now
+                 * leads at the size of a headline, its parts sit beside it at
+                 * supporting weight, and the bar that divides them sits inside
+                 * the same container as the numbers it describes.
+                 *
+                 * The swatches moved up onto the labels, so the strip below the
+                 * bar carries only the shares — one legend, not two. */}
+              <div className="mb-5 rounded-[18px] border border-line bg-[--color-glass] px-4 py-4 shadow-card backdrop-blur-md sm:px-5">
+                <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+                  <div>
+                    <div className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">Total billed</div>
+                    <div className="tnum mt-1 text-[26px] font-bold leading-none tracking-[-0.02em] text-ink sm:text-[30px]">
+                      <AnimatedNumber value={totals.billed} format={fmtINRExact} duration={800} />
                     </div>
                   </div>
-                ))}
-              </div>
-
-              {/* The same split as each campaign's own bar, across the account —
-                  what share of everything committed went to creators. */}
-              {split > 0 && (
-                <div className="mb-5">
-                  <div className="flex h-1.5 gap-px overflow-hidden rounded-full bg-well">
-                    <Bar pct={(totals.creators / split) * 100} color={LINE_COLORS[0]} className="h-full rounded-l-full" />
-                    <Bar pct={(totals.fees / split) * 100} color={FEE_COLOR} delay={80} className="h-full rounded-r-full" />
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[9.5px] text-mute">
-                    <Key color={LINE_COLORS[0]} label={`Creators · ${fmtShare((totals.creators / split) * 100)}`} />
-                    <Key color={FEE_COLOR} label={`Agency fees · ${fmtShare((totals.fees / split) * 100)}`} />
-                    <span>Across {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}</span>
+                  <div className="flex items-end gap-6 sm:gap-8">
+                    {[["To creators", totals.creators, CREATOR_COLOR], ["Agency fees", totals.fees, FEE_COLOR]].map(([label, v, color]) => (
+                      <div key={label}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="size-[7px] shrink-0 rounded-[2px]" style={{ background: color }} />
+                          <span className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</span>
+                        </div>
+                        <div className="tnum mt-1 text-[15px] font-semibold text-ink sm:text-[16px]">
+                          <AnimatedNumber value={v} format={fmtINRExact} duration={800} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
+
+                {/* The same split as each campaign's own bar, across the account
+                    — what share of everything committed went to creators. */}
+                {split > 0 && (
+                  <>
+                    <div className="mt-3.5 flex h-1.5 gap-px overflow-hidden rounded-full bg-well">
+                      <Bar pct={(totals.creators / split) * 100} color={CREATOR_COLOR} className="h-full rounded-l-full" />
+                      <Bar pct={(totals.fees / split) * 100} color={FEE_COLOR} delay={80} className="h-full rounded-r-full" />
+                    </div>
+                    <div className="tnum mt-1.5 text-[9.5px] text-mute">
+                      Creators {fmtShare((totals.creators / split) * 100)}
+                      {" · "}Agency fees {fmtShare((totals.fees / split) * 100)}
+                      {" · "}across {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
+                    </div>
+                  </>
+                )}
+              </div>
 
               <div className="flex flex-col gap-3">
                 {campaigns.map((c, i) => <CampaignBill key={c.id} c={c} index={i} />)}

@@ -39,7 +39,7 @@ import {
   flattenCreators, filterOptions, applyFilters, FILTER_GROUPS,
   summarise, healthScore, pipeline, signals, groupBy, availableMetrics,
   GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
-  platformPerformance, livePosts, activityFeed, needsYou,
+  platformPerformance, livePosts, POST_SORTS, activityFeed, needsYou,
   greeting, heroSummary, growthAcross, countsInMetrics,
 } from "../lib/portalMetrics";
 
@@ -588,6 +588,7 @@ export default function OverviewDashboard() {
   // Which cut of the roster the creators panel is showing. Persisted for the
   // same reason the filters are: it is a reading preference, not page state.
   const [creatorViewId, setCreatorViewId] = usePersistentState("overview.creatorView", "niche");
+  const [postSort, setPostSort] = usePersistentState("overview.postSort", "er");
 
   const introSeen = sessionStorage.getItem(INTRO_KEY) === "1";
   const [introDone, setIntroDone] = useState(introSeen);     // gates the dashboard cascade
@@ -648,7 +649,10 @@ export default function OverviewDashboard() {
   ], [creators, P]);
   const creatorView = creatorViews.find((v) => v.id === creatorViewId) ?? creatorViews[0];
   const platforms = useMemo(() => platformPerformance(creators), [creators]);
-  const posts = useMemo(() => livePosts(creators), [creators]);
+  // Held for the session like the grouping toggle beside it — a brand that
+  // reads this panel by reach shouldn't have to re-pick reach on every visit.
+  const posts = useMemo(() => livePosts(creators, postSort), [creators, postSort]);
+  const postSortHint = (POST_SORTS.find((o) => o.id === postSort) ?? POST_SORTS[0]).hint;
 
   const summary = useMemo(
     () => heroSummary({ kpis, health, signalRows }),
@@ -998,7 +1002,11 @@ export default function OverviewDashboard() {
             </Panel>
 
             <Panel reveal delay={0.06} className="flex h-full flex-col px-6 py-5">
-              <PanelTitle title="Live posts" hint={`Best engaging first · ${posts.length} live`} />
+              <PanelTitle
+                title="Live posts"
+                hint={`${postSortHint} · ${posts.length} live`}
+                action={<MetricSwitch label="Sort" options={POST_SORTS} value={postSort} onChange={setPostSort} />}
+              />
               {posts.length ? (
                 /* flex-1 so a short list distributes down the panel it shares a
                    row with, instead of bunching at the top under dead space. */
@@ -1021,12 +1029,17 @@ export default function OverviewDashboard() {
                           {p.postedDate ? ` · ${prettyDate(p.postedDate)}` : ""}
                         </span>
                       </span>
+                      {/* The column the list is ordered by keeps its colour;
+                          the other steps back. Two identically weighted figures
+                          gave no clue which one the ranking followed, so a
+                          list sorted by views still read as a leaderboard of
+                          the ER column beside it. */}
                       <span className="shrink-0 text-right">
-                        <span className="tnum block text-[12.5px] font-bold" style={{ color: P.neutral }}>{p.views != null ? fmtNum(p.views) : "—"}</span>
+                        <span className="tnum block text-[12.5px] font-bold" style={{ color: postSort === "views" ? P.neutral : "var(--color-mute)" }}>{p.views != null ? fmtNum(p.views) : "—"}</span>
                         <span className="block text-[9px] uppercase tracking-[0.08em] text-mute">views</span>
                       </span>
                       <span className="w-[52px] shrink-0 text-right">
-                        <span className="tnum block text-[12.5px] font-bold" style={{ color: P.neutral }}>{p.er != null ? `${p.er.toFixed(1)}%` : "—"}</span>
+                        <span className="tnum block text-[12.5px] font-bold" style={{ color: postSort === "er" ? P.neutral : "var(--color-mute)" }}>{p.er != null ? `${p.er.toFixed(1)}%` : "—"}</span>
                         <span className="block text-[9px] uppercase tracking-[0.08em] text-mute">er</span>
                       </span>
                       <ExternalLink size={13} className="shrink-0 text-mute opacity-0 transition-opacity group-hover:opacity-100" />

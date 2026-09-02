@@ -12,6 +12,8 @@
 // — it is presentation, and keeping it out means this module (and everything
 // pure that imports it, like portalMetrics.js and its node:test suite) never
 // has to pull in a React icon library to answer "what phase is this?".
+import { deliveryStats } from "./delivery.js";
+
 export const PHASES = [
   { id: "brief",      label: "Brief & Strategy", short: "Brief" },
   { id: "shortlist",  label: "Shortlisting",     short: "Shortlisting" },
@@ -21,6 +23,8 @@ export const PHASES = [
 ];
 
 export const PHASE_LABELS = Object.fromEntries(PHASES.map(p => [p.id, p.short]));
+// Order matters below: a phase is only ever advanced by delivery, never rewound.
+const PHASE_ORDER = PHASES.map(p => p.id);
 
 // Phase → colour, resolved against the theme palette P (context.js LIGHT)
 export const phaseColors = (P) => ({
@@ -70,7 +74,50 @@ export const STAGE_TO_PHASE = {
   completed: "completed",
 };
 
-export const phaseOf = (stage) => STAGE_TO_PHASE[stage] || "brief";
+/**
+ * Which of the five phases a brand should see this campaign in.
+ *
+ * The five phases are a DELIVERY story — brief agreed, creators being picked,
+ * content being made, posts up, done. Not one of them is about a purchase order
+ * or an invoice, and a brand cannot see those anywhere in this portal.
+ *
+ * They were nonetheless derived from `campaign.stage` alone, which is the
+ * internal FINANCE track and moves on documents outside both apps. So a
+ * campaign whose PO simply hadn't been raised yet sat at `team_assigned` and was
+ * shown to the brand as "Shortlisting" — with eleven creators locked, seven of
+ * them live and 2.5M views already counted on the same card. The stage was not
+ * wrong; it was an answer to a different question.
+ *
+ * Now the stage sets a FLOOR and the work can raise it. The stage is still the
+ * only thing that can say "brief agreed" (nothing on the delivery side proves
+ * a signature) and still the only thing that can close a campaign out. What it
+ * can no longer do is hold a campaign in Shortlisting while it is on air.
+ *
+ * `delivery` is optional and comes from deliveryStats() — callers holding a RAW
+ * campaign should pass it. Callers that genuinely only have a stage string
+ * (the api.js re-export, the tests) get exactly the old behaviour.
+ *
+ * Delivery can never reach "completed": a brand's campaign is over when it is
+ * settled, not when the last reel goes up, and that is a commercial fact only
+ * the stage carries.
+ */
+const deliveryPhase = (d) =>
+  !d ? null : d.live > 0 ? "live" : d.locked > 0 ? "production" : null;
+
+export const phaseOf = (stage, delivery) => {
+  const fromStage = STAGE_TO_PHASE[stage] || "brief";
+  const fromWork = deliveryPhase(delivery);
+  if (!fromWork) return fromStage;
+  // Already closed out — nothing on the delivery track reopens a settled
+  // campaign, and `live` sits BEFORE `completed` in PHASE_ORDER, so taking a
+  // max without this guard would be right by accident rather than by rule.
+  if (fromStage === "completed") return fromStage;
+  return PHASE_ORDER[Math.max(PHASE_ORDER.indexOf(fromStage), PHASE_ORDER.indexOf(fromWork))];
+};
+
+/** phaseOf for a caller holding the raw campaign — the common case. */
+export const campaignPhaseOf = (campaign) =>
+  phaseOf(campaign?.stage, deliveryStats(campaign));
 
 // Percentage a campaign reads on entering each stored stage. Mirrors the `p`
 // column of PIPELINE in the internal app's src/lib/campaign.js — the two must
@@ -94,7 +141,38 @@ const LEGACY_TO_STAGE = {
 };
 
 /**
- * How far along a campaign is, 0–100.
+ * How far along a campaign is, 0–100 — on the track the brand can actually see.
+ *
+ * This used to be the stored FINANCE stage's fixed percentage and nothing else:
+ * draft 0, brief_locked 8, team_assigned 16, po_raised 35, advance_received 55,
+ * invoice_raised 80, payment_done 100. Those are the right numbers for the
+ * internal board, which draws a finance rail beside them. This portal draws no
+ * such rail — a brand never sees a PO or an invoice here — so the number was
+ * measuring a thing that had no other representation anywhere in the app. A
+ * campaign with seven of eleven creators live read 16%, because its PO was
+ * outstanding.
+ *
+ * The internal app already makes exactly this distinction, in progressOf()
+ * (5th-internal-front pages/Campaigns/index.jsx): a role with no finance rail
+ * is given the execution track's own percentage instead of the finance one,
+ * because otherwise "the stage LABEL beside this number is derived one way and
+ * the number the other". The brand is such a role — the one with the least
+ * business reading a finance figure — and was the only one never given that
+ * treatment.
+ *
+ * So: DELIVERY drives the number, and the stage is consulted only where
+ * delivery cannot answer. deliveryStats() is a field-for-field copy of the
+ * internal execStats(), so the two apps quote one campaign one percentage.
+ *
+ * The stage still wins in two places, both of them cases where the work has
+ * nothing to say:
+ *
+ *  · A settled campaign reads 100 whatever its roster looks like. Some closed
+ *    campaigns never locked a full roster, and delivery would strand them in
+ *    the eighties for good.
+ *  · A campaign with nothing locked yet falls back to the stage number, so a
+ *    signed-off brief still reads as movement rather than as a flat zero
+ *    indistinguishable from an untouched draft.
  *
  * `progress` used to be written onto the campaign document, and the portal
  * read it directly. It is now derived from the stage on the internal side and
@@ -120,11 +198,28 @@ const LEGACY_TO_STAGE = {
  */
 export function progressOf(campaign) {
   const stage = campaign?.stage;
-  const derived = STAGE_PROGRESS[stage] ?? STAGE_PROGRESS[LEGACY_TO_STAGE[stage]];
-  if (derived != null) return derived;
+  const fromStage = STAGE_PROGRESS[stage] ?? STAGE_PROGRESS[LEGACY_TO_STAGE[stage]];
+  if (fromStage === 100) return 100;                      // settled — see above
+  const work = deliveryStats(campaign);
+  if (work.locked > 0) return work.pct;
+  if (fromStage != null) return fromStage;
   const stored = Number(campaign?.progress);
   return Number.isFinite(stored) ? Math.min(100, Math.max(0, stored)) : 0;
 }
+
+/**
+ * The commercial half, kept addressable rather than deleted.
+ *
+ * Nothing in the portal renders it today — a brand has no use for "the PO is
+ * raised but the advance hasn't landed". It stays exported because Billing's
+ * status chip is derived from the same finance dates, and the next screen that
+ * wants to say "invoiced" should read this rather than re-deriving a second
+ * opinion from `stage`.
+ */
+export const commercialProgressOf = (campaign) => {
+  const stage = campaign?.stage;
+  return STAGE_PROGRESS[stage] ?? STAGE_PROGRESS[LEGACY_TO_STAGE[stage]] ?? 0;
+};
 
 /**
  * Has the brief been signed off by Fifth Avenue?

@@ -1065,7 +1065,18 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                   <div className="mb-3 mt-2 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
                     <div className="flex items-center justify-between">
                       <div><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Timeline</div><div className="mt-0.5 text-[12.5px] font-medium text-ink">{prettyDate(c.start)} — {prettyDate(c.end)}</div></div>
-                      <span className="text-[12.5px] font-semibold text-accent">{c.progress}%</span>
+                      {/* Labelled, because the figure is no longer the same
+                          kind of thing as the dates beside it. It reads the
+                          DELIVERY track — creators locked, concepts and demos
+                          in, posts up — and an unlabelled percentage sitting on
+                          a row headed "Timeline" invited the brand to read it as
+                          elapsed time. It also used to be the finance stage's
+                          number, which is what made "16%" appear over a campaign
+                          with seven posts live. */}
+                      <div className="text-right">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Delivery</div>
+                        <div className="mt-0.5 text-[12.5px] font-semibold text-accent">{c.progress}%</div>
+                      </div>
                     </div>
                     <div className="mt-2 h-[5px] rounded-full bg-well">
                       <motion.div className="h-full rounded-full bg-accent" initial={{ width: 0 }} animate={{ width: `${c.progress}%` }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}/>
