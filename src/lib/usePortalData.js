@@ -39,13 +39,7 @@ function usePortalResource(fetcher, map) {
 }
 
 /** This client's campaigns, with their sanitized embedded creators. */
-export const usePortalCampaigns = (map) => {
-  const real = usePortalResource(PortalAPI.campaigns, map);
-  const fx = import.meta.env.DEV && typeof window !== "undefined"
-    ? JSON.parse(window.localStorage.getItem("__billingFixture") || "null") : null;
-  if (fx) return { data: map ? map(fx) : fx, setData(){}, error: null, retry(){} };
-  return real;
-};
+export const usePortalCampaigns = (map) => usePortalResource(PortalAPI.campaigns, map);
 
 /** This client's live campaign reels (the Reels shelf at /portal/assets).
  *

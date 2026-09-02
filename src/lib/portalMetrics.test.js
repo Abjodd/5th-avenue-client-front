@@ -164,13 +164,9 @@ test("summarise leaves avgER null when no creator has a rate", () => {
 });
 
 test("healthScore averages progress over live campaigns only", () => {
-  // Derived from DELIVERY, not from the stale `progress` the fixtures carry and
-  // no longer from the finance stage either. c1 has one locked creator with her
-  // concept in, her demo in and her post up — four of four milestones against a
-  // campaign with no `numReq`, so the locked roster is the denominator and she
-  // is all of it: 100. c2 has locked nobody, so it falls back to its stage: 0.
-  // (100 + 0) / 2 = 50.
-  assert.deepEqual(healthScore(CAMPAIGNS), { value: 50, of: 2 });
+  // Derived from each STAGE, not the stale `progress` the fixtures also carry
+  // and not from the roster: execution → 55, draft → 0. (55 + 0) / 2 = 27.5 → 28.
+  assert.deepEqual(healthScore(CAMPAIGNS), { value: 28, of: 2 });
   assert.equal(healthScore([]), null);
   assert.equal(healthScore([{ stage: "completed", progress: 100 }]), null);
 });
@@ -178,11 +174,10 @@ test("healthScore averages progress over live campaigns only", () => {
 test("pipeline returns all five phases in order, zeros included", () => {
   const p = pipeline(CAMPAIGNS);
   assert.deepEqual(p.map((x) => x.id), ["brief", "shortlist", "production", "live", "completed"]);
-  // c1 moved from `production` to `live`: its stage (`execution` → legacy →
-  // `advance_received`) says production, but a creator's post is up, and a
-  // brand looking at a live post should not be told the campaign is in
-  // production. Delivery advances the phase; it never rewinds one.
-  assert.deepEqual(p.map((x) => x.count), [1, 0, 0, 1, 1]);
+  // c1 is `production`: its stage (`execution` → legacy → `advance_received`)
+  // says so, and a live post on its roster does not move it. The stage is the
+  // record — see phaseOf in lib/phases.js.
+  assert.deepEqual(p.map((x) => x.count), [1, 0, 1, 0, 1]);
 });
 
 /* ── signals ─────────────────────────────────────────────────────────────── */
@@ -237,9 +232,9 @@ test("flagOutliers needs a real spread before it calls anything an outlier", () 
 test("serviceGroups weights progress by budget", () => {
   const g = serviceGroups(CAMPAIGNS, rows);
   const im = g.find((x) => x.service === "Influencer Marketing");
-  // Delivery-derived, budget-weighted: c1 → 100 (see healthScore), c2 → 0.
-  // (100×1_250_000 + 0×800_000) / 2_050_000 = 60.98 → 61
-  assert.equal(im.progress, 61);
+  // Stage-derived, budget-weighted: execution → 55, draft → 0.
+  // (55×1_250_000 + 0×800_000) / 2_050_000 = 33.5 → 34
+  assert.equal(im.progress, 34);
   assert.equal(im.campaigns, 2);
   assert.equal(im.active, 2);
   assert.equal(im.budget, 2_050_000);
@@ -420,7 +415,7 @@ test("greeting follows the clock", () => {
 test("heroSummary only claims what the data supports", () => {
   const kpis = summarise(CAMPAIGNS, rows);
   const text = heroSummary({ kpis, health: healthScore(CAMPAIGNS), signalRows: signals(CAMPAIGNS, rows) });
-  assert.match(text, /Campaign progress is at 50%/);   // see healthScore above
+  assert.match(text, /Campaign progress is at 28%/);   // see healthScore above
   assert.match(text, /signals need a decision today/);
 
   const quiet = heroSummary({ kpis: summarise([], []), health: null, signalRows: [] });
