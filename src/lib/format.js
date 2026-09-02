@@ -46,6 +46,22 @@ export const fmtINR = (n) => {
   return `${sign}₹${a.toLocaleString("en-IN")}`;
 };
 
+// The same money, unabbreviated. fmtINR's lakh/crore scale is right for a
+// headline but wrong for a bill: "₹2.2L" is four different invoices, and the
+// Billing page exists to be checked against one. Used wherever a figure is a
+// line item rather than a summary.
+export const fmtINRExact = (n) => {
+  if (n == null || n === "" || !Number.isFinite(Number(n))) return "—";
+  const v = Number(n);
+  return `${v < 0 ? "-" : ""}₹${Math.abs(v).toLocaleString("en-IN")}`;
+};
+
+// A row's share of a total. Rounded, except at the bottom: a line that is a
+// rounding error of the spend still isn't 0% of it, and "0%" beside a real
+// figure reads as broken. Three screens had a copy of this ternary.
+export const fmtShare = (pct) =>
+  !Number.isFinite(pct) ? "—" : pct < 0.5 ? "<1%" : `${Math.round(pct)}%`;
+
 // Cost per view. Neither fmtINR's lakh/crore scale nor a flat two decimals
 // works here: a real CPV is routinely a fraction of a paisa (₹0.005264,
 // ₹0.03578), which toFixed(2) collapses to a uniform "₹0.01" — while printing

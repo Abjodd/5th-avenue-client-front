@@ -20,11 +20,12 @@ import { PortalAPI } from "../../lib/api";
 import { PHASES } from "../../lib/phases";
 import { PHASE_ICONS } from "../../lib/phaseIcons";
 import { chartTheme } from "../../lib/chartTheme";
-import { fmtNum, fmtINR, fmtCPV, prettyDate, dayLabel } from "../../lib/format";
+import { fmtNum, fmtINR, fmtCPV, fmtShare, prettyDate, dayLabel } from "../../lib/format";
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
 import { STATUS_MAP, ACTIONABLE_STATUSES, BCOLORS, chipOn, toAssetComments } from "./mapping";
+import { budgetLines } from "../../lib/portalMetrics";
 import AssetReview, { ASSETS } from "./AssetReview";
 
 const useP = () => useApp().P;
@@ -96,30 +97,11 @@ function PhaseTracker({ currentPhase }) {
 // — a split of a budget nobody has agreed is a split of nothing.
 function BudgetCard({ value, budgetNum = 0, agencyFee = null, pending, creators = [] }) {
   const [open, setOpen] = useState(false);
-  const priced = creators
-    .filter(c => c.cost != null && c.cost > 0)
-    .sort((a, b) => b.cost - a.cost);
-  // The agency fee is a line of the budget like any creator is, and it is drawn
-  // as one — sorted below them rather than into them, because it is the one row
-  // that isn't a person. It is already part of the budget on the card face
-  // (the internal app adds it in, see baseBudgetOf), so listing it here itemises
-  // the total rather than adding to it.
-  const rows = [
-    ...priced.map(c => ({ key: c.handle || c.name, label: c.name, value: c.cost })),
-    ...(agencyFee > 0 ? [{ key: "__fee", label: "Agency fee", value: agencyFee, fee: true }] : []),
-  ];
-  const total = rows.reduce((s, r) => s + r.value, 0);
-  // Shares are of the BUDGET, not of the rows on show.
-  //
-  // Against the listed total, a roster with one creator priced drew that
-  // creator at 100% — under a card headed ₹49,500, beside a row reading
-  // ₹30,000. The popover hangs off the budget figure, so the only denominator
-  // that can't contradict it is that figure: ₹30,000 of ₹49,500 is 61%, the bar
-  // sits 61% across, and the part of the budget the roster doesn't account for
-  // is visible as the space the bars don't fill. Falls back to the listed total
-  // only if a campaign somehow reaches here with no budget, which `pending`
-  // already keeps out.
-  const base = budgetNum > 0 ? budgetNum : total;
+  // The split, its shares and its reconciliation all come from budgetLines()
+  // (lib/portalMetrics.js) — the same call the Billing page makes, so the hover
+  // here and the table there can never quote a brand different numbers.
+  const { rows, listed, itemised, rosterCount, base } =
+    budgetLines({ budget: budgetNum, agencyFee, creators });
   const has = !pending && rows.length > 0 && base > 0;
   return (
     // relative + z-20 for the same reason LivePerformance carries them: every
@@ -142,23 +124,12 @@ function BudgetCard({ value, budgetNum = 0, agencyFee = null, pending, creators 
       ) : (
         <div className="mt-1 text-[18px] font-bold text-ink">{value}</div>
       )}
-      {/* Downward, not sideways: this card is the leftmost of a three-up row and
-          has no empty half of its own to unfurl into, unlike the wide Live
-          performance tiles. Hover-only by nature, so it never appears on touch.
-
-          OPAQUE — `bg-modal`/`shadow-modal`, the app's floating-panel pair
-          (PeriodFilter uses the same), not the .glass-panel this first used. A panel that
-          hangs OUTSIDE its parent cannot be glass here: this card already
-          carries backdrop-blur, which makes it a backdrop root, so a nested
-          backdrop-filter has nothing left to sample and the translucent fill
-          resolves to plain translucency. The Engagement Rate card underneath
-          read straight through the breakdown. Live performance gets away with
-          glass because its popover sits INSIDE its own panel, over that panel's
-          own fill.
-
-          Not pointer-events-none either: the popover is a DOM child of the card,
-          so the pointer entering it never fires the card's mouseleave — which
-          is what lets a long roster be scrolled instead of just clipped. */}
+      {/* Downward: this card is leftmost of a three-up row with no empty half to
+          unfurl into. Opaque `bg-modal`, not .glass-panel — the card's own
+          backdrop-blur makes it a backdrop root, so a nested backdrop-filter has
+          nothing to sample and the card below read straight through.
+          Pointer events stay on: the popover is a DOM child, so entering it
+          never fires the card's mouseleave, which is what lets it scroll. */}
       <AnimatePresence>
         {has && open && (
           <motion.div
@@ -170,12 +141,11 @@ function BudgetCard({ value, budgetNum = 0, agencyFee = null, pending, creators 
                 popover rather than growing it past the card it hangs off. */}
             <div className="flex max-h-[184px] flex-col gap-2 overflow-y-auto">
               {rows.map((r, i) => {
-                const pct = (r.value / base) * 100;
                 return (
                   <div key={`${r.key}-${i}`}>
                     <div className="flex items-baseline gap-2">
                       <span className={`min-w-0 flex-1 truncate text-[11px] font-medium ${r.fee ? "text-sub" : "text-ink"}`}>{r.label}</span>
-                      <span className="tnum shrink-0 text-[11px] font-semibold text-ink">{fmtINR(r.value)}</span>
+                      <span className="tnum shrink-0 text-[11px] font-semibold text-ink">{fmtINR(r.amount)}</span>
                     </div>
                     {/* The bar is what makes this a breakdown rather than a
                         list of numbers — same device, same palette, as every
@@ -183,16 +153,11 @@ function BudgetCard({ value, budgetNum = 0, agencyFee = null, pending, creators 
                     <div className="mt-1 flex items-center gap-2">
                       <div className="h-1 flex-1 overflow-hidden rounded-full bg-well">
                         <motion.div className="h-full rounded-full"
-                          initial={{ width: 0 }} animate={{ width: `${Math.min(Math.max(pct, 2), 100)}%` }}
+                          initial={{ width: 0 }} animate={{ width: `${Math.min(Math.max(r.share ?? 0, 2), 100)}%` }}
                           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
                           style={{ background: r.fee ? "var(--color-mute)" : BCOLORS[i % BCOLORS.length] }}/>
                       </div>
-                      {/* A creator who is a rounding error of the spend still
-                          isn't 0% of it — "0%" beside a real figure reads as
-                          broken. */}
-                      <span className="tnum w-8 shrink-0 text-right text-[9px] text-mute">
-                        {pct < 0.5 ? "<1%" : `${Math.round(pct)}%`}
-                      </span>
+                      <span className="tnum w-8 shrink-0 text-right text-[9px] text-mute">{fmtShare(r.share)}</span>
                     </div>
                   </div>
                 );
@@ -209,8 +174,8 @@ function BudgetCard({ value, budgetNum = 0, agencyFee = null, pending, creators 
                   Deliberately not "itemised" / "pending" / "priced": this is
                   read by a brand, not by the account team, and the honest thing
                   to say is simply how many of their creators the split covers. */}
-              <span>{priced.length} of {creators.length} creator{creators.length === 1 ? "" : "s"} · {Math.round((total / base) * 100)}% of budget</span>
-              <span className="tnum font-semibold text-ink">{fmtINR(total)}</span>
+              <span>{itemised} of {rosterCount} creator{rosterCount === 1 ? "" : "s"} · {fmtShare((listed / base) * 100)} of budget</span>
+              <span className="tnum font-semibold text-ink">{fmtINR(listed)}</span>
             </div>
           </motion.div>
         )}
@@ -371,7 +336,7 @@ function LivePerformance({ totals, lastFetched, cpv }) {
                             routinely a fraction of a percent of engagements, and
                             printing "0%" next to 3K reads as a broken number. */}
                         <div className="mt-[3px] text-[8.5px] font-semibold uppercase tracking-[0.06em] text-mute">
-                          {label} · {(v / eng) * 100 < 0.5 ? "<1%" : `${Math.round((v / eng) * 100)}%`}
+                          {label} · {fmtShare((v / eng) * 100)}
                         </div>
                       </div>
                     </div>
