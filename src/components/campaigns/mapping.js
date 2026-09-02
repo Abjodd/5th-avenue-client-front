@@ -8,7 +8,7 @@ import { STATES_META, stateCode } from "../../lib/geo.js";
 // Both from the phase registry itself. lib/api re-exports phaseOf for callers
 // that already imported it there, but taking one of the pair from each module
 // would leave two import paths for one registry.
-import { campaignPhaseOf, progressOf, briefLockedOf } from "../../lib/phases.js";
+import { campaignPhaseOf, progressOf, deliveryProgressOf, briefLockedOf } from "../../lib/phases.js";
 import {
   STATUS_MAP, ACTIONABLE_STATUSES, DECIDABLE_STATUSES, creatorStatus, erOf, cpvOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
@@ -252,8 +252,6 @@ const briefText = (v) =>
     : (v || "");
 
 export function toViewCampaign(c) {
-  // campaignPhaseOf, not phaseOf(c.stage): the board column a brand sees is a
-  // delivery story, and the stage alone kept a live campaign in Shortlisting.
   const phase = campaignPhaseOf(c);
   const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
   const brief = c.brief && typeof c.brief === "object" ? c.brief : null;
@@ -328,11 +326,12 @@ export function toViewCampaign(c) {
     service: c.service || "Influencer Marketing",
     region: realValue(c.region) || "—",
     phase,
-    // progressOf() now derives from DELIVERY — the track this portal actually
-    // draws — and falls back to the stage only where no creator is locked yet.
-    // It used to be the finance stage's number, which is why a campaign with
-    // seven creators live and 2.5M views showed the brand a 16% ring.
+    // The STAGE's own number, matching the ring and chip on the internal board
+    // for the same campaign. `delivery` is the other track, carried separately
+    // rather than folded in — see deliveryProgressOf in lib/phases.js for why a
+    // campaign is allowed to read 16 here and 82 there.
     progress: progressOf(c),
+    delivery: deliveryProgressOf(c),
     engagement: avgER,
     engRate: avgER,
     views: views ? fmtNum(views) : "—",

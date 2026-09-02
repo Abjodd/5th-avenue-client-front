@@ -11,7 +11,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  phaseOf, campaignPhaseOf, progressOf, commercialProgressOf, briefLockedOf, STAGE_TO_PHASE,
+  phaseOf, campaignPhaseOf, progressOf, commercialProgressOf, deliveryProgressOf,
+  briefLockedOf, STAGE_TO_PHASE,
 } from "./phases.js";
 
 // ── stage → phase ──────────────────────────────────────────────────────────
@@ -164,43 +165,37 @@ const bau = {
   })),
 };
 
-test("a live campaign is not shown to the brand as Shortlisting", () => {
-  // What the finance stage alone said, and still says on its own.
+test("the portal never claims a campaign is further along than its stage", () => {
+  // The internal board reads BAU's chip off the same field: "Team Assigned".
+  // The portal must say the same thing, whatever its roster has been up to.
+  assert.equal(campaignPhaseOf(bau), "shortlist");
   assert.equal(phaseOf("team_assigned"), "shortlist");
-  // What the brand now sees, once the work is taken into account.
-  assert.equal(campaignPhaseOf(bau), "live");
+  // Posts being up does not move it, and nor does a fully delivered roster.
+  const allPosted = {
+    stage: "team_assigned",
+    creators: [{ status: "locked", concept: { status: "locked" }, demo: { status: "locked" }, live: { postUrls: ["u"] } }],
+  };
+  assert.equal(campaignPhaseOf(allPosted), "shortlist");
 });
 
-test("progress follows the work, not the purchase order", () => {
-  assert.notEqual(progressOf(bau), 16);
-  assert.ok(progressOf(bau) > 70, `expected the delivery figure, got ${progressOf(bau)}`);
-  // The commercial figure is still available, and still says 16.
+test("the two tracks keep their own numbers and are free to disagree", () => {
+  // 16 on the stage, 82 on the work — both true of the same campaign, which is
+  // the whole reason they are two figures and not one.
+  assert.equal(progressOf(bau), 16);
   assert.equal(commercialProgressOf(bau), 16);
-});
-
-test("delivery advances a phase and never rewinds one", () => {
-  // A locked roster with nothing posted is in production, not still shortlisting.
-  const staffed = { stage: "team_assigned", creators: [{ status: "locked", live: {} }] };
-  assert.equal(campaignPhaseOf(staffed), "production");
-  // A candidate is not a roster.
-  const shortlisted = { stage: "team_assigned", creators: [{ status: "shortlisted" }] };
-  assert.equal(campaignPhaseOf(shortlisted), "shortlist");
-  // Delivery can never reopen a settled campaign, nor close an unsettled one:
-  // "Completed" is a commercial fact, and only the stage carries it.
-  const settled = { stage: "payment_done", creators: [{ status: "locked", live: {} }] };
-  assert.equal(campaignPhaseOf(settled), "completed");
-  const allPosted = { stage: "invoice_raised", creators: [{ status: "locked", live: { postUrls: ["u"] } }] };
-  assert.equal(campaignPhaseOf(allPosted), "live");
-});
-
-test("the stage still answers where the work cannot", () => {
-  // Nothing locked yet: a signed-off brief must still read as movement rather
-  // than as a flat zero indistinguishable from an untouched draft.
+  assert.ok(deliveryProgressOf(bau) > 70, `got ${deliveryProgressOf(bau)}`);
+  // A campaign nobody has locked a creator on reports no delivery, rather than
+  // borrowing the stage's number and implying work that hasn't started.
+  assert.equal(deliveryProgressOf({ stage: "brief_locked", creators: [] }), 0);
   assert.equal(progressOf({ stage: "brief_locked", creators: [] }), 8);
+});
+
+test("the stage answers, and a roster cannot talk it up or down", () => {
   assert.equal(progressOf({ stage: "draft", creators: [] }), 0);
-  // A settled campaign reads 100 whatever its roster looks like — some closed
-  // campaigns never locked a full one, and delivery would strand them forever.
+  // A settled campaign reads 100 whatever its roster looks like.
   assert.equal(progressOf({ stage: "payment_done", creators: [{ status: "locked", live: {} }] }), 100);
+  // And a busy roster on an early stage does not inflate it.
+  assert.equal(progressOf({ stage: "draft", creators: [{ status: "locked", live: { postUrls: ["u"] } }] }), 0);
 });
 
 test("a stage-only caller gets exactly the old behaviour", () => {

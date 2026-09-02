@@ -23,8 +23,6 @@ export const PHASES = [
 ];
 
 export const PHASE_LABELS = Object.fromEntries(PHASES.map(p => [p.id, p.short]));
-// Order matters below: a phase is only ever advanced by delivery, never rewound.
-const PHASE_ORDER = PHASES.map(p => p.id);
 
 // Phase → colour, resolved against the theme palette P (context.js LIGHT)
 export const phaseColors = (P) => ({
@@ -75,49 +73,25 @@ export const STAGE_TO_PHASE = {
 };
 
 /**
- * Which of the five phases a brand should see this campaign in.
+ * Which of the five phases a brand should see this campaign in: whatever
+ * `campaign.stage` says, mapped through STAGE_TO_PHASE. Nothing else.
  *
- * The five phases are a DELIVERY story — brief agreed, creators being picked,
- * content being made, posts up, done. Not one of them is about a purchase order
- * or an invoice, and a brand cannot see those anywhere in this portal.
+ * A delivery reading was briefly allowed to advance this — posts being up
+ * pushed a campaign to `live` however its stage read — and that was wrong. The
+ * stage is the record. BAU sits at `team_assigned` on the internal board,
+ * chip reading "Team Assigned", and the portal was showing the same campaign
+ * to the brand as LIVE, phase tracker ticked through to the broadcast node. Two
+ * apps, one campaign, two different claims about where it had got to — and the
+ * portal's was the one with no document behind it.
  *
- * They were nonetheless derived from `campaign.stage` alone, which is the
- * internal FINANCE track and moves on documents outside both apps. So a
- * campaign whose PO simply hadn't been raised yet sat at `team_assigned` and was
- * shown to the brand as "Shortlisting" — with eleven creators locked, seven of
- * them live and 2.5M views already counted on the same card. The stage was not
- * wrong; it was an answer to a different question.
- *
- * Now the stage sets a FLOOR and the work can raise it. The stage is still the
- * only thing that can say "brief agreed" (nothing on the delivery side proves
- * a signature) and still the only thing that can close a campaign out. What it
- * can no longer do is hold a campaign in Shortlisting while it is on air.
- *
- * `delivery` is optional and comes from deliveryStats() — callers holding a RAW
- * campaign should pass it. Callers that genuinely only have a stage string
- * (the api.js re-export, the tests) get exactly the old behaviour.
- *
- * Delivery can never reach "completed": a brand's campaign is over when it is
- * settled, not when the last reel goes up, and that is a commercial fact only
- * the stage carries.
+ * The work still has its own number; see deliveryProgressOf below. What it does
+ * not get is a vote on the stage, because a stage is a thing somebody moved
+ * deliberately, not something to infer from side effects.
  */
-const deliveryPhase = (d) =>
-  !d ? null : d.live > 0 ? "live" : d.locked > 0 ? "production" : null;
-
-export const phaseOf = (stage, delivery) => {
-  const fromStage = STAGE_TO_PHASE[stage] || "brief";
-  const fromWork = deliveryPhase(delivery);
-  if (!fromWork) return fromStage;
-  // Already closed out — nothing on the delivery track reopens a settled
-  // campaign, and `live` sits BEFORE `completed` in PHASE_ORDER, so taking a
-  // max without this guard would be right by accident rather than by rule.
-  if (fromStage === "completed") return fromStage;
-  return PHASE_ORDER[Math.max(PHASE_ORDER.indexOf(fromStage), PHASE_ORDER.indexOf(fromWork))];
-};
+export const phaseOf = (stage) => STAGE_TO_PHASE[stage] || "brief";
 
 /** phaseOf for a caller holding the raw campaign — the common case. */
-export const campaignPhaseOf = (campaign) =>
-  phaseOf(campaign?.stage, deliveryStats(campaign));
+export const campaignPhaseOf = (campaign) => phaseOf(campaign?.stage);
 
 // Percentage a campaign reads on entering each stored stage. Mirrors the `p`
 // column of PIPELINE in the internal app's src/lib/campaign.js — the two must
@@ -198,14 +172,26 @@ const LEGACY_TO_STAGE = {
  */
 export function progressOf(campaign) {
   const stage = campaign?.stage;
-  const fromStage = STAGE_PROGRESS[stage] ?? STAGE_PROGRESS[LEGACY_TO_STAGE[stage]];
-  if (fromStage === 100) return 100;                      // settled — see above
-  const work = deliveryStats(campaign);
-  if (work.locked > 0) return work.pct;
-  if (fromStage != null) return fromStage;
+  const derived = STAGE_PROGRESS[stage] ?? STAGE_PROGRESS[LEGACY_TO_STAGE[stage]];
+  if (derived != null) return derived;
   const stored = Number(campaign?.progress);
   return Number.isFinite(stored) ? Math.min(100, Math.max(0, stored)) : 0;
 }
+
+/**
+ * How far the WORK has got — creators locked, concepts and demos in, posts up.
+ *
+ * Kept beside progressOf rather than folded into it. The two measure different
+ * things and a campaign is entitled to disagree with itself: BAU is 16% on the
+ * stage and 82% on the work, and both are true. Folding the work into the
+ * headline made the portal claim a campaign was nearly done while the internal
+ * board, reading the same document, said it had barely started.
+ *
+ * deliveryStats() is a field-for-field copy of execStats() in the internal app
+ * (5th-internal-front lib/campaign.js), so this figure and the one on the
+ * internal execution rail are the same number, not two estimates of one.
+ */
+export const deliveryProgressOf = (campaign) => deliveryStats(campaign).pct;
 
 /**
  * The commercial half, kept addressable rather than deleted.
