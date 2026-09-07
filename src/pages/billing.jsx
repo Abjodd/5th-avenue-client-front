@@ -25,6 +25,18 @@ import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import { AmbientBackground } from "../components/motion/Motion";
 import AnimatedNumber from "../components/AnimatedNumber";
 
+/* ── GST ─────────────────────────────────────────────────────────────────────
+   18% on the campaign budget, shown on this page and nowhere else in the portal.
+   Kept local rather than in lib/portalMetrics.js so no other screen can pick it
+   up: every figure elsewhere quotes the budget the campaign was booked at, which
+   is ex-tax. This is the one screen read with an invoice beside it.
+
+   Charged on the agreed BUDGET, not the sum of the lines — the budget is what
+   gets invoiced, and a part-priced roster is an incomplete account of it. No
+   agreed budget means no GST figure: there is nothing to tax yet. */
+const GST_RATE = 0.18;
+const gstOn = (amount) => Math.round(amount * GST_RATE);
+
 /* This page asks ONE question — of the money committed, how much went to
    creators and how much was the agency's fee — so it gets two colours.
  *
@@ -57,18 +69,19 @@ const creatorTint = (i) => 1 - Math.min(i, 5) * 0.12;
    — none of it wanted here. */
 function toBilling(c) {
   const split = budgetLines({ budget: c.budget, agencyFee: c.agencyFee, creators: c.creators });
+  // budgetLines falls back to the sum of the lines when no budget is set, which
+  // is right for a hover and wrong for a bill — so `pending` gates the tax.
+  const pending = !(Number(c.budget) > 0);
+  const gst = pending ? 0 : gstOn(split.base);
   return {
     id: c.id,
     name: c.name || "—",
     start: c.start || null,
     end: c.end || null,
     ...split,
-    // Whether a budget was ever agreed, read from the campaign rather than from
-    // the split. budgetLines falls back to the sum of the lines when there is no
-    // budget — right for a hover that must still draw something, wrong here,
-    // where it would print a total nobody agreed to under the words "Campaign
-    // budget". The campaign's own card says "To be confirmed"; so does this.
-    pending: !(Number(c.budget) > 0),
+    gst,
+    payable: pending ? 0 : split.base + gst,
+    pending,
     // Creator rows only — the fee gets its own block below them, because it is
     // the one line on this bill that isn't a person.
     creators: split.rows.filter((r) => !r.fee),
@@ -222,7 +235,14 @@ function CampaignBill({ c, index }) {
           <div className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">Campaign budget</div>
           {c.pending
             ? <div className="mt-0.5 text-[13px] font-semibold text-amber">To be confirmed</div>
-            : <div className="tnum text-[19px] font-bold text-ink">{fmtINRExact(c.base)}</div>}
+            : <>
+                <div className="tnum text-[19px] font-bold text-ink">{fmtINRExact(c.base)}</div>
+                {/* Answers "what does this one come to" without scrolling past
+                    a long roster to the full statement at the foot of the card. */}
+                <div className="tnum mt-0.5 text-[10px] text-mute">
+                  {fmtINRExact(c.payable)} incl. GST
+                </div>
+              </>}
         </div>
       </header>
 
@@ -277,6 +297,16 @@ function CampaignBill({ c, index }) {
           </div>
         )}
       </div>
+
+      {/* Below the reconciliation, not inside it: the rows above answer "where
+          did the budget go", these answer "what do I pay". */}
+      {!c.pending && (
+        <div className="mt-2 border-t border-line pt-1">
+          <Line label={`GST @ ${GST_RATE * 100}%`} sub={`On the ${fmtINRExact(c.base)} campaign budget`}
+            amount={c.gst} muted />
+          <Line label="Total payable" sub="Inclusive of GST" amount={c.payable} strong />
+        </div>
+      )}
     </motion.section>
   );
 }
@@ -288,8 +318,14 @@ export default function BillingPage() {
     const list = campaigns || [];
     // Budgets only from campaigns that HAVE one, so a campaign still being
     // priced can't quietly add the sum of its own lines to "total billed".
+    const billed = list.reduce((s, c) => s + (c.pending ? 0 : c.base), 0);
+    // Summed per campaign, not 18% of the total, so the rounding agrees with the
+    // cards below — this page gets checked against an invoice.
+    const gst = list.reduce((s, c) => s + c.gst, 0);
     return {
-      billed: list.reduce((s, c) => s + (c.pending ? 0 : c.base), 0),
+      billed,
+      gst,
+      payable: billed + gst,
       creators: list.reduce((s, c) => s + c.creatorTotal, 0),
       fees: list.reduce((s, c) => s + c.fee, 0),
     };
@@ -369,13 +405,30 @@ export default function BillingPage() {
                     </div>
                   </>
                 )}
+
+                {/* Outside the split above: that bar divides the budget into
+                    creators and fee, and GST is neither. */}
+                <div className="mt-3.5 flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 border-t border-line pt-3">
+                  <span className="text-[10.5px] text-mute">
+                    GST @ {GST_RATE * 100}%
+                    <strong className="tnum ml-1.5 font-semibold text-sub">{fmtINRExact(totals.gst)}</strong>
+                  </span>
+                  <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-mute">
+                    Total payable
+                    <strong className="tnum ml-2 text-[15px] font-bold normal-case tracking-normal text-ink sm:text-[16px]">
+                      <AnimatedNumber value={totals.payable} format={fmtINRExact} duration={800} />
+                    </strong>
+                  </span>
+                </div>
               </div>
 
               <div className="flex flex-col gap-3">
                 {campaigns.map((c, i) => <CampaignBill key={c.id} c={c} index={i} />)}
               </div>
               <p className="mt-5 text-[10.5px] leading-relaxed text-mute">
-                Figures are the agreed cost per creator and the agency fee for each campaign. Taxes are shown on the invoice itself.
+                Figures are the agreed cost per creator and the agency fee for each campaign. GST is charged at {GST_RATE * 100}% on the
+                agreed campaign budget and is stated separately — every other figure on this page, and everywhere else in the portal, is
+                exclusive of tax. A campaign whose budget is still to be confirmed carries no GST figure yet.
               </p>
             </>}
       </div>

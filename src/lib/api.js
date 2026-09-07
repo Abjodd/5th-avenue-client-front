@@ -44,17 +44,36 @@ export const reelPosterUrl = (reel) => {
   return `${BASE}/api/portal/reels/${encodeURIComponent(reel.code)}/poster${v}`;
 };
 
+/**
+ * Who is asking. Every portal read is scoped by this — pass the signed-in user
+ * (see AuthContext) and a brand can only ever see its own data.
+ *
+ * `brand` is the brandId and is what the server filters on. `client` is the
+ * display name, sent only so a not-yet-deployed server still works. The name
+ * used to be the whole scope, and a brand whose campaigns were saved without
+ * it saw an entirely empty portal — see resolveBrandScope in
+ * 5th-internal-back/server.js.
+ */
+const scopeParams = ({ brandId, clientName } = {}) => {
+  const params = new URLSearchParams();
+  if (brandId) params.set("brand", brandId);
+  if (clientName) params.set("client", clientName);
+  return params;
+};
+
+/** The same pair, for the two routes that carry their scope in a POST body. */
+const scopeBody = ({ brandId, clientName } = {}) => ({ brand: brandId, client: clientName });
+
 export const PortalAPI = {
-  // All campaigns (with sanitized embedded creators) for the given client —
-  // pass the logged-in user's clientName so each brand only sees its own data.
-  campaigns: (clientName) =>
-    request(`/api/portal/campaigns?client=${encodeURIComponent(clientName)}`),
+  // All campaigns (with sanitized embedded creators) for the signed-in brand.
+  campaigns: (scope) =>
+    request(`/api/portal/campaigns?${scopeParams(scope)}`),
 
   // The brand's own company record (allowlisted server-side — the internal
   // audit scoring, competitor mapping and package details never leave). Powers
   // Settings → Company.
-  client: (clientName) =>
-    request(`/api/portal/client?client=${encodeURIComponent(clientName)}`),
+  client: (scope) =>
+    request(`/api/portal/client?${scopeParams(scope)}`),
 
   // The brand's live campaign reels, with the video/poster/caption pulled from
   // Instagram server-side.
@@ -70,33 +89,33 @@ export const PortalAPI = {
   // is fine, and deliberately left alone: it is one cheap Mongo query, and it
   // is what makes a newly delivered reel show up without a hard reload.
   // See 5th-internal-back/portalReels.js.
-  reels: (clientName) =>
-    request(`/api/portal/reels?client=${encodeURIComponent(clientName)}`),
+  reels: (scope) =>
+    request(`/api/portal/reels?${scopeParams(scope)}`),
 
   /* The brand's note on a creator's concept or demo cut — the portal's one
      write against campaign data. `ref` is the roster row's opaque key (see
      mapping.js); `asset` is "concept" or "demo". Returns the whole thread,
      including any team reply landed since the page loaded, so the caller
      replaces its list rather than appending. */
-  addAssetComment: (campaignId, ref, asset, { clientName, text, author, accountId }) =>
+  addAssetComment: (campaignId, ref, asset, { scope, text, author, accountId }) =>
     request(
       `/api/portal/campaigns/${encodeURIComponent(campaignId)}/creators/${encodeURIComponent(ref)}/${asset}/comments`,
-      { method: "POST", body: JSON.stringify({ client: clientName, text, author, accountId }) },
+      { method: "POST", body: JSON.stringify({ ...scopeBody(scope), text, author, accountId }) },
     ),
 
   /* The brand's yes or no on a creator we suggested. Writes the roster row's
      status internally — shortlisted or brand_reject — so the team reads the
      answer where they already work. Returns the new status. */
-  decideCreator: (campaignId, ref, decision, { clientName, author, accountId }) =>
+  decideCreator: (campaignId, ref, decision, { scope, author, accountId }) =>
     request(
       `/api/portal/campaigns/${encodeURIComponent(campaignId)}/creators/${encodeURIComponent(ref)}/decision`,
-      { method: "POST", body: JSON.stringify({ client: clientName, decision, author, accountId }) },
+      { method: "POST", body: JSON.stringify({ ...scopeBody(scope), decision, author, accountId }) },
     ),
 
   // Pre-aggregated analytics timeseries + spend split.
   // from / to are ISO strings (optional — defaults to YTD on the backend).
-  analytics: (clientName, from, to) => {
-    const params = new URLSearchParams({ client: clientName });
+  analytics: (scope, from, to) => {
+    const params = scopeParams(scope);
     if (from) params.set("from", from);
     if (to)   params.set("to",   to);
     return request(`/api/portal/analytics?${params}`);

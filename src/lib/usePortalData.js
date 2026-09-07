@@ -1,38 +1,41 @@
 // src/lib/usePortalData.js — shared data-fetching hooks for the portal pages.
 // One place for the loading/error/retry lifecycle that Overview, Campaigns,
 // the Regional Map and Settings would otherwise each hand-roll. Guards against
-// stale responses landing after unmount or after the user (clientName) changes.
+// stale responses landing after unmount or after the signed-in brand changes.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { PortalAPI } from "./api";
 
 /**
- * Fetch one client-scoped portal resource.
+ * Fetch one brand-scoped portal resource.
  *
- * `fetcher` takes the logged-in brand's clientName and must be a stable
- * (module-level) reference; `map` (optional) transforms the response once on
- * arrival and must be stable too — an inline arrow here re-runs the fetch on
- * every render. Returns { data, setData, error, retry }; data is null while
- * loading.
+ * `fetcher` takes the signed-in brand's scope (see scopeParams in lib/api.js)
+ * and must be a stable (module-level) reference; `map` (optional) transforms
+ * the response once on arrival and must be stable too — an inline arrow here
+ * re-runs the fetch on every render. Returns { data, setData, error, retry };
+ * data is null while loading.
  */
 function usePortalResource(fetcher, map) {
   const { user } = useAuth();
+  const brandId = user?.brandId;
   const clientName = user?.clientName;
+  // Memoised so the effect re-runs when the brand changes, not on every render.
+  const scope = useMemo(() => ({ brandId, clientName }), [brandId, clientName]);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!clientName) return;
+    if (!scope.brandId && !scope.clientName) return;
     let alive = true;
     setData(null);
     setError(null);
-    fetcher(clientName)
+    fetcher(scope)
       .then((d) => { if (alive) setData(map ? map(d) : d); })
       .catch((e) => { if (alive) setError(e.message); });
     return () => { alive = false; };
-  }, [clientName, fetcher, map, attempt]);
+  }, [scope, fetcher, map, attempt]);
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);
   return { data, setData, error, retry };

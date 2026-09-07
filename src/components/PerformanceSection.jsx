@@ -136,6 +136,8 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
      cross and survive red/green colour blindness. */
   const LINE = { audience: P.accent, spend: P.gold };
   const { user } = useAuth();
+  // What this section fetches by — see scopeParams in lib/api.js.
+  const brandId = user?.brandId;
   const clientName = clientNameProp || user?.clientName;
 
   const [preset, setPreset]     = useState("6m");
@@ -152,17 +154,17 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const range = useMemo(() => rangeFor(preset), [preset]);
 
   useEffect(() => {
-    if (!clientName) return;
+    if (!brandId && !clientName) return;
     setAnalytics(null);
     setError(null);
     PortalAPI.analytics(
-      clientName,
+      { brandId, clientName },
       range.from.toISOString(),
       range.to.toISOString()
     )
       .then(setAnalytics)
       .catch(e => setError(e.message));
-  }, [clientName, range.from.toISOString(), range.to.toISOString()]);
+  }, [brandId, clientName, range.from.toISOString(), range.to.toISOString()]);
 
   const spendByService = analytics?.spendByService || {};
 
