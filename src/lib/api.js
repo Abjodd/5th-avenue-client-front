@@ -64,6 +64,23 @@ const scopeParams = ({ brandId, clientName } = {}) => {
 /** The same pair, for the two routes that carry their scope in a POST body. */
 const scopeBody = ({ brandId, clientName } = {}) => ({ brand: brandId, client: clientName });
 
+/**
+ * Wake the backend up, from the sign-in page.
+ *
+ * The API sleeps when idle, so the first request after a quiet spell pays for
+ * spinning the process back up AND opening a fresh Mongo connection — which,
+ * without this, is the sign-in POST itself, while someone waits on a spinner.
+ * Firing it when the page mounts moves that cost into the seconds they spend
+ * typing. /api/health pings the database for exactly this reason; see its route
+ * in 5th-internal-back/server.js.
+ *
+ * Deliberately swallows everything and returns nothing. It is a head start, not
+ * a dependency: if it fails, the sign-in that follows behaves as it always did,
+ * and there is nothing here worth telling the user about.
+ */
+export const warmUp = () => { fetch(`${BASE}/api/health`).catch(() => {}); };
+console.log("Server Test");
+
 export const PortalAPI = {
   // All campaigns (with sanitized embedded creators) for the signed-in brand.
   campaigns: (scope) =>
