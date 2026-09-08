@@ -76,10 +76,10 @@ export default function AssetReview({ creator, asset, campaignId, onClose, onPos
   const endRef = useRef(null);
 
   // Posting needs all three: the campaign to write to, the roster row to write
-  // against, and the client the server scopes the write by. Missing any one
+  // against, and the brand the server scopes the write by. Missing any one
   // (a payload predating `ref`, say) leaves the panel readable but read-only,
   // rather than offering a box whose Send can only fail.
-  const canPost = !!(campaignId && creator.ref && user?.clientName);
+  const canPost = !!(campaignId && creator.ref && (user?.brandId || user?.clientName));
   const embed = assetEmbed(file.url);
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function AssetReview({ creator, asset, campaignId, onClose, onPos
     setError(null);
     try {
       const res = await PortalAPI.addAssetComment(campaignId, creator.ref, asset, {
-        clientName: user.clientName, text, author: user.name, accountId: user.id,
+        scope: user, text, author: user.name, accountId: user.id,
       });
       onPosted(asset, res.comments);
       setDraft("");

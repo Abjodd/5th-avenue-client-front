@@ -961,7 +961,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const decideCreator = async (idx, decision) => {
     const cr = creators[idx];
     const { status } = await PortalAPI.decideCreator(c.id, cr.ref, decision, {
-      clientName: user.clientName, author: user.name, accountId: user.id,
+      scope: user, author: user.name, accountId: user.id,
     });
     setCreators(prev => prev.map((x, i) => i === idx
       ? { ...x, decision, rawStatus: status, status, decidedBy: user.name || "You" }

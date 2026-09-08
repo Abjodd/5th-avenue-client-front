@@ -516,22 +516,31 @@ test("countsInMetrics counts only campaigns that have gone live", () => {
   assert.equal(pronto.filter(countsInMetrics).length, 2);
 });
 
-/* Posts being up does NOT admit a campaign here, and that is the point.
-   Delivery advances a campaign's phase on the BOARD — a campaign with seven
-   posts live stops reading as "Shortlisting" — but the board is answering
-   "where is the work". This gate answers "may this money move a figure the
-   brand is asked to trust", and only the commercial track can say yes.
+/* Posts being up admits a campaign ONLY once its commercials are real. The two
+   cases are one field apart: BAU (8 live, nobody priced) must stay out or it
+   renders a ₹0 bill; WisprFlow (3 live, all priced, paperwork still at
+   po_raised) must come in or its brand's dashboard reads ₹0. */
+test("delivery admits a campaign only once its commercials are real", () => {
+  const unpriced = { stage: "team_assigned", budget: 330000,
+    creators: [{ status: "locked", live: { postUrls: ["u"] } }] };
+  assert.equal(countsInMetrics(unpriced), false);
 
-   BAU is why the two must not be merged: eleven creators locked, seven live,
-   and not one of them priced. Admitted here it rendered a bill of ₹0 against a
-   ₹3.3L budget with "No creator costs agreed on this campaign yet" where the
-   lines should be. An unpriced roster is not a gap to route around — it is what
-   "the commercials have not started" looks like in the data. */
-test("delivery does not admit a campaign whose commercials have not started", () => {
-  const live = { stage: "team_assigned", creators: [{ status: "locked", live: { postUrls: ["u"] } }] };
-  assert.equal(countsInMetrics(live), false);
-  // And the board still moves for the same campaign — the two answers differ
-  // on purpose. (campaignPhaseOf is pinned in phases.test.js.)
+  // Priced but nothing posted — still out. The gate is called "live" and means it.
+  const notLive = { stage: "po_raised", budget: 55000, creators: [{ status: "locked", cost: 8000 }] };
+  assert.equal(countsInMetrics(notLive), false);
+
+  // Priced AND live, on a finance stage that has not reached the invoice yet.
+  const wisprflow = { stage: "po_raised", budget: 55000, creators: [
+    { status: "locked", cost: 8000, live: { postUrls: ["u"] } },
+    { status: "locked", cost: 9000 },
+  ] };
+  assert.equal(countsInMetrics(wisprflow), true);
+
+  // A budget alone is not commercials — someone has to have been priced.
+  assert.equal(countsInMetrics({ stage: "po_raised", budget: 55000,
+    creators: [{ status: "locked", live: { postUrl: "u" } }] }), false);
+
+  // And the settled case still counts whatever delivery says.
   const settled = { stage: "payment_done", creators: [{ status: "locked", live: { postUrls: ["u"] } }] };
   assert.equal(countsInMetrics(settled), true);
 });

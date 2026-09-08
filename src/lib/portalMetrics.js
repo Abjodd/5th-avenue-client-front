@@ -21,6 +21,8 @@
 import { parseFollowers, sizeOf, fmtNum, fmtINR } from "./format.js";
 import { PHASES, phaseOf, campaignPhaseOf, progressOf, normStage } from "./phases.js";
 import { stateCode, STATES_META } from "./geo.js";
+// For countsInMetrics below. delivery.js imports nothing local, so no cycle.
+import { campaignIsLive } from "./delivery.js";
 
 /* ── Creator status vocabulary ───────────────────────────────────────────────
    Lives here rather than in components/campaigns/mapping.js (which re-exports
@@ -218,44 +220,34 @@ export function applyFilters(creators, filters) {
   return creators.filter((cr) => active.every(([g, sel]) => sel.includes(cr[g])));
 }
 
-/* Which campaigns a brand's NUMBERS are drawn from: the ones that have gone
-   live, and the ones that have been live and finished.
+/* ── THE LIVE GATE ───────────────────────────────────────────────────────────
+   Which campaigns a brand's NUMBERS come from. Not which they SEE — the board
+   shows every campaign at every phase. But a budget still being arranged must
+   not move a figure the brand is asked to trust: one such campaign carried
+   Pronto's headline from ₹1.5L to ₹4.8L.
 
-   Not which they SEE — the Campaigns board shows every campaign at every phase,
-   because planned work is real work and belongs on their board. But a campaign
-   still being briefed, shortlisted or produced has a budget that can still
-   move and a roster still being argued over, so counting it puts figures the
-   brand is asked to trust at the mercy of an internal stage change. One such
-   campaign carried Pronto's headline from ₹1.5L to ₹4.8L and its creator count
-   from 4 to 15.
+   Finance and delivery are two separate tracks, so a campaign can have creators
+   posting while its invoice is still out. Either track can admit it:
+     · finance reached live/completed (invoice raised or paid), or
+     · a post is live AND the money is real (isPriced below).
 
-   Deliberately keyed on the PHASE, not on "anything past draft": the stage
-   moves through the pipeline as the team works, and a rule written against
-   draft alone silently re-admits the same campaign the moment it is assigned.
+   Without that second clause WisprFlow read ₹0 to its brand — six creators
+   locked and priced, three reels live, but the paperwork still at po_raised.
 
-   The trade-off, stated: budget committed on a campaign in production is not in
-   these totals until it goes live. That is the honest direction — it counts
-   what has actually run rather than what is still being arranged.
-
-   Mirrored by METRIC_CAMPAIGNS in 5th-internal-back/server.js. */
+   Mirrored by countsInMetrics in 5th-internal-back/server.js; change both. */
 const COUNTED_PHASES = new Set(["live", "completed"]);
-// The STAGE, deliberately, and NOT the delivery reading that now advances a
-// campaign's phase on the board.
-//
-// These are two different questions and the board is allowed to answer its one
-// differently. The board asks "where is the work", so a campaign with seven
-// posts up belongs under Live whatever its paperwork says. This gate asks "may
-// this campaign's money move a figure the brand is asked to trust", and the
-// answer stays no until the commercial track has actually started — the PO
-// raised, the campaign live in the sense that matters to a bill.
-//
-// Admitting a delivery-live campaign here was tried and was wrong. BAU is the
-// case: eleven creators locked, seven live, and not one of them priced yet. It
-// entered Billing as a card reading "No creator costs agreed", "Total ₹0" and
-// "Not yet allocated ₹3,30,000" — a campaign whose bill does not exist yet,
-// rendered as a bill. The unpriced roster is not an oversight to route around;
-// it is what "the commercials have not started" looks like in the data.
-export const countsInMetrics = (c) => COUNTED_PHASES.has(phaseOf(normStage(c?.stage)));
+
+/* Budget agreed and at least one creator priced. `cost` here is what the BRAND
+   was charged (the backend maps `clientCost` onto it).
+
+   This guard is what makes the delivery clause safe. BAU is the case: eleven
+   creators locked, eight live, nobody priced — admitted on delivery alone it
+   rendered a Billing card reading "Total ₹0" against a ₹3.3L budget. */
+const isPriced = (c) =>
+  num(c?.budget) > 0 && (c?.creators || []).some((cr) => num(cr?.cost) > 0);
+
+export const countsInMetrics = (c) =>
+  COUNTED_PHASES.has(phaseOf(normStage(c?.stage))) || (campaignIsLive(c) && isPriced(c));
 
 /* ── BUDGET, ITEMISED ────────────────────────────────────────────────────────
    A campaign budget as the lines that make it up: a row per priced creator,
