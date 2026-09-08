@@ -11,11 +11,12 @@
  * it should read as the last marketing page rather than the first portal one.
  * Remove the attribute to hand it back to the portal tokens.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Mail, Lock } from "lucide-react";
 import { Button, Input, Icon } from "../components/primitives";
 import { useAuth } from "../context/AuthContext";
+import { warmUp } from "../lib/api";
 
 export default function LoginPage() {
   const { user, login } = useAuth();
@@ -25,6 +26,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  /* Wake the API while the form is being filled in rather than when it is
+     submitted — see warmUp() in lib/api.js. Must sit above the early return
+     below: a hook cannot run conditionally. */
+  useEffect(() => { warmUp(); }, []);
 
   // Already signed in — skip the form.
   if (user) return <Navigate to="/portal/overview" replace />;
