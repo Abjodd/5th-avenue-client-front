@@ -12,7 +12,7 @@
  * Remove the attribute to hand it back to the portal tokens.
  */
 import { useEffect, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Mail, Lock } from "lucide-react";
 import { Button, Input, Icon } from "../components/primitives";
 import { useAuth } from "../context/AuthContext";
@@ -22,7 +22,15 @@ export default function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
+  /* `?email=` is how the internal Auth page hands a brand's login across —
+     "Client login ↗" opens this page with the username already named, so the
+     founder testing a brand's view doesn't copy it across by hand. Read once as
+     the initial value rather than synced in an effect: the field belongs to
+     whoever is typing in it from the first paint. The password is deliberately
+     never in the URL — see openClientLogin in the internal app. */
+  const [params] = useSearchParams();
+  const prefilledEmail = params.get("email") || "";
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -89,9 +97,11 @@ export default function LoginPage() {
                   setError("");
                 }}
                 placeholder="you@company.com"
+                id="login-email"
+                name="email"
                 autoComplete="username"
                 invalid={!!error}
-                autoFocus
+                autoFocus={!prefilledEmail}
               />
             </div>
             <div>
@@ -107,8 +117,11 @@ export default function LoginPage() {
                   setError("");
                 }}
                 placeholder="••••••"
+                id="login-password"
+                name="password"
                 autoComplete="current-password"
                 invalid={!!error}
+                autoFocus={!!prefilledEmail}
               />
             </div>
 
