@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   // Right after Overview: Insights is a second read on the same account, not
   // a workflow step in between what the account IS doing (Campaigns onward)
   // and what it has cost (Billing, last).
-  { id: "insights",  label: "Insights",     icon: "✦" },
+  // { id: "insights",  label: "Insights",     icon: "✦" },
   { id: "campaigns", label: "Campaigns",    icon: "▤" },
   { id: "regional",  label: "Regional Map", icon: "◯" },
   { id: "assets",    label: "Assets",       icon: "⚙" },
