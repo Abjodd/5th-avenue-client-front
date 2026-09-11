@@ -32,7 +32,7 @@ import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { usePortalCampaigns } from "../lib/usePortalData";
 import { usePersistentState } from "../lib/usePersistentState";
-import { fmtNum, fmtINR, prettyDate, initials, dayLabel } from "../lib/format";
+import { fmtNum, fmtINR, fmtINRExact, fmtCPV, fmtShare, prettyDate, initials, dayLabel } from "../lib/format";
 import { INTRO_KEY } from "../lib/session";
 import { EASE, fadeUp } from "../lib/motion";
 import {
@@ -40,7 +40,7 @@ import {
   summarise, healthScore, pipeline, signals, groupBy, availableMetrics,
   GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
   platformPerformance, livePosts, POST_SORTS, activityFeed, needsYou,
-  greeting, heroSummary, growthAcross, countsInMetrics,
+  greeting, heroSummary, growthAcross, countsInMetrics, cpvOf,
 } from "../lib/portalMetrics";
 
 import { Dot } from "../components/Dot";
@@ -48,6 +48,7 @@ import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import PerformanceSection from "../components/PerformanceSection";
 import { Stagger, AmbientBackground } from "../components/motion/Motion";
 import { Panel, Subpanel, Section, PanelTitle, KPI, MetricSwitch, PanelEmpty } from "../components/portal/Shell";
+import { FlipSummary } from "../components/portal/FlipCard";
 import { ProgressRing } from "../components/primitives/ProgressRing";
 import { BarList, ColumnChart, Podium, PlatformScorecard, LineChart } from "../components/charts";
 
@@ -323,6 +324,32 @@ function CreatorFilters({ options, filters, setFilters, shown, total }) {
   );
 }
 
+/** How a service's progress-so-far compares to how much of its own calendar
+ *  window has elapsed — the read a bare "62%" can't give on its own, since
+ *  62% progress means something different three days into a campaign than
+ *  three days before it ends. Null when there's no window to pace against
+ *  (an undated or point-in-time booking). */
+function pacingPoint(g) {
+  if (!g.from || !g.to) return null;
+  const from = new Date(g.from), to = new Date(g.to);
+  if (!(to > from)) return null;
+  const elapsedPct = Math.min(100, Math.max(0, ((Date.now() - from) / (to - from)) * 100));
+  const diff = g.progress - elapsedPct;
+  if (Math.abs(diff) < 8) return "Progress is tracking roughly on schedule for this window.";
+  return diff > 0
+    ? `Running ahead of schedule — about ${Math.round(diff)} points ahead of where the calendar alone would put it.`
+    : `Running behind schedule — about ${Math.round(Math.abs(diff))} points behind where the calendar alone would put it.`;
+}
+
+/** What the committed budget is buying, in the one unit that makes services
+ *  of very different sizes comparable: cost per person reached. Null with no
+ *  reach yet to divide by — a per-head cost before anyone's been reached
+ *  would just be the budget restated. */
+function efficiencyPoint(g) {
+  if (!(g.budget > 0) || !(g.reach > 0)) return null;
+  return `Working out to roughly ${fmtINRExact(g.budget / g.reach)} committed per person reached.`;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    GROUPED CREATOR PANEL — one chart, switchable grouping and metric
    ═════════════════════════════════════════════════════════════════════════ */
@@ -364,8 +391,47 @@ function GroupedPanel({ view }) {
   const avg = items.length ? items.reduce((s, i) => s + i.value, 0) / items.length : undefined;
   const reduce = useReducedMotion();
 
+  // Back-face summary: same rows the chart plots, worded out, plus which
+  // group is carrying the roster and which is trailing it — the thing a
+  // reader squints at the bars to find.
+  const top = items.length ? items.reduce((a, b) => (b.value > a.value ? b : a)) : null;
+  const bottom = items.length ? items.reduce((a, b) => (b.value < a.value ? b : a)) : null;
+
+  // What the bars actually say: who's carrying the roster, who's trailing it,
+  // and whether that's one group running away with it or a fairly even
+  // spread — not every bar's own value read back as a list, which the chart
+  // already shows.
+  const groupTotal = items.reduce((s, it) => s + it.value, 0);
+  const topShare = top && groupTotal > 0 ? (top.value / groupTotal) * 100 : null;
+  const groupPoints = [];
+  if (top && bottom && top !== bottom) {
+    groupPoints.push(
+      topShare != null
+        ? `${top.label} leads at ${top.display} — about ${fmtShare(topShare)} of the total across ${items.length} groups.`
+        : `${top.label} leads at ${top.display}; ${bottom.label} trails at ${bottom.display}.`
+    );
+    if (topShare != null) groupPoints.push(`${bottom.label} trails at ${bottom.display}.`);
+    if (items.length > 2 && topShare != null) {
+      groupPoints.push(
+        topShare >= 50
+          ? "More than half the total sits in that one group — concentrated rather than spread out."
+          : "No single group dominates the roster."
+      );
+    }
+  } else if (top) {
+    groupPoints.push(`${top.label} is the only group with data right now, at ${top.display}.`);
+  }
+
+  const backSummary = (
+    <FlipSummary
+      title={view.label}
+      hint={items.length ? `${metric.hint} · average ${metric.format(avg)}.` : "No creators match the current filters."}
+      points={groupPoints}
+    />
+  );
+
   return (
-    <Panel reveal className="flex flex-col px-6 py-5">
+    <Panel reveal flip back={backSummary} className="flex flex-col px-6 py-5">
       <PanelTitle
         title={view.label}
         hint={`${view.hint} · ${metric.hint}`}
@@ -492,8 +558,44 @@ function AccountGrowth({ growth, palette }) {
     .filter((p) => p.value != null)
     .sort((a, b) => b.value - a.value);
 
+  // Back-face summary: who's actually carrying the curve, not the same
+  // per-post numbers the hover/pin chart already surfaces one at a time.
+  const growthChange = last[metric.id] - first[metric.id];
+  const growthPoints = [];
+  if (breakdown.length) {
+    const topPost = breakdown[0];
+    const topShare = total > 0 ? (topPost.value / total) * 100 : null;
+    growthPoints.push(
+      topShare != null
+        ? `${topPost.name} is carrying the most of it, at ${fmtShare(topShare)} of the total.`
+        : `${topPost.name} leads at ${fmtNum(topPost.value)}.`
+    );
+    if (breakdown.length > 1 && topShare != null) {
+      growthPoints.push(
+        topShare >= 50
+          ? "That's concentrated in one post rather than spread across the roster."
+          : `Spread across ${breakdown.length} posts rather than resting on one.`
+      );
+    }
+  }
+  if (Number.isFinite(growthChange)) {
+    growthPoints.push(
+      growthChange >= 0
+        ? `Up ${fmtNum(growthChange)} since ${dayLabel(first.date)}.`
+        : `Down ${fmtNum(Math.abs(growthChange))} since ${dayLabel(first.date)}.`
+    );
+  }
+
+  const backSummary = (
+    <FlipSummary
+      title={`Total ${metric.label.toLowerCase()}`}
+      hint={`${fmtNum(last[metric.id])} across ${creators} live post${creators === 1 ? "" : "s"} in ${campaigns} campaign${campaigns === 1 ? "" : "s"}.`}
+      points={growthPoints}
+    />
+  );
+
   return (
-    <Panel reveal className="px-6 py-5">
+    <Panel reveal flip back={backSummary} className="px-6 py-5">
       <PanelTitle
         title={`Total ${metric.label.toLowerCase()}`}
         // "since the first reading", NOT "since the post went live" — the first
@@ -616,6 +718,10 @@ export default function OverviewDashboard() {
   const kpis = useMemo(() => summarise(list, creators), [list, creators]);
   const health = useMemo(() => healthScore(list), [list]);
   const phases = useMemo(() => pipeline(list), [list]);
+  const busiestPhase = useMemo(
+    () => phases.reduce((a, b) => (b.count > (a?.count ?? -1) ? b : a), null),
+    [phases],
+  );
   // Signals and the activity feed describe the account, not the current
   // filter — narrowing to "Nano creators" must not hide an approval request.
   const signalRows = useMemo(() => signals(list, allCreators), [list, allCreators]);
@@ -792,23 +898,38 @@ export default function OverviewDashboard() {
 
           <Stagger animate="show" stagger={0.07} className="grid gap-3.5"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral} />
-            <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral} />
-            <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral} />
+            <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral}
+              back={<FlipSummary padding="px-5 py-[18px]" title="Active campaigns" hint={`${kpis.active} of ${kpis.campaigns} active now.`} />} />
+            <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral}
+              back={<FlipSummary padding="px-5 py-[18px]" title="Creators" hint={`${kpis.creators} on the roster, ${kpis.live} live.`} />} />
+            <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral}
+              back={<FlipSummary padding="px-5 py-[18px]" title="Combined audience" hint="Combined following — not unique reach, audiences overlap." />} />
             {/* Measured on live posts only — see summarise() in portalMetrics.js
                 for why the stored profile rate no longer feeds this tile. */}
             <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`}
               sublabel={kpis.erMeasured
                 ? `measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}`
                 : "nothing live to measure yet"}
-              color={P.neutral} />
+              color={P.neutral}
+              back={<FlipSummary padding="px-5 py-[18px]" title="Avg engagement" hint={kpis.erMeasured
+                ? `Measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}.`
+                : "Nothing live yet to measure."} />} />
             {/* The sublabel names what the figure leaves out. Campaigns raised
                 before a budget was agreed contribute nothing to this total, so
                 without saying so it reads as the account's whole commitment
                 when it is only the agreed part of it. */}
             <KPI index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR}
               sublabel={kpis.budgetPending ? `committed · ${kpis.budgetPending} to be confirmed` : "committed"}
-              color={P.neutral} />
+              color={P.neutral}
+              back={<FlipSummary padding="px-5 py-[18px]" title="Campaign budget" hint={kpis.budgetPending
+                ? `${kpis.budgetPending} campaign${kpis.budgetPending === 1 ? "" : "s"} still unconfirmed.`
+                : "Committed across every priced campaign."} />} />
+            {/* Same cpvOf() used by PerformanceSection's own CPV tile, over the
+                account's full committed budget and measured views rather than
+                one filtered period — the portfolio rate, not a period rate. */}
+            <KPI index={5} label="CPV" value={cpvOf(kpis.budget, kpis.views)} format={fmtCPV}
+              sublabel="external, on measured views" color={P.green}
+              back={<FlipSummary padding="px-5 py-[18px]" title="Cost per view" hint="Committed budget ÷ measured views, account-wide." />} />
           </Stagger>
         </Section>
 
@@ -848,7 +969,25 @@ export default function OverviewDashboard() {
           {goals.length > 0 && (
             <div className="mb-4 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
               {goals.map((g, i) => (
-                <Panel key={g.service} reveal delay={i * 0.05} className="px-5 py-4">
+                <Panel
+                  key={g.service}
+                  reveal
+                  delay={i * 0.05}
+                  className="px-5 py-4"
+                  flip
+                  back={
+                    <FlipSummary
+                      padding="px-5 py-4"
+                      title={g.service}
+                      hint={`${g.progress}% average progress across ${g.campaigns} campaign${g.campaigns === 1 ? "" : "s"}${g.active ? `, ${g.active} active now` : ""}.`}
+                      points={[pacingPoint(g), efficiencyPoint(g)].filter(Boolean)}
+                      lines={[
+                        { label: "Window", value: `${g.from ? prettyDate(g.from) : "—"} – ${g.to ? prettyDate(g.to) : "—"}` },
+                        ...(g.regions.length ? [{ label: "Regions", value: g.regions.join(", ") }] : []),
+                      ]}
+                    />
+                  }
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 className="truncate text-[15px] font-bold text-ink">{g.service}</h3>
@@ -894,7 +1033,36 @@ export default function OverviewDashboard() {
               read as two unrelated boxes at different heights instead of one
               row of the page. Same treatment as the Content section below. */}
           <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-            <Panel reveal className="flex h-full flex-col px-6 py-5">
+            <Panel
+              reveal
+              flip
+              back={
+                <FlipSummary
+                  title="Campaign pipeline"
+                  hint={`${kpis.campaigns} campaign${kpis.campaigns === 1 ? "" : "s"} across ${phases.length} stages.`}
+                  points={(() => {
+                    const inPipeline = phases.reduce((s, p) => s + p.count, 0);
+                    const pts = [];
+                    if (busiestPhase?.count) {
+                      const share = inPipeline > 0 ? (busiestPhase.count / inPipeline) * 100 : null;
+                      pts.push(
+                        share != null
+                          ? `Most campaigns — ${fmtShare(share)} of them — are in ${busiestPhase.short} right now.`
+                          : `Most are in ${busiestPhase.short} right now.`
+                      );
+                    }
+                    const empty = phases.filter((p) => p.count === 0);
+                    if (empty.length && empty.length < phases.length) {
+                      pts.push(`Nothing is currently sitting in ${empty.map((p) => p.short).join(" or ")}.`);
+                    } else if (!pts.length) {
+                      pts.push(`${kpis.campaigns} campaign${kpis.campaigns === 1 ? "" : "s"} spread across ${phases.length} stages.`);
+                    }
+                    return pts;
+                  })()}
+                />
+              }
+              className="flex h-full flex-col px-6 py-5"
+            >
               <PanelTitle title="Campaign pipeline" hint="Where each campaign stands" />
               <div className="flex flex-1 flex-col justify-center gap-3.5">
                 {phases.map((p, i) => (
@@ -920,7 +1088,38 @@ export default function OverviewDashboard() {
               </div>
             </Panel>
 
-            <Panel reveal delay={0.06} className="flex h-full flex-col px-6 py-5">
+            <Panel
+              reveal
+              delay={0.06}
+              flip
+              back={
+                <FlipSummary
+                  title="Top campaigns"
+                  hint={ranked.length
+                    ? `Ranked by audience reached across ${ranked.length} campaign${ranked.length === 1 ? "" : "s"}.`
+                    : "No creators are attached to these campaigns yet."}
+                  points={(() => {
+                    if (ranked.length >= 2) {
+                      const [first, second] = ranked;
+                      if (second.reach > 0) {
+                        const multiple = first.reach / second.reach;
+                        return [
+                          multiple >= 1.4
+                            ? `${first.name} leads by a wide margin — about ${multiple.toFixed(1)}× the reach of ${second.name}, the next campaign.`
+                            : `${first.name} is only narrowly ahead of ${second.name} — reach is close at the top.`,
+                        ];
+                      }
+                      return [`${first.name} leads at ${fmtNum(first.reach)} reach.`];
+                    }
+                    if (ranked.length === 1) {
+                      return [`${ranked[0].name} is the only campaign with reach to rank, at ${fmtNum(ranked[0].reach)}.`];
+                    }
+                    return [];
+                  })()}
+                />
+              }
+              className="flex h-full flex-col px-6 py-5"
+            >
               <PanelTitle title="Top campaigns" hint={`Ranked by audience reached · ${ranked.length} campaign${ranked.length === 1 ? "" : "s"}`} />
               {ranked.length ? (
                 <Podium

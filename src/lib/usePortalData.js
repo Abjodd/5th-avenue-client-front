@@ -53,3 +53,31 @@ export const usePortalReels = (map) => usePortalResource(PortalAPI.reels, map);
 
 /** This client's own company record (Settings → Company). */
 export const usePortalClient = () => usePortalResource(PortalAPI.client);
+
+/**
+ * The Insights → Trending shelf — Instagram links and short notes the
+ * internal team adds by hand. Deliberately NOT usePortalResource: every other
+ * hook here gates on the signed-in brand's scope resolving first, but
+ * Trending is universal (every client sees the same feed), so it fetches on
+ * mount regardless. Same return shape as the others — `data` is null while
+ * loading, then an array (possibly empty) — so callers don't need to know
+ * the difference.
+ */
+export function usePortalTrending() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setData(null);
+    setError(null);
+    PortalAPI.trending()
+      .then((d) => { if (alive) setData(d); })
+      .catch((e) => { if (alive) setError(e.message); });
+    return () => { alive = false; };
+  }, [attempt]);
+
+  const retry = useCallback(() => setAttempt((a) => a + 1), []);
+  return { data, setData, error, retry };
+}

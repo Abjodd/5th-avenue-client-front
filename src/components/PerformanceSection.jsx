@@ -24,9 +24,10 @@ import AnimatedNumber from "./AnimatedNumber";
 import { useApp } from "../context";
 import { rangeFor, buildTimeSeries, parsePortalDate, INTERVALS } from "../lib/dates";
 import { chartTheme } from "../lib/chartTheme";
-import { fmtNum, fmtINR, fmtCPVTo } from "../lib/format";
+import { fmtNum, fmtINR, fmtINRExact, fmtCPVTo, fmtCPV, fmtShare } from "../lib/format";
 import { Funnel } from "./charts";
 import { InfoHint } from "./portal/Shell";
+import { FlipCard, FlipSummary } from "./portal/FlipCard";
 import { PortalAPI } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -82,9 +83,10 @@ function serviceColor(name, P) {
    period the reader chose; a delta against the previous bucket answered a
    different question than the number it sat on, and on a young account it
    mostly reported where the data starts (see audienceKnown above). */
-function StatTile({ label, value, format = fmtNum, loading, color, info }) {
-  return (
-    <div className="rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+function StatTile({ label, value, format = fmtNum, loading, color, info, back }) {
+  const chrome = "rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md";
+  const face = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <div className="microlabel">{label}</div>
         {info && <InfoHint label={`${label} info`}>{info}</InfoHint>}
@@ -92,8 +94,18 @@ function StatTile({ label, value, format = fmtNum, loading, color, info }) {
       <div className="mt-1 text-[22px] font-bold leading-none" style={{ color }}>
         {loading ? "…" : <AnimatedNumber value={value} format={format} duration={900}/>}
       </div>
-    </div>
+    </>
   );
+  // No flip while loading — nothing to summarise yet, and it would flip back
+  // to a stale front the instant the real number lands.
+  if (back && !loading) {
+    return (
+      <FlipCard back={back} cardClassName={chrome} radius={16}>
+        {face}
+      </FlipCard>
+    );
+  }
+  return <div className={chrome}>{face}</div>;
 }
 
 /* A key entry. The swatch is an SVG line rather than a coloured <span> so it
@@ -268,6 +280,99 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
     { stage: "Engagements", value: totals.eng,   display: fmtNum(totals.eng),   color: neutralShade(P.neutral, 0.55) },
   ], [totals, P]);
 
+  // What the dual-axis line actually SAYS, not what it plots a second time as
+  // a table. Compares the metric on the left axis against spend on the right
+  // one across the same window the chart draws — first plotted point vs
+  // last — so the flip answers "is the budget working" rather than repeating
+  // the two totals the front already prints in the KPI strip above it.
+  const trendPoints = useMemo(() => {
+    const metricKey = toggle === "reach" ? "reach" : "engagements";
+    const metricLabel = toggle === "reach" ? "Reach" : "Engagements";
+    const known = chartRows.filter((r) => r[metricKey] != null);
+    const pts = [];
+
+    if (known.length >= 2 && chartRows.length >= 2) {
+      const first = known[0], last = known[known.length - 1];
+      const spendFirst = chartRows[0].spend || 0;
+      const spendLast = chartRows[chartRows.length - 1].spend || 0;
+      const metricChange = first[metricKey] > 0 ? ((last[metricKey] - first[metricKey]) / first[metricKey]) * 100 : null;
+      const spendChange = spendFirst > 0 ? ((spendLast - spendFirst) / spendFirst) * 100 : null;
+
+      if (metricChange != null && spendChange != null) {
+        if (metricChange >= 0 && spendChange >= 0) {
+          pts.push(
+            metricChange >= spendChange
+              ? `${metricLabel} has grown faster than spend across this window — the budget is reaching more per rupee than it was at the start.`
+              : `Spend has grown faster than ${metricLabel.toLowerCase()} across this window — the same budget is buying less than it was at the start.`
+          );
+        } else if (metricChange < 0 && spendChange >= 0) {
+          pts.push(`Spend is up over this window while ${metricLabel.toLowerCase()} is down — worth a look at what changed.`);
+        } else if (metricChange >= 0 && spendChange < 0) {
+          pts.push(`${metricLabel} held up even as spend came down over this window — an efficient stretch.`);
+        } else {
+          pts.push(`Both spend and ${metricLabel.toLowerCase()} pulled back over this window.`);
+        }
+      }
+    } else if (known.length === 1) {
+      pts.push(`Only one ${trendUnit} with an audience figure falls in this window — not enough to read a direction yet.`);
+    } else {
+      pts.push("No audience figure is plotted yet for this window — spend is committed, but no creators have been cast to measure against it.");
+    }
+
+    if (totals.cpv > 0) {
+      pts.push(`Overall this period, that works out to ${fmtCPV(totals.cpv)} per view across ${fmtNum(totals.views)} views.`);
+    }
+    return pts;
+  }, [chartRows, toggle, totals, trendUnit]);
+
+  // The funnel's own read: how much of the reach converted to a view, and how
+  // much of that view converted to an action — the two ratios the three bars
+  // exist to make visible, stated once instead of the three totals it already
+  // shows.
+  const funnelPoints = useMemo(() => {
+    const { reach, views, eng } = totals;
+    const pts = [];
+    if (reach > 0 && views > 0) {
+      const ratio = views / reach;
+      pts.push(
+        ratio >= 1
+          ? `Views ran at ${ratio.toFixed(1)}× reach — posts travelled well beyond the creators' own followers.`
+          : `Views came in at ${fmtShare(ratio * 100)} of reach — most of what was seen stayed inside the creators' existing followers.`
+      );
+    }
+    if (views > 0 && eng > 0) {
+      const er = (eng / views) * 100;
+      pts.push(`${fmtShare(er)} of views turned into a like, comment or share — roughly ${Math.max(1, Math.round(100 / er))} views per engagement.`);
+    }
+    if (!pts.length) pts.push("Not enough measured activity yet to read a funnel here.");
+    return pts;
+  }, [totals]);
+
+  // Spend Split's own read: which service the period's budget actually went
+  // to and how concentrated that is, rather than re-listing every slice's
+  // rupee value beside a ring that already shows it.
+  const spendSplitPoints = useMemo(() => {
+    if (!donutSlices.length || totalSpend <= 0) return [];
+    const sorted = [...donutSlices].sort((a, b) => b.value - a.value);
+    const top = sorted[0];
+    const topShare = (top.value / totalSpend) * 100;
+    const pts = [];
+    pts.push(
+      sorted.length === 1
+        ? `All of this period's spend went to ${top.name}.`
+        : `${top.name} took the largest share at ${fmtShare(topShare)} of the period's spend.`
+    );
+    if (sorted.length > 1) {
+      const top2Share = ((sorted[0].value + sorted[1].value) / totalSpend) * 100;
+      pts.push(
+        top2Share >= 75
+          ? `${sorted[0].name} and ${sorted[1].name} together account for ${fmtShare(top2Share)} of it — spend is concentrated in a couple of services rather than spread thin.`
+          : `The rest is spread across ${sorted.length - 1} other service${sorted.length - 1 === 1 ? "" : "s"} — no single line dominates the period.`
+      );
+    }
+    return pts;
+  }, [donutSlices, totalSpend]);
+
   const isLoading = analytics === null && !error;
 
   return (
@@ -294,16 +399,28 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           {/* Same figure as the Overview's "Combined audience" tile, so the
               same neutral treatment — a coloured hue on it claimed a status
               the number doesn't carry. */}
-          <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.neutral}/>
-          <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.neutral}/>
-          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.neutral}/>
-          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINR} loading={isLoading} color={P.neutral}/>
+          <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.neutral}
+            back={<FlipSummary padding="px-3.5 py-3" title="Total Reach"
+              hint="Combined following of creators live this period." />}/>
+          <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.neutral}
+            back={<FlipSummary padding="px-3.5 py-3" title="Views"
+              hint={measuredMix.measured > 0
+                ? (measuredMix.measured < measuredMix.total ? "Measured for some creators; rest estimated." : "Measured across the whole roster.")
+                : "Estimated until post metrics are fetched."} />}/>
+          <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.neutral}
+            back={<FlipSummary padding="px-3.5 py-3" title="Engagements"
+              hint="Likes, comments & shares on live posts." />}/>
+          <StatTile label="Total Spend"    value={totals.spend}  format={fmtINRExact} loading={isLoading} color={P.neutral}
+            back={<FlipSummary padding="px-3.5 py-3" title="Total Spend"
+              hint="Committed across campaigns counted this period." />}/>
           {/* The only rate on a strip of totals, and the only figure here where
               lower is better — hence the one tile carrying a hue. fmtCPVTo,
               not fmtCPV, so the count-up doesn't re-decide its decimal count
               every frame; see lib/format.js. */}
           <StatTile label="CPV"            value={totals.cpv}    format={fmtCPVTo(totals.cpv)} loading={isLoading} color={P.green}
-            info="Cost per view across every campaign in the selected period — committed spend ÷ measured views, to two significant digits. For one campaign's own CPV, open that campaign."/>
+            info="Cost per view across every campaign in the selected period — committed spend ÷ measured views, to two significant digits. For one campaign's own CPV, open that campaign."
+            back={<FlipSummary padding="px-3.5 py-3" title="Cost per view"
+              hint={`${fmtINRExact(totals.spend)} ÷ ${fmtNum(totals.views)} views`} />}/>
         </div>
 
         {/* Says what the figures above leave out. Without it the panel reports
@@ -312,13 +429,25 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
         {!isLoading && excluded?.campaigns > 0 && (
           <p className="mb-4 -mt-1 text-[10.5px] text-mute">
             {excluded.campaigns} campaign{excluded.campaigns === 1 ? " has" : "s have"} no post live yet
-            {excluded.spend > 0 && <> ({fmtINR(excluded.spend)} committed)</>} and {excluded.campaigns === 1 ? "is" : "are"} left
+            {excluded.spend > 0 && <> ({fmtINRExact(excluded.spend)} committed)</>} and {excluded.campaigns === 1 ? "is" : "are"} left
             out of every figure here — {excluded.campaigns === 1 ? "it joins" : "they join"} the moment {excluded.campaigns === 1 ? "its" : "their"} first post goes up.
           </p>
         )}
 
         {/* Row 1: Dual-axis line chart */}
-        <div className="mb-4 overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
+        <FlipCard
+          className="mb-4"
+          cardClassName="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
+          back={
+            <FlipSummary
+              padding="p-4"
+              title={toggle === "reach" ? "Reach vs Spend" : "Engagement vs Spend"}
+              hint={CHART_BLURB[toggle]}
+              points={trendPoints}
+              note={series.length > 1 ? `Plotted across ${series.length} ${intervalLabel} bucket${series.length === 1 ? "" : "s"}, ${plottedAudience} with an audience figure.` : undefined}
+            />
+          }
+        >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="font-serif text-[15px] italic font-semibold text-ink">
@@ -373,7 +502,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                 </div>
                 <div>
                   <div className="text-[26px] font-bold leading-none" style={{ color: LINE.spend }}>
-                    {fmtINR(series[0].spend)}
+                    {fmtINRExact(series[0].spend)}
                   </div>
                   <div className="mt-1.5 text-[11px] text-sub">Spend</div>
                 </div>
@@ -392,7 +521,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                 <YAxis yAxisId="left"  {...axisProps} tickFormatter={v => fmtNum(v)} width={44} />
                 <YAxis yAxisId="right" {...axisProps} orientation="right" tickFormatter={v => fmtINR(v)} width={52} />
                 <Tooltip {...tooltipStyle}
-                  formatter={(v, name) => name === "Spend" ? [fmtINR(v), name] : [fmtNum(v), name]}
+                  formatter={(v, name) => name === "Spend" ? [fmtINRExact(v), name] : [fmtNum(v), name]}
                 />
                 {/* Dot rings take P.surface, not "#fff" — white rings on the
                     dark theme read as pinholes punched through the line. */}
@@ -432,20 +561,40 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           <p className="mt-3 border-t border-line pt-2.5 text-[11px] leading-relaxed text-sub">
             {CHART_BLURB[toggle]}
           </p>
-        </div>
+        </FlipCard>
 
         {/* Row 2: Funnel + Spend Split side by side */}
         <div className="grid gap-4 lg:grid-cols-2">
 
-          <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
+          <FlipCard
+            cardClassName="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
+            back={
+              <FlipSummary
+                padding="p-4"
+                title="Funnel"
+                hint="Audience → Exposure → Engagement, scaled to the largest stage."
+                points={funnelPoints}
+              />
+            }
+          >
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Funnel</div>
             <p className="mb-4 text-[10.5px] text-mute">Audience → Exposure → Engagement · width scaled to the largest stage</p>
             {isLoading
               ? <div className="flex h-[140px] items-center justify-center text-[12px] text-mute">Loading…</div>
               : <Funnel stages={funnelStages} />}
-          </div>
+          </FlipCard>
 
-          <div className="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md">
+          <FlipCard
+            cardClassName="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
+            back={
+              <FlipSummary
+                padding="p-4"
+                title="Spend Split"
+                hint={donutSlices.length ? `${fmtINRExact(totalSpend)} committed across ${donutSlices.length} service${donutSlices.length === 1 ? "" : "s"} in the selected period.` : "No spend recorded for the selected period."}
+                points={spendSplitPoints}
+              />
+            }
+          >
             <div className="mb-[3px] font-serif text-[15px] italic font-semibold text-ink">Spend Split</div>
             <p className="mb-2 text-[10.5px] text-mute">By service · selected period</p>
 
@@ -478,7 +627,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                       period's total, or the service under the pointer. */}
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                     <div className="text-[22px] font-bold leading-none" style={{ color: active?.color || "var(--color-ink)" }}>
-                      {fmtINR(active ? active.value : totalSpend)}
+                      {fmtINRExact(active ? active.value : totalSpend)}
                     </div>
                     <div className="mt-1.5 line-clamp-2 text-[8.5px] font-semibold uppercase leading-tight tracking-[0.1em] text-mute">
                       {active ? active.name : "Total"}
@@ -500,7 +649,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                         <span className="text-[11.5px] text-ink">{s.name}</span>
                       </span>
                       <span className="text-right">
-                        <span className="tnum block text-[12px] font-semibold text-ink">{fmtINR(s.value)}</span>
+                        <span className="tnum block text-[12px] font-semibold text-ink">{fmtINRExact(s.value)}</span>
                         {/* Share of period spend — the reason to draw a ring
                             rather than a list in the first place. */}
                         <span className="tnum block text-[9.5px] text-mute">{((s.value / totalSpend) * 100).toFixed(0)}%</span>
@@ -510,7 +659,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
                 </div>
               </div>
             )}
-          </div>
+          </FlipCard>
         </div>
 
         <p className="mt-3 text-[10px] text-mute">

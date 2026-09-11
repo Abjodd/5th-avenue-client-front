@@ -137,6 +137,15 @@ export const PortalAPI = {
     if (to)   params.set("to",   to);
     return request(`/api/portal/analytics?${params}`);
   },
+
+  // The Insights → Trending shelf: Instagram links and short notes the
+  // internal team curates by hand (5th-internal-front's Founder Summary →
+  // Insights → Trending). Deliberately UNIVERSAL, unlike every other call in
+  // PortalAPI — every brand's portal shows the same feed, so this takes no
+  // scope and doesn't wait on the signed-in user resolving one. See
+  // /api/portal/trending in 5th-internal-back/server.js.
+  trending: () =>
+    request(`/api/portal/trending`).then((r) => r.items || []),
 };
 
 /**

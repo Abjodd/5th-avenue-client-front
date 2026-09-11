@@ -15,20 +15,48 @@ import { cx } from "../../lib/cx";
 import { useAnchoredPosition } from "../../lib/useAnchoredPosition";
 import AnimatedNumber from "../AnimatedNumber";
 import { Reveal, StaggerItem } from "../motion/Motion";
+import { FlipCard } from "./FlipCard";
 
 /* ── Panel — the portal's card ─────────────────────────────────────────────
    `as` swaps the element (a <button> panel for clickable rows); `reveal`
    wraps it in the shared scroll-reveal so callers stop pairing the two by
-   hand; `interactive` adds the standard lift-on-hover. */
+   hand; `interactive` adds the standard lift-on-hover.
+
+   `flip` is opt-in: pass it with `back` (the content for the reverse face)
+   and the panel turns over on a click anywhere on it instead of just
+   sitting there. Off by default so every existing Panel — Campaigns,
+   Profile, the Regional Map — is untouched; only call sites that actually
+   pass `flip` change at all. A click that lands on something the panel
+   already had (a metric switch, a chart's own toggle) still reaches that
+   control instead of flipping the card out from under it — see
+   FlipCard's INTERACTIVE_SELECTOR. */
 export function Panel({
-  children, className, as = "div", reveal = false, delay = 0, interactive = false, ...rest
+  children, className, as = "div", reveal = false, delay = 0, interactive = false,
+  flip = false, back, ...rest
 }) {
-  const cls = cx(
+  const chrome = cx(
     "rounded-[20px] border border-line bg-[--color-glass] shadow-card backdrop-blur-xl",
     interactive &&
       "text-left transition-all duration-250 ease-out hover:-translate-y-[3px] hover:border-accent/20 hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]",
-    className,
   );
+  const cls = cx(chrome, className);
+
+  if (flip) {
+    const card = (
+      <FlipCard
+        back={back}
+        cardClassName={cls}
+        backClassName={chrome}
+        className="h-full"
+      >
+        {children}
+      </FlipCard>
+    );
+    return reveal
+      ? <Reveal as={as} delay={delay} className="h-full" {...rest}>{card}</Reveal>
+      : card;
+  }
+
   if (reveal) return <Reveal as={as} delay={delay} className={cls} {...rest}>{children}</Reveal>;
   const Tag = as;
   return <Tag className={cls} {...rest}>{children}</Tag>;
@@ -150,11 +178,17 @@ export function PanelTitle({ title, hint, info, action, className }) {
 
 /* ── KPI tile ──────────────────────────────────────────────────────────────
    A missing value renders "—" rather than a zero: the portal never lets a
-   metric it couldn't measure look like a metric that measured zero. */
-export function KPI({ label, value, format, sublabel, color, index = 0 }) {
+   metric it couldn't measure look like a metric that measured zero.
+
+   `back` is opt-in, same idea as Panel's `flip`: pass a node and the tile
+   flips on a click anywhere on it. Leave it unset and the tile behaves
+   exactly as before. */
+export function KPI({ label, value, format, sublabel, color, index = 0, back }) {
   const missing = value == null;
-  return (
-    <StaggerItem className="group relative overflow-hidden rounded-[20px] border border-line bg-[--color-glass] px-5 py-[18px] shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(25,22,17,0.08)]">
+  const chrome = "group relative overflow-hidden rounded-[20px] border border-line bg-[--color-glass] px-5 py-[18px] shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(25,22,17,0.08)]";
+
+  const face = (
+    <>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 rounded-[20px] opacity-[0.05]"
@@ -168,8 +202,20 @@ export function KPI({ label, value, format, sublabel, color, index = 0 }) {
         {missing ? "—" : <AnimatedNumber value={value} format={format} duration={1000} delay={index * 60} />}
       </div>
       {sublabel && <div className="mt-2 text-[11.5px] text-mute">{sublabel}</div>}
-    </StaggerItem>
+    </>
   );
+
+  if (back) {
+    return (
+      <StaggerItem className="h-full">
+        <FlipCard back={back} cardClassName={chrome} className="h-full">
+          {face}
+        </FlipCard>
+      </StaggerItem>
+    );
+  }
+
+  return <StaggerItem className={chrome}>{face}</StaggerItem>;
 }
 
 /* ── Metric switch ─────────────────────────────────────────────────────────
