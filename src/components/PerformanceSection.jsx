@@ -434,7 +434,10 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           </p>
         )}
 
-        {/* Row 1: Dual-axis line chart */}
+        {/* Row 1: Dual-axis line chart — commented out for now (kept in
+            place, not deleted, so it's a one-line flip to bring back).
+            Toggle by removing the `false &&` wrapper below. */}
+        {false && (
         <FlipCard
           className="mb-4"
           cardClassName="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
@@ -562,6 +565,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
             {CHART_BLURB[toggle]}
           </p>
         </FlipCard>
+        )}
 
         {/* Row 2: Funnel + Spend Split side by side */}
         <div className="grid gap-4 lg:grid-cols-2">
