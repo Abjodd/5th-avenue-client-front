@@ -58,6 +58,31 @@ export const ACTIONABLE_STATUSES = [
   "suggested", "pending_brand", "in_negotiation", "rework", "concept_received", "video_received",
 ];
 
+/**
+ * WHY a finished reel isn't posted yet, set on the internal Deliverables
+ * board (`live.status`) and read only by needsYou() below — a Needs You
+ * line for "pending client approval" is genuinely the brand's to clear, but
+ * "pending creator" / "pending team" aren't theirs to act on, so those two
+ * are not part of the general STATUS_MAP/ACTIONABLE_STATUSES machinery that
+ * drives status pills and filters everywhere else in the app; they exist
+ * solely so the Needs You panel can say where a delayed reel is stuck.
+ */
+export const LIVE_WAIT_LABELS = {
+  pending_creator: "Reel Pending Creator",
+  pending_team:    "Reel Pending Team",
+  pending_client:  "Reel Pending You",
+};
+
+/** Tier for each LIVE_WAIT_LABELS reason — mirrors StatusPill's vocabulary
+ * (components/StatusPill TIERS). Only "pending_client" is actually the
+ * brand's to clear, so it alone reads "action"; the other two are the
+ * agency's own work in flight. */
+export const LIVE_WAIT_TIER = {
+  pending_creator: "progress",
+  pending_team:    "progress",
+  pending_client:  "action",
+};
+
 /** Statuses at which the brand's yes/no on a creator is still theirs to give.
     Mirrors DECIDABLE in 5th-internal-back server.js — the row must not offer a
     control the server is going to refuse. */
@@ -162,6 +187,8 @@ export function flattenCreators(campaigns = []) {
         statusLabel: STATUS_MAP[statusId].label,
         statusTier: STATUS_MAP[statusId].t,
         waiting: ACTIONABLE_STATUSES.includes(statusId),
+        // Raw, independent of the statusId above — see LIVE_WAIT_LABELS.
+        liveStatus: cr.live?.status || null,
         // Profile ER is the fallback only until something is live — that is the
         // one window where a forecast is the best estimate available.
         er: measuredER ?? num(cr.avgER),
@@ -686,9 +713,13 @@ export function activityFeed(campaigns = [], creators = [], limit = 6) {
 export function needsYou(campaigns = [], creators = []) {
   const byCampaign = new Map();
   for (const cr of creators) {
-    if (!cr.waiting) continue;
+    const liveLabel = LIVE_WAIT_LABELS[cr.liveStatus];
+    if (!cr.waiting && !liveLabel) continue;
+    // The override is local to this queue — it never touches the shared row
+    // object, so the same creator's status pill everywhere else is unaffected.
+    const row = liveLabel ? { ...cr, statusLabel: liveLabel, statusTier: LIVE_WAIT_TIER[cr.liveStatus] } : cr;
     if (!byCampaign.has(cr.campaignId)) byCampaign.set(cr.campaignId, []);
-    byCampaign.get(cr.campaignId).push(cr);
+    byCampaign.get(cr.campaignId).push(row);
   }
   return [...byCampaign]
     .map(([campaignId, rows]) => ({
@@ -696,6 +727,9 @@ export function needsYou(campaigns = [], creators = []) {
       campaignName: rows[0].campaignName,
       count: rows.length,
       lead: rows[0],
+      // Every creator behind the count — the sub-points a campaign's Needs
+      // You card expands to show, not just the lead name.
+      rows,
     }))
     .sort((a, b) => b.count - a.count);
 }

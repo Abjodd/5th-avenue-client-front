@@ -24,7 +24,7 @@ import { fmtNum, fmtINR, fmtCPV, fmtShare, prettyDate, dayLabel } from "../../li
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
-import { STATUS_MAP, ACTIONABLE_STATUSES, BCOLORS, chipOn, toAssetComments } from "./mapping";
+import { STATUS_MAP, ACTIONABLE_STATUSES, LIVE_WAIT_LABELS, LIVE_WAIT_TIER, BCOLORS, chipOn, toAssetComments } from "./mapping";
 import { budgetLines } from "../../lib/portalMetrics";
 import AssetReview, { ASSETS } from "./AssetReview";
 
@@ -749,6 +749,11 @@ function BrandDecision({ cr, onDecide }) {
 function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments }) {
   const P = useP();
   const st = STATUS_MAP[cr.status] || STATUS_MAP.yet_to_pick;
+  // Independent of `st` above — a finished reel can be "Pending Creator" /
+  // "Pending Team" / "Pending You" regardless of the roster status, which is
+  // usually already "Video OK" or similar by the time a reel reaches this
+  // stage. Absent (liveLabel undefined) until the internal board sets it.
+  const liveLabel = LIVE_WAIT_LABELS[cr.liveStatus];
   const [expanded, setExpanded] = useState(false);
   // null, or the key of the asset whose review panel is open.
   const [reviewing, setReviewing] = useState(null);
@@ -807,7 +812,10 @@ function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments }) {
             {cr.avgLikes != null && <span>♥ {fmtNum(cr.avgLikes)} avg</span>}
           </div>
         </div>
-        <StatusPill tier={st.t}>{st.label}</StatusPill>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <StatusPill tier={st.t}>{st.label}</StatusPill>
+          {liveLabel && <StatusPill tier={LIVE_WAIT_TIER[cr.liveStatus]}>{liveLabel}</StatusPill>}
+        </div>
       </div>
 
       {/* The brand's call, at the top of the row: while a creator is still

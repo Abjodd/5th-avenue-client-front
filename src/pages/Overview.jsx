@@ -25,7 +25,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
   UserCheck, Clapperboard, Rocket, MapPin, Sparkles, ArrowRight,
-  Radio, TrendingUp, Calendar, ExternalLink, SlidersHorizontal,
+  Radio, TrendingUp, Calendar, ExternalLink, SlidersHorizontal, ChevronDown,
 } from "lucide-react";
 
 import { useApp } from "../context";
@@ -82,6 +82,10 @@ function HeroActivityPanel({ activity, queues, setPage, P }) {
   const hasActivity = activity.length > 0;
   const hasQueues = queues.length > 0;
   const totalQueue = queues.reduce((s, q) => s + q.count, 0);
+  // Which campaign's card is expanded to show its individual creators — one
+  // at a time, accordion-style, so opening a second doesn't stack the panel
+  // taller than the Recent activity column beside it.
+  const [openQueue, setOpenQueue] = useState(null);
 
   return (
     <Panel reveal delay={0.06} className="flex h-full flex-col gap-5 px-6 py-5 lg:flex-row">
@@ -136,28 +140,65 @@ function HeroActivityPanel({ activity, queues, setPage, P }) {
         />
         {hasQueues ? (
           <div className="mt-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
-            {queues.map((q, i) => (
+            {queues.map((q, i) => {
+              const open = openQueue === q.campaignId;
+              return (
               <Subpanel
                 key={q.campaignId}
                 className={`shrink-0 overflow-hidden transition-all duration-200 hover:-translate-y-px hover:shadow-md ${
                   i === 0 ? "border-accent/25 bg-accent/[0.06]" : ""
                 }`}
               >
-                <button
-                  onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
-                  className="group flex w-full items-center gap-2.5 px-4 py-2.5 text-left"
-                >
-                  {i === 0 && <span className="size-1.5 shrink-0 rounded-full" style={{ background: P.neutral }} />}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12.5px] font-semibold text-ink">
-                      {q.lead.name} {q.count > 1 ? `+${q.count - 1} more` : ""} need{q.count === 1 ? "s" : ""} a decision
+                <div className="flex w-full items-center gap-1">
+                  <button
+                    onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                    className="group flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2.5 text-left"
+                  >
+                    {i === 0 && <span className="size-1.5 shrink-0 rounded-full" style={{ background: P.neutral }} />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12.5px] font-semibold text-ink">
+                        {q.lead.name} {q.count > 1 ? `+${q.count - 1} more` : ""} need{q.count === 1 ? "s" : ""} a decision
+                      </span>
+                      <span className="block truncate text-[10.5px] text-mute">{q.campaignName} · {q.lead.statusLabel}</span>
                     </span>
-                    <span className="block truncate text-[10.5px] text-mute">{q.campaignName} · {q.lead.statusLabel}</span>
-                  </span>
-                  <ArrowRight size={13} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
-                </button>
+                    <ArrowRight size={13} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
+                  </button>
+                  {/* Sub-points — same "expand a campaign to see who's behind
+                      the count" pattern as a campaign notification, so the
+                      names hiding behind "+N more" are one tap away rather
+                      than only visible after leaving this panel. */}
+                  {q.count > 1 && (
+                    <button
+                      onClick={() => setOpenQueue(open ? null : q.campaignId)}
+                      aria-label={open ? "Collapse creators" : "Show individual creators"}
+                      className="mr-2 shrink-0 rounded-full p-1 text-mute transition-colors hover:bg-well hover:text-ink"
+                    >
+                      <ChevronDown size={13} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+                    </button>
+                  )}
+                </div>
+                <AnimatePresence initial={false}>
+                  {open && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }} className="overflow-hidden border-t border-line/60"
+                    >
+                      {q.rows.map((cr, j) => (
+                        <button
+                          key={j}
+                          onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                          className="flex w-full items-center gap-2 px-4 py-2 text-left last:pb-2.5 hover:bg-accent/[0.03]"
+                        >
+                          <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink">{cr.name}</span>
+                          <span className="shrink-0 text-[10px] text-mute">{cr.statusLabel}</span>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </Subpanel>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <PanelEmpty>Nothing needs your call right now.</PanelEmpty>

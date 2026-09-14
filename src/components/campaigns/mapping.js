@@ -12,7 +12,7 @@ import { campaignPhaseOf, progressOf, deliveryProgressOf, briefLockedOf } from "
 import {
   STATUS_MAP, ACTIONABLE_STATUSES, DECIDABLE_STATUSES, creatorStatus, erOf, cpvOf,
   isLocked, deliverableTarget, deliverablesPosted, totalDeliverables, postedDeliverables,
-  growthSeries, growthByCreator,
+  growthSeries, growthByCreator, LIVE_WAIT_LABELS, LIVE_WAIT_TIER,
 } from "../../lib/portalMetrics.js";
 
 // The status vocabulary, the "waiting on you" list, the furthest-signal status
@@ -20,7 +20,7 @@ import {
 // the Regional Map need them too, and three copies of "what counts as waiting
 // on the brand" is how the board and the dashboard start disagreeing.
 // Re-exported here so this module stays the one import the campaigns UI needs.
-export { STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf };
+export { STATUS_MAP, ACTIONABLE_STATUSES, creatorStatus, erOf, LIVE_WAIT_LABELS, LIVE_WAIT_TIER };
 
 // Chart series drawn from the theme palette (accent/teal/pink/amber/purple/
 // green/gold + tints) so charts read as part of the same system.
@@ -181,6 +181,8 @@ export function toViewCreator(cr, campaign) {
     platform: cr.platform || "—",
     status: creatorStatus(cr),
     rawStatus: cr.status || null,
+    // Raw, independent of `status` above — see LIVE_WAIT_LABELS/LIVE_WAIT_TIER.
+    liveStatus: cr.live?.status || null,
     // Deliverables only mean something once a creator is locked — until then
     // they're a candidate, not a commitment. Reads "1/2" (posted of target).
     locked,
