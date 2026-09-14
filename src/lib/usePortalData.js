@@ -53,6 +53,45 @@ export const usePortalReels = (map) => usePortalResource(PortalAPI.reels, map);
 
 /** This client's own company record (Settings → Company). */
 export const usePortalClient = () => usePortalResource(PortalAPI.client);
+export const usePortalQuestions = () => usePortalResource(PortalAPI.questions);
+
+/** The Insights → Market Watch shelf — same Reels/Insights shape as
+ *  usePortalTrending below, but brand-scoped (see PortalAPI.marketWatch),
+ *  so this goes through the ordinary usePortalResource gate rather than
+ *  usePortalTrending's hand-rolled universal-fetch version. */
+export const usePortalMarketWatch = () => usePortalResource(PortalAPI.marketWatch);
+
+/** The Insights → Newsletter section — this brand's own dated history of
+ *  uploaded newsletter PDFs (see PortalAPI.newsletter). Brand-scoped, same
+ *  as usePortalMarketWatch above. */
+export const usePortalNewsletter = () => usePortalResource(PortalAPI.newsletter);
+
+/**
+ * Market Watch's "Latest News" list — influencer-marketing industry
+ * headlines the backend fetches from Google News (see PortalAPI.news).
+ * Universal like usePortalTrending below (same feed for every brand), so
+ * this is its own hand-rolled hook rather than going through
+ * usePortalResource's brand-scope gate — it fetches on mount regardless of
+ * the signed-in brand's scope resolving.
+ */
+export function usePortalNews() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setData(null);
+    setError(null);
+    PortalAPI.news()
+      .then((d) => { if (alive) setData(d); })
+      .catch((e) => { if (alive) setError(e.message); });
+    return () => { alive = false; };
+  }, [attempt]);
+
+  const retry = useCallback(() => setAttempt((a) => a + 1), []);
+  return { data, setData, error, retry };
+}
 
 /**
  * The Insights → Trending shelf — Instagram links and short notes the

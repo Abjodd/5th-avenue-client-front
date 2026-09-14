@@ -68,9 +68,9 @@ export const ACTIONABLE_STATUSES = [
  * solely so the Needs You panel can say where a delayed reel is stuck.
  */
 export const LIVE_WAIT_LABELS = {
-  pending_creator: "Reel Pending Creator",
-  pending_team:    "Reel Pending Team",
-  pending_client:  "Reel Pending You",
+  pending_creator: "Waiting on Creator",
+  pending_team:    "Waiting on Our Team",
+  pending_client:  "Waiting on You",
 };
 
 /** Tier for each LIVE_WAIT_LABELS reason — mirrors StatusPill's vocabulary

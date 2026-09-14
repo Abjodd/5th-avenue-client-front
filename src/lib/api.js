@@ -146,6 +146,39 @@ export const PortalAPI = {
   // /api/portal/trending in 5th-internal-back/server.js.
   trending: () =>
     request(`/api/portal/trending`).then((r) => r.items || []),
+  // The Insights → Questions shelf — four fixed prompts the internal team
+  // answers per brand on the Founder Summary page (see /api/account-questions
+  // in the internal backend). Brand-scoped, unlike trending() above.
+  questions: (scope) => request(`/api/portal/questions?${scopeParams(scope)}`),
+
+  // The Insights → Market Watch shelf — the same Reels/Insights shape as
+  // trending() above, but per brand rather than universal: each brand sees
+  // only the reels/notes the internal team added for it (see
+  // /api/portal/market-watch in 5th-internal-back/server.js). Brand-scoped,
+  // same as questions() above.
+  marketWatch: (scope) =>
+    request(`/api/portal/market-watch?${scopeParams(scope)}`).then((r) => r.items || []),
+
+  // Market Watch's "Latest News" list — influencer-marketing industry
+  // headlines the backend fetches from Google News on a cached schedule
+  // (see /api/portal/news in 5th-internal-back/newsFeed.js + server.js).
+  // Deliberately universal like trending() above — no brand scope, same
+  // feed for every brand.
+  news: () => request(`/api/portal/news`).then((r) => r.items || []),
+
+  // The Insights → Newsletter section — this brand's own history of
+  // newsletter PDFs the internal team has uploaded, newest first (see
+  // /api/portal/newsletter in 5th-internal-back/server.js). Brand-scoped
+  // like marketWatch()/questions() above, not universal like news()/
+  // trending() above.
+  newsletter: (scope) =>
+    request(`/api/portal/newsletter?${scopeParams(scope)}`).then((r) => r.items || []),
+  // Not a request() call — this is a URL for an <a href>, not JSON to parse.
+  // The brand scope has to ride along in the query string here too: the
+  // backend's file route re-checks it on every request rather than trusting
+  // the id alone, so a guessed id for another brand's PDF 404s instead of
+  // leaking it.
+  newsletterFileUrl: (id, scope) => `${BASE}/api/portal/newsletter/${id}/file?${scopeParams(scope)}`,
 };
 
 /**

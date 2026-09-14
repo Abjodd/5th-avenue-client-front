@@ -44,6 +44,7 @@ import {
 } from "../lib/portalMetrics";
 
 import { Dot } from "../components/Dot";
+import { StatusPill } from "../components/StatusPill";
 import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import PerformanceSection from "../components/PerformanceSection";
 import { Stagger, AmbientBackground } from "../components/motion/Motion";
@@ -159,7 +160,10 @@ function HeroActivityPanel({ activity, queues, setPage, P }) {
                       <span className="block truncate text-[12.5px] font-semibold text-ink">
                         {q.lead.name} {q.count > 1 ? `+${q.count - 1} more` : ""} need{q.count === 1 ? "s" : ""} a decision
                       </span>
-                      <span className="block truncate text-[10.5px] text-mute">{q.campaignName} · {q.lead.statusLabel}</span>
+                      <span className="mt-1 flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[10.5px] text-mute">{q.campaignName}</span>
+                        <StatusPill tier={q.lead.statusTier}>{q.lead.statusLabel}</StatusPill>
+                      </span>
                     </span>
                     <ArrowRight size={13} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
                   </button>
@@ -190,7 +194,7 @@ function HeroActivityPanel({ activity, queues, setPage, P }) {
                           className="flex w-full items-center gap-2 px-4 py-2 text-left last:pb-2.5 hover:bg-accent/[0.03]"
                         >
                           <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink">{cr.name}</span>
-                          <span className="shrink-0 text-[10px] text-mute">{cr.statusLabel}</span>
+                          <StatusPill tier={cr.statusTier}>{cr.statusLabel}</StatusPill>
                         </button>
                       ))}
                     </motion.div>
