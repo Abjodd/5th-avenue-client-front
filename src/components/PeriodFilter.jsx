@@ -100,14 +100,14 @@ export default function PeriodFilter({ preset, onPreset, interval, onInterval })
 
       {/* Range preset dropdown */}
       <button ref={btnRef} onClick={() => setOpen(!open)} aria-expanded={open}
-        className="flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-3.5 py-[7px] text-[11.5px] font-semibold text-ink shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md">
+        className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-3.5 py-[7px] text-[11.5px] font-semibold text-ink shadow-sm backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md">
         {label}
         <span className={`text-[9px] text-mute transition-transform duration-200 ${open ? "-rotate-180" : ""}`}>▾</span>
       </button>
       {open && at && createPortal(menu, document.body)}
 
       {/* Interval tabs — daily / weekly / monthly */}
-      <div className="flex gap-0.5 rounded-full border border-line bg-[--color-glass] p-1 shadow-sm backdrop-blur-sm">
+      <div className="flex gap-0.5 rounded-full border border-line bg-glass p-1 shadow-sm backdrop-blur-sm">
         {INTERVALS.map(iv => (
           <button key={iv.id} onClick={() => onInterval(iv.id)}
             className={`rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-all duration-200 ease-out ${

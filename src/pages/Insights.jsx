@@ -365,7 +365,7 @@ function TrendingCarousel({ reels }) {
             type="button"
             onClick={() => setActive((a) => (a - 1 + count) % count)}
             aria-label="Previous reel"
-            className="absolute left-0 top-4 z-[200] flex size-8 items-center justify-center rounded-full border border-line bg-[--color-glass] text-sub shadow-sm backdrop-blur-md transition-colors hover:text-accent"
+            className="absolute left-0 top-4 z-[200] flex size-8 items-center justify-center rounded-full border border-line bg-glass text-sub shadow-sm backdrop-blur-md transition-colors hover:text-accent"
             style={{ top: CARD_H / 2 }}
           >
             <ChevronLeft size={16} strokeWidth={2.2} />
@@ -374,7 +374,7 @@ function TrendingCarousel({ reels }) {
             type="button"
             onClick={() => setActive((a) => (a + 1) % count)}
             aria-label="Next reel"
-            className="absolute right-0 z-[200] flex size-8 items-center justify-center rounded-full border border-line bg-[--color-glass] text-sub shadow-sm backdrop-blur-md transition-colors hover:text-accent"
+            className="absolute right-0 z-[200] flex size-8 items-center justify-center rounded-full border border-line bg-glass text-sub shadow-sm backdrop-blur-md transition-colors hover:text-accent"
             style={{ top: CARD_H / 2 }}
           >
             <ChevronRight size={16} strokeWidth={2.2} />
@@ -619,7 +619,7 @@ function NewsCard({ item }) {
         href={item.link}
         target="_blank"
         rel="noreferrer"
-        className="group flex h-full flex-col overflow-hidden rounded-[16px] border border-line bg-[--color-glass] transition-shadow duration-300 hover:shadow-[0_16px_36px_-18px_rgba(25,22,17,0.3)] hover:border-accent/25"
+        className="group flex h-full flex-col overflow-hidden rounded-[16px] border border-line bg-glass transition-shadow duration-300 hover:shadow-[0_16px_36px_-18px_rgba(25,22,17,0.3)] hover:border-accent/25"
       >
         <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-gradient-to-br from-accent/10 to-accent/[0.03]">
           {item.image ? (
@@ -828,7 +828,7 @@ function MarketWatchReelRow({ reels }) {
             type="button"
             onClick={() => scrollByViewport(-1)}
             aria-label="Scroll reels left"
-            className="absolute -left-3 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-[--color-glass] text-sub opacity-0 shadow-sm backdrop-blur-md transition-all duration-200 hover:text-accent group-hover/row:opacity-100 sm:flex"
+            className="absolute -left-3 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-glass text-sub opacity-0 shadow-sm backdrop-blur-md transition-all duration-200 hover:text-accent group-hover/row:opacity-100 sm:flex"
           >
             <ChevronLeft size={16} strokeWidth={2.2} />
           </button>
@@ -836,7 +836,7 @@ function MarketWatchReelRow({ reels }) {
             type="button"
             onClick={() => scrollByViewport(1)}
             aria-label="Scroll reels right"
-            className="absolute -right-3 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-[--color-glass] text-sub opacity-0 shadow-sm backdrop-blur-md transition-all duration-200 hover:text-accent group-hover/row:opacity-100 sm:flex"
+            className="absolute -right-3 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-glass text-sub opacity-0 shadow-sm backdrop-blur-md transition-all duration-200 hover:text-accent group-hover/row:opacity-100 sm:flex"
           >
             <ChevronRight size={16} strokeWidth={2.2} />
           </button>
@@ -902,7 +902,7 @@ function NewsletterRow({ item, fileUrl }) {
         href={fileUrl}
         target="_blank"
         rel="noreferrer"
-        className="group flex items-center gap-3.5 rounded-[14px] border border-line bg-[--color-glass] px-4 py-3.5 transition-colors duration-200 hover:border-accent/25 hover:bg-accent/[0.04]"
+        className="group flex items-center gap-3.5 rounded-[14px] border border-line bg-glass px-4 py-3.5 transition-colors duration-200 hover:border-accent/25 hover:bg-accent/[0.04]"
       >
         <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-accent/10 text-accent">
           <FileText size={16} strokeWidth={2} />

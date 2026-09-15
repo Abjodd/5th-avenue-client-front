@@ -169,7 +169,7 @@ function ReelTile({ reel, index, onOpen }) {
         }`}
         animate={reduced ? {} : { y: hovered ? -6 : 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
-        className="relative block w-full overflow-hidden rounded-[14px] bg-black text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[--color-bg]"
+        className="relative block w-full overflow-hidden rounded-[14px] bg-black text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
         style={{
           aspectRatio: "9 / 16",
           boxShadow: hovered
@@ -458,7 +458,7 @@ export default function ReelsPage() {
             {chips.map(([noun, n], i) => (
               <span
                 key={noun}
-                className="fi rounded-full border border-line bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm"
+                className="fi rounded-full border border-line bg-glass px-2.5 py-1 shadow-sm backdrop-blur-sm"
                 style={{ animationDelay: `${i * 60}ms` }}
               >
                 <b className="tnum text-ink">
