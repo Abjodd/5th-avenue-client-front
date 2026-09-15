@@ -86,7 +86,7 @@ export function PlatformScorecard({ rows, viewsFormat, className }: PlatformScor
 
       {locked && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-          <span className="flex size-9 items-center justify-center rounded-full border border-line bg-[--color-glass-strong] text-mute backdrop-blur-sm">
+          <span className="flex size-9 items-center justify-center rounded-full border border-line bg-glass-strong text-mute backdrop-blur-sm">
             <Lock size={15} />
           </span>
           <p className="max-w-[34ch] text-[11.5px] leading-relaxed text-sub">

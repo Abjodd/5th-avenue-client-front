@@ -38,7 +38,7 @@ const PANES = [
 function Field({ label, value, href, lockedReason }) {
   const empty = value == null || value === "";
   return (
-    <StaggerItem className="rounded-[16px] border border-line bg-[--color-glass] px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+    <StaggerItem className="rounded-[16px] border border-line bg-glass px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
       <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
         {label}
         {lockedReason && <Lock size={10} strokeWidth={2.2} className="text-donetxt" aria-label={lockedReason} />}
@@ -110,7 +110,7 @@ function EditableField({ label, value, onSave, type = "text", placeholder }) {
 
   return (
     <StaggerItem
-      className={`group relative rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 ${
+      className={`group relative rounded-[16px] border bg-glass px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 ${
         editing ? "border-accent/50 shadow-[0_0_0_3px_rgba(44,62,126,0.08)]" : "border-line hover:-translate-y-px hover:border-accent/30 hover:shadow-md"
       }`}
     >
@@ -140,7 +140,7 @@ function EditableField({ label, value, onSave, type = "text", placeholder }) {
               if (e.key === "Enter") commit();
               if (e.key === "Escape") cancel();
             }}
-            className="mt-1 w-full rounded-[8px] border border-line bg-[--color-input] px-2 py-1 text-[15px] font-semibold text-ink outline-none placeholder:font-normal placeholder:text-donetxt disabled:opacity-50"
+            className="mt-1 w-full rounded-[8px] border border-line bg-input px-2 py-1 text-[15px] font-semibold text-ink outline-none placeholder:font-normal placeholder:text-donetxt disabled:opacity-50"
           />
           <div className="mt-2 flex items-center gap-1.5">
             <button type="button" onClick={commit} disabled={busy}
@@ -207,7 +207,7 @@ function PasswordField({ label, value, onChange, reveal, disabled, autoComplete,
         disabled={disabled}
         autoComplete={autoComplete}
         placeholder="••••••••"
-        className="mt-1 w-full rounded-[10px] border border-line bg-[--color-input] px-3 py-2 text-[14px] text-ink outline-none transition-colors placeholder:text-donetxt focus:border-accent/50 disabled:opacity-50"
+        className="mt-1 w-full rounded-[10px] border border-line bg-input px-3 py-2 text-[14px] text-ink outline-none transition-colors placeholder:text-donetxt focus:border-accent/50 disabled:opacity-50"
       />
     </label>
   );
@@ -263,7 +263,7 @@ function PasswordPanel({ userId }) {
         hint="The password you sign in with. Changing it here updates it everywhere immediately."
         action={!open && (
           <button type="button" onClick={() => { setSaved(false); setOpen(true); }}
-            className="flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-3 py-1.5 text-[11.5px] font-medium text-accent transition-colors hover:bg-accent/[0.06]">
+            className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-3 py-1.5 text-[11.5px] font-medium text-accent transition-colors hover:bg-accent/[0.06]">
             <KeyRound size={12} strokeWidth={2.2} /> Change password
           </button>
         )}
@@ -421,7 +421,7 @@ function AvatarUpload({ user, onSaved, openRef }) {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}
-            className="rounded-full border border-line bg-[--color-glass] px-3 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
+            className="rounded-full border border-line bg-glass px-3 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
             {own ? "Change photo" : "Upload your own"}
           </button>
           {/* Labelled "Use brand logo" rather than "Remove", because that is
@@ -430,7 +430,7 @@ function AvatarUpload({ user, onSaved, openRef }) {
               to keep in sync. */}
           {!!own && (
             <button type="button" disabled={busy} onClick={remove}
-              className="rounded-full border border-line bg-[--color-glass] px-3 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
+              className="rounded-full border border-line bg-glass px-3 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-ink disabled:opacity-50">
               {brandLogo ? "Use brand logo" : "Remove"}
             </button>
           )}
@@ -517,7 +517,7 @@ export default function Settings() {
       <div className="mx-auto w-full max-w-[1100px] px-5 pb-16 sm:px-9">
         <Reveal className="pt-10">
           <button onClick={() => setPage("overview")}
-            className="mb-5 flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-3 py-1.5 text-[11.5px] font-medium text-sub shadow-sm backdrop-blur-sm transition-all duration-150 hover:-translate-x-0.5 hover:text-ink">
+            className="mb-5 flex items-center gap-1.5 rounded-full border border-line bg-glass px-3 py-1.5 text-[11.5px] font-medium text-sub shadow-sm backdrop-blur-sm transition-all duration-150 hover:-translate-x-0.5 hover:text-ink">
             <ArrowLeft size={13} /> Back to portal
           </button>
           <div className="microlabel mb-1.5 tracking-[0.2em]">Settings</div>

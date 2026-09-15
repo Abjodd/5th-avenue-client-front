@@ -118,7 +118,7 @@ export default function AppShell({ children }) {
 
           {/* Client identity — scoped to the logged-in brand */}
           <div className="hidden shrink-0 items-center gap-2.5 border-r border-line px-5 sm:flex">
-            <span className="whitespace-nowrap rounded-full bg-[--color-glass] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute shadow-sm ring-1 ring-line">
+            <span className="whitespace-nowrap rounded-full bg-glass px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute shadow-sm ring-1 ring-line">
               Client
             </span>
             <span className="whitespace-nowrap text-[13.5px] font-semibold text-ink">{user?.clientName}</span>
@@ -178,7 +178,7 @@ export default function AppShell({ children }) {
                 ? `Account settings — profile ${completion.pct}% complete, ${left} item${left === 1 ? "" : "s"} left`
                 : "Account settings"}
               aria-current={page === "profile" ? "page" : undefined}
-              className={`flex items-center gap-[9px] rounded-full border bg-[--color-glass-soft] py-[5px] pl-[5px] pr-3.5 text-[12.5px] text-ink shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:shadow-md ${
+              className={`flex items-center gap-[9px] rounded-full border bg-glass-soft py-[5px] pl-[5px] pr-3.5 text-[12.5px] text-ink shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:shadow-md ${
                 page === "profile" ? "border-accent/40 ring-1 ring-accent/20" : "border-line hover:border-accent/25"
               }`}
             >
@@ -191,7 +191,7 @@ export default function AppShell({ children }) {
             <button
               onClick={handleLogout}
               title="Sign out"
-              className="group flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass-soft] px-3 py-[9px] text-[11.5px] font-medium text-sub backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-red/25 hover:bg-red/[0.05] hover:text-red hover:shadow-sm"
+              className="group flex items-center gap-1.5 rounded-full border border-line bg-glass-soft px-3 py-[9px] text-[11.5px] font-medium text-sub backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-red/25 hover:bg-red/[0.05] hover:text-red hover:shadow-sm"
             >
               <span className="text-[12px] transition-transform duration-200 group-hover:translate-x-[1px]">⏻</span>
               <span className="hidden sm:inline">Sign out</span>

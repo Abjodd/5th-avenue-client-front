@@ -35,7 +35,7 @@ function PhaseTracker({ currentPhase }) {
   const P = useP();
   const idx = PHASES.findIndex(p => p.id === currentPhase);
   return (
-    <div className="mb-4 rounded-[18px] border border-line bg-[--color-glass] px-6 py-5 shadow-card backdrop-blur-xl">
+    <div className="mb-4 rounded-[18px] border border-line bg-glass px-6 py-5 shadow-card backdrop-blur-xl">
       <div className="flex items-center">
         {PHASES.map((p, i) => {
           const isCur = i === idx, isDone = i < idx;
@@ -107,7 +107,7 @@ function BudgetCard({ value, budgetNum = 0, agencyFee = null, pending, creators 
     // relative + z-20 for the same reason LivePerformance carries them: every
     // card on this grid is backdrop-blurred, and a blur creates a stacking
     // context that a popover with only a local z-index paints underneath.
-    <div className={`relative rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has ? "z-20" : ""}`}
+    <div className={`relative rounded-[14px] border border-line bg-glass px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has ? "z-20" : ""}`}
       onMouseEnter={() => has && setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <div className="flex items-center gap-1">
         {/* The dotted rule is the only thing telling you the total opens —
@@ -222,7 +222,7 @@ function MetricCard({ label, value, breakdowns, onOpen, suffix = "" }) {
   const has = breakdowns && Object.keys(breakdowns).length > 0 && live;
   const jumps = !!onOpen && live;
   return (
-    <div className={`rounded-[14px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has||jumps?"group cursor-pointer":""}`}
+    <div className={`rounded-[14px] border border-line bg-glass px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md ${has||jumps?"group cursor-pointer":""}`}
       onClick={jumps ? onOpen : () => has && setOpen(!open)}>
       <div className="flex items-center justify-between">
         <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">{label}</div>
@@ -292,7 +292,7 @@ function LivePerformance({ totals, lastFetched, cpv }) {
     // z-20 is what makes the breakdown readable: the cards below carry
     // backdrop-blur, so in DOM order they painted over a popover that had only
     // a local z-index inside this panel's own blur-induced stacking context.
-    <div className="relative z-20 mb-3 mt-2 rounded-[16px] border border-line bg-[--color-glass] shadow-sm backdrop-blur-md">
+    <div className="relative z-20 mb-3 mt-2 rounded-[16px] border border-line bg-glass shadow-sm backdrop-blur-md">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
         <span className="flex items-center gap-1.5">
           <Dot color={P.green} sz={6}/><span className="microlabel">Live performance</span>
@@ -399,7 +399,7 @@ function GrowthChart({ growth, perCreator }) {
           <div className="flex rounded-full bg-well p-0.5">
             {[["views", "Views"], ["engagements", "Engagements"]].map(([id, l]) => (
               <button key={id} onClick={() => setMetric(id)}
-                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200 ${metric===id?"bg-[--color-glass] text-accent shadow-sm":"text-mute hover:text-ink"}`}>
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200 ${metric===id?"bg-glass text-accent shadow-sm":"text-mute hover:text-ink"}`}>
                 {l}
               </button>
             ))}
@@ -410,7 +410,7 @@ function GrowthChart({ growth, perCreator }) {
             <div className="flex rounded-full bg-well p-0.5">
               {[[false, "Combined"], [true, "Per creator"]].map(([id, l]) => (
                 <button key={String(id)} onClick={() => setSplit(id)}
-                  className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200 ${split===id?"bg-[--color-glass] text-accent shadow-sm":"text-mute hover:text-ink"}`}>
+                  className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200 ${split===id?"bg-glass text-accent shadow-sm":"text-mute hover:text-ink"}`}>
                   {l}
                 </button>
               ))}
@@ -490,7 +490,7 @@ function SentimentStrip({ avgPositivity, creators }) {
   const quotes = (creators || []).filter(cr => cr.tracking?.commentAnalysis);
   if (avgPositivity == null && !quotes.length) return null;
   return (
-    <div className="mb-3 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md">
+    <div className="mb-3 rounded-[16px] border border-line bg-glass px-4 py-3.5 shadow-sm backdrop-blur-md">
       <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.09em] text-mute">Audience Sentiment</div>
       {avgPositivity != null && (
         <div className="mb-3">
@@ -512,7 +512,7 @@ function SentimentStrip({ avgPositivity, creators }) {
       {quotes.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {quotes.map((cr, i) => (
-            <div key={i} className="rounded-[12px] border border-line bg-[--color-glass] px-3 py-2 shadow-sm">
+            <div key={i} className="rounded-[12px] border border-line bg-glass px-3 py-2 shadow-sm">
               <div className="text-[11.5px] italic leading-normal text-ink">"{cr.tracking.commentAnalysis}"</div>
               <div className="mt-1 flex items-center gap-1.5 text-[10px] text-mute">
                 <span className="font-semibold text-accent">{cr.name}</span>
@@ -568,7 +568,7 @@ function Observations({ creators, topAssets }) {
   return (
     <div className="mt-4">
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Observations</div>
-      <div className={`rounded-[14px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md ${strategies.length?"mb-3":""}`}>
+      <div className={`rounded-[14px] border border-line bg-glass px-4 py-3 shadow-sm backdrop-blur-md ${strategies.length?"mb-3":""}`}>
         {obs.map((o, i) => (
           <div key={i} className={`flex items-start gap-1.5 ${i < obs.length-1 ? "mb-1.5" : ""}`}>
             <span className="mt-[3px] shrink-0 text-[10px] text-accent">●</span>
@@ -598,7 +598,7 @@ function AssetButton({ label, Icon, asset, onOpen }) {
   return (
     <span className="inline-flex items-center gap-2">
       <button onClick={onOpen}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-2.5 py-1 text-[11.5px] font-semibold text-accent shadow-sm transition-all duration-200 hover:-translate-y-px hover:border-accent/30 hover:shadow-md">
+        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[11.5px] font-semibold text-accent shadow-sm transition-all duration-200 hover:-translate-y-px hover:border-accent/30 hover:shadow-md">
         <Icon size={13} strokeWidth={1.9} /> {label}
         {notes > 0 && (
           <span className="rounded-full bg-accent/[0.12] px-1.5 text-[10px] font-bold leading-[15px]">{notes}</span>
@@ -626,7 +626,7 @@ function LivePost({ cr }) {
           <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Live</span>
         </span>
         <a href={cr.live.postUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-          className="rounded-full border border-line bg-[--color-glass] px-2.5 py-0.5 font-semibold text-accent no-underline transition-colors hover:border-accent/30">View post ↗</a>
+          className="rounded-full border border-line bg-glass px-2.5 py-0.5 font-semibold text-accent no-underline transition-colors hover:border-accent/30">View post ↗</a>
         {cr.live.postedDate && <span className="text-mute">posted {prettyDate(cr.live.postedDate)}</span>}
         {pos != null && (
           <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold shadow-sm"
@@ -656,8 +656,8 @@ function LivePost({ cr }) {
 function Choice({ tone, Icon, label, active, disabled, onClick }) {
   const on  = tone === "green" ? "border-green bg-green/[0.12] text-green shadow-sm"
                                : "border-red bg-red/[0.10] text-red shadow-sm";
-  const off = tone === "green" ? "border-line bg-[--color-glass] text-sub hover:border-green/50 hover:text-green"
-                               : "border-line bg-[--color-glass] text-sub hover:border-red/50 hover:text-red";
+  const off = tone === "green" ? "border-line bg-glass text-sub hover:border-green/50 hover:text-green"
+                               : "border-line bg-glass text-sub hover:border-red/50 hover:text-red";
   return (
     <motion.button type="button" onClick={onClick} disabled={disabled}
       whileHover={disabled ? undefined : { y: -1 }} whileTap={disabled ? undefined : { scale: 0.94 }}
@@ -768,7 +768,7 @@ function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments }) {
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(idx * 0.035, 0.4), duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="mb-2 rounded-[16px] border bg-[--color-glass] px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md"
+      className="mb-2 rounded-[16px] border bg-glass px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md"
       style={{ borderColor: pending ? P.amber + "40" : cr.decision === "reject" ? P.red + "20" : "var(--color-line)" }}>
       <div className="flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[12.5px] font-semibold text-accent shadow-sm">{cr.avatar || cr.name[0]}</div>
@@ -937,7 +937,7 @@ function BriefPage({ lockedBrief, pendingBrief }) {
       {BRIEF_FIELDS.map(([label, key, Icon]) => {
         const val = brief[key];
         return (
-          <div key={key} className="group mb-1.5 flex items-start gap-3 rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-sm transition-colors duration-200 hover:border-accent/25">
+          <div key={key} className="group mb-1.5 flex items-start gap-3 rounded-[12px] border border-line bg-glass px-3.5 py-3 shadow-sm backdrop-blur-sm transition-colors duration-200 hover:border-accent/25">
             {/* The icon tile picks up the accent on hover — the row reads as a
                 thing you can look at, without animating on a page someone is
                 trying to read. */}
@@ -1070,7 +1070,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                     <MetricCard label="Engagement Rate" value={c.engRate} breakdowns={engBD} suffix="%"/>
                     {engBD && <div className="absolute top-3 right-3 text-[12px] text-mute opacity-60 group-hover:opacity-100 transition-opacity">Hover or click to explore</div>}
                   </div>
-                  <div className="mb-3 mt-2 rounded-[16px] border border-line bg-[--color-glass] px-4 py-3 shadow-sm backdrop-blur-md">
+                  <div className="mb-3 mt-2 rounded-[16px] border border-line bg-glass px-4 py-3 shadow-sm backdrop-blur-md">
                     <div className="flex items-center justify-between">
                       <div><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Timeline</div><div className="mt-0.5 text-[12.5px] font-medium text-ink">{prettyDate(c.start)} — {prettyDate(c.end)}</div></div>
                       {/* The DELIVERY figure, labelled — creators locked,
@@ -1089,7 +1089,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                       <motion.div className="h-full rounded-full bg-accent" initial={{ width: 0 }} animate={{ width: `${c.progress}%` }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}/>
                     </div>
                   </div>
-                  <div className="mb-3 flex flex-wrap gap-4 rounded-[14px] border border-line bg-[--color-glass] px-4 py-2.5 shadow-sm backdrop-blur-sm">
+                  <div className="mb-3 flex flex-wrap gap-4 rounded-[14px] border border-line bg-glass px-4 py-2.5 shadow-sm backdrop-blur-sm">
                     {[["Service", c.service], ["Region", c.region]].map(([k, v]) => (<div key={k}><div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">{k}</div><div className="mt-px text-[12px] font-medium text-ink">{v}</div></div>))}
                   </div>
                   {c.topAssets?.length > 0 && (
@@ -1097,7 +1097,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Top Performing Assets</div>
                       <div className="flex gap-2 overflow-x-auto pb-1">
                         {c.topAssets.map((a2, i) => (
-                          <div key={i} className="flex min-w-[130px] flex-col items-center gap-1 rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+                          <div key={i} className="flex min-w-[130px] flex-col items-center gap-1 rounded-[16px] border border-line bg-glass px-3.5 py-3 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md">
                             <div className="flex size-[38px] items-center justify-center rounded-full bg-accent/[0.1] text-[13px] font-bold text-accent">{a2.avatar}</div>
                             <span className="text-[11px] font-medium text-ink">{a2.creator}</span><span className="text-[10.5px] text-accent">{a2.handle}</span><span className="text-[10px] text-sub">{a2.label}</span>
                             <a href={a2.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="rounded-full bg-accent/[0.07] px-2 py-0.5 text-[10px] text-accent no-underline hover:bg-accent/[0.12]">View →</a>
@@ -1143,7 +1143,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
               )}
 
               {tab === "queries" && c.queries?.map((q, i) => (
-                <div key={i} className="mb-1.5 flex items-center gap-2 rounded-[12px] border border-line bg-[--color-glass] px-3.5 py-2.5 shadow-sm backdrop-blur-sm">
+                <div key={i} className="mb-1.5 flex items-center gap-2 rounded-[12px] border border-line bg-glass px-3.5 py-2.5 shadow-sm backdrop-blur-sm">
                   <div className="flex-[2]"><div className="text-[12.5px] font-medium text-ink">{q.query}</div><div className="mt-px text-[11px] text-mute">{q.volume}</div></div>
                   <div className="flex items-center gap-1">{<Dot color={q.status === "live" ? P.green : P.amber}/>}<span className="text-[11px] capitalize text-sub">{q.status}</span></div>
                   <span className={`text-[11px] ${q.position !== "—" ? "font-semibold text-green" : "font-normal text-mute"}`}>{q.position}</span>

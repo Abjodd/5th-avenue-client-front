@@ -33,7 +33,7 @@ function IconToggle() {
       onClick={toggle}
       title={`Switch to ${isDark ? "light" : "dark"} mode${mode === "system" ? " — currently following your device" : ""}`}
       aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
-      className="group relative flex size-9 items-center justify-center rounded-full border border-line bg-[--color-glass-soft] shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-accent/25 hover:shadow-md"
+      className="group relative flex size-9 items-center justify-center rounded-full border border-line bg-glass-soft shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-[1px] hover:border-accent/25 hover:shadow-md"
     >
       <span className="relative flex size-[18px] items-center justify-center overflow-hidden">
         <AnimatePresence mode="wait" initial={false}>
