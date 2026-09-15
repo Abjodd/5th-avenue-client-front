@@ -81,9 +81,12 @@ export function Magnetic({ children, strength = 0.25, className }) {
   );
 }
 
-/* ── AmbientBackground: token-colored gradient blobs behind pages ──
-   Replaces the per-page inline blob divs; colors derive from the palette so
-   nothing clashes. `variant` nudges blob placement per page. */
+/* ── AmbientBackground: the ground every portal page sits on ──
+   Token-colored gradient blobs, then a paper grain over the top. Replaces the
+   per-page inline blob divs; colors derive from the palette so nothing
+   clashes. `variant` nudges blob placement per page. Because the grain lives
+   here rather than in a page, the portal's surface is the same everywhere and
+   a page cannot forget to have it. */
 export function AmbientBackground({ variant = "a" }) {
   const blobs =
     variant === "b"
@@ -106,6 +109,9 @@ export function AmbientBackground({ variant = "a" }) {
           style={{ background: b.c, opacity: b.o, animationDelay: `${i * -7}s` }}
         />
       ))}
+      {/* Grain goes last so it lies over the blobs as well as the ground —
+          it is the paper both are printed on, not a fourth wash. */}
+      <div className="paper-grain" />
     </div>
   );
 }

@@ -35,7 +35,7 @@ export function Panel({
   flip = false, back, ...rest
 }) {
   const chrome = cx(
-    "rounded-[20px] border border-line bg-[--color-glass] shadow-card backdrop-blur-xl",
+    "rounded-[20px] border border-line bg-glass shadow-card backdrop-blur-xl",
     interactive &&
       "text-left transition-all duration-250 ease-out hover:-translate-y-[3px] hover:border-accent/20 hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]",
   );
@@ -67,7 +67,7 @@ export function Subpanel({ children, className, ...rest }) {
   return (
     <div
       className={cx(
-        "rounded-[16px] border border-line bg-[--color-glass] shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md",
+        "rounded-[16px] border border-line bg-glass shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md",
         className,
       )}
       {...rest}
@@ -182,21 +182,57 @@ export function PanelTitle({ title, hint, info, action, className }) {
 
    `back` is opt-in, same idea as Panel's `flip`: pass a node and the tile
    flips on a click anywhere on it. Leave it unset and the tile behaves
-   exactly as before. */
-export function KPI({ label, value, format, sublabel, color, index = 0, back }) {
+   exactly as before.
+
+   `flush` drops the tile's own card chrome — border, radius, shadow, lift —
+   so a row of them sits inside ONE panel as a ledger band divided by
+   hairlines, the way a broadsheet prints a summary table, instead of
+   floating as six shadowed boxes. Only the chrome changes.
+
+   `tick` overrides the flush column rule's colour (it follows the figure by
+   default) for a band whose rule carries a legend rather than the value.
+   `size` steps the figure down for long strings — exact currency runs far
+   wider than a count. */
+export function KPI({
+  label, value, format, sublabel, color, index = 0, back, flush = false,
+  tick = color, size = "lg",
+}) {
   const missing = value == null;
-  const chrome = "group relative overflow-hidden rounded-[20px] border border-line bg-[--color-glass] px-5 py-[18px] shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(25,22,17,0.08)]";
+  // Padding held apart from the chrome so the back can take the chrome
+  // without it — see FlipCard's `backClassName` note. Applied twice, it left
+  // these tiles' summaries in half their own box.
+  const pad = flush ? "px-5 py-[17px]" : "px-5 py-[18px]";
+  const chromeBase = flush
+    // No lift and no shadow: a cell that rises out of a band it is ruled into
+    // reads as broken rather than interactive, so the hover is a wash instead.
+    ? "group relative flex flex-col justify-center overflow-hidden bg-glass-strong transition-colors duration-300 ease-out hover:bg-hover"
+    : "group relative overflow-hidden rounded-[20px] border border-line bg-glass shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(25,22,17,0.08)]";
+  const chrome = cx(chromeBase, pad);
 
   const face = (
     <>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-[20px] opacity-[0.05]"
-        style={{ background: `radial-gradient(120% 90% at 100% 0%, ${color}, transparent 60%)` }}
-      />
+      {/* A corner wash is a card affordance; six inside one band is noise, so
+          a flush cell wears a column rule — the mark a ruled table puts at the
+          head of a column. */}
+      {flush ? (
+        <div
+          aria-hidden
+          className="kpi-tick mb-2.5 h-[2px] w-5 rounded-full transition-all duration-300 group-hover:w-8"
+          style={{ background: tick, opacity: missing ? 0.25 : 0.55 }}
+        />
+      ) : (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-[20px] opacity-[0.05]"
+          style={{ background: `radial-gradient(120% 90% at 100% 0%, ${color}, transparent 60%)` }}
+        />
+      )}
       <div className="microlabel mb-2 text-[11px] tracking-[0.09em]">{label}</div>
       <div
-        className="tnum text-[30px] font-bold leading-none tracking-tight transition-transform duration-300 group-hover:scale-[1.02]"
+        className={cx(
+          "tnum font-bold leading-none tracking-tight",
+          size === "sm" ? "text-[21px]" : "text-[30px]",
+        )}
         style={{ color: missing ? "var(--donetxt)" : color }}
       >
         {missing ? "—" : <AnimatedNumber value={value} format={format} duration={1000} delay={index * 60} />}
@@ -208,7 +244,10 @@ export function KPI({ label, value, format, sublabel, color, index = 0, back }) 
   if (back) {
     return (
       <StaggerItem className="h-full">
-        <FlipCard back={back} cardClassName={chrome} className="h-full">
+        {/* radius 0 when flush — the turning box is a cell ruled into a band,
+            and a rounded shadow on it during the flip would round a corner
+            the cell itself doesn't have. */}
+        <FlipCard back={back} cardClassName={chrome} backClassName={chromeBase} className="h-full" radius={flush ? 0 : 20}>
           {face}
         </FlipCard>
       </StaggerItem>
@@ -225,7 +264,7 @@ export function KPI({ label, value, format, sublabel, color, index = 0, back }) 
 export function MetricSwitch({ options, value, onChange, label = "Metric" }) {
   if (options.length < 2) return null;
   return (
-    <div role="tablist" aria-label={label} className="flex gap-0.5 rounded-full border border-line bg-[--color-glass] p-1 shadow-sm backdrop-blur-sm">
+    <div role="tablist" aria-label={label} className="flex gap-0.5 rounded-full border border-line bg-glass p-1 shadow-sm backdrop-blur-sm">
       {options.map((o) => {
         const on = o.id === value;
         return (

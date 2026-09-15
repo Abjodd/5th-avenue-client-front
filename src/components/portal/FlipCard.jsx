@@ -22,37 +22,23 @@
  * written short: a line or two, not a paragraph — it has exactly the front's
  * box to work with, on purpose, not by accident.
  *
- * `backfaceVisibility: hidden` needs its `-webkit-` twin, or Safari (still
- * the default browser on iOS/macOS) never actually hides the reverse face —
- * both faces paint at once, the back's mirrored text bleeding through the
- * front like a ghost. Same for `transform-style: preserve-3d`. Both are set
- * with both the unprefixed and `Webkit`-prefixed style keys below.
+ * HIDING THE TURNED-AWAY FACE takes two mechanisms. `backfaceVisibility`
+ * (plus its `-webkit-` twin, and the same for `preserve-3d`, or Safari
+ * ignores both) is the cheap GPU cull and works most of the time — but
+ * WebKit stops culling once the turning element is promoted to its own
+ * compositing layer, which Motion does while it animates. That is why the
+ * ghost only ever appeared on a card that had been flipped, and why the
+ * ghosted KPI band showed it on faces carrying no `backdrop-filter` at all.
  *
- * Both spellings are still not enough on their own, and that is what
- * produced the ghosted cards on the Overview. WebKit stops culling the
- * reverse face of any 3D-transformed element that carries a
- * `backdrop-filter` — and every chrome string this portal hands FlipCard
- * carries one, because `bg-glass` + `backdrop-blur-*` is the standard panel
- * recipe here. Both faces then keep painting, and since `bg-glass` is only
- * 68% opaque white the turned-away face reads straight through the one you
- * are meant to be looking at: pale mirrored text over what looks like a
- * card that has lost its background. Chromium culls correctly either way,
- * which is why it only ever showed up on Safari.
- *
- * So the blur is switched off on the two faces, inline, where no caller's
- * class string can put it back (see FACE below). Nothing is lost: these
- * cards sit inside a panel that is already blurring its own backdrop, so a
- * second blur on a tile within it had nothing left to blur.
- *
- * Taking the turned-away face out with `visibility: hidden` instead was
- * tried and does not work here — toggling visibility inside the rotating
- * element strands Motion's spring part-way through the turn, leaving the
- * card stuck at an angle with both faces gone.
+ * So `showFace` also fades the away-face out at the 90° crossover. Fading
+ * rather than covering: the two faces are coplanar and the back is later in
+ * the DOM, so an opaque back would paint over the front at REST too, leaving
+ * every unflipped card showing its own mirrored reverse.
  *
  * `prefers-reduced-motion` swaps the 3D turn for a plain crossfade — the
  * same back face, no rotation.
  */
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { cx } from "../../lib/cx";
 import { EASE, SPRING } from "../../lib/motion";
@@ -63,16 +49,17 @@ const POP = { duration: 0.55, ease: EASE };
 const INTERACTIVE_SELECTOR =
   'button, a[href], input, select, textarea, [role="tab"], [role="button"], [contenteditable="true"]';
 
-/* The chrome every face gets no matter what the caller passed in.
+/* The chrome every face gets no matter what the caller passed in. Both
+   spellings of both, because WebKit is the browser that needs them.
 
-   `backfaceVisibility` is the whole mechanism: it is what stops the face that
-   is turned away from painting. `backdropFilter: none` is what lets it work —
-   see the note at the top of this file. Both spellings of both, because
-   WebKit is the browser that needs them and the one that prefixes them.
+   `backfaceVisibility` is the cheap GPU cull, not the guarantee — showFace is
+   (see the note at the top). `backdropFilter: none` is not a ghost fix
+   either: it is here because a face blurring its backdrop inside a panel that
+   is already blurring the same backdrop is work with nothing left to do.
 
-   Set inline rather than merged into the class strings so a call site cannot
-   re-break it by passing a `backdrop-blur-*` in its chrome — which every one
-   of them does today, because that is the portal's standard panel recipe. */
+   Inline rather than merged into the class strings, so a call site cannot
+   re-break either by passing `backdrop-blur-*` in its chrome — which most of
+   them do, that being the portal's standard panel recipe. */
 const FACE = {
   backfaceVisibility: "hidden",
   WebkitBackfaceVisibility: "hidden",
@@ -98,6 +85,26 @@ export function FlipCard({
   const [flipped, setFlipped] = useState(false);
   const reduce = useReducedMotion();
   const backCls = backClassName ?? cardClassName;
+  const frontRef = useRef(null);
+  const backRef = useRef(null);
+
+  /* Fade the away-face out at the 90° crossover, off the turn's LIVE angle.
+     Written to the faces, never to the animating element, so the spring is
+     untouched — and through refs, because this runs every frame and a
+     setState per frame would re-render the card's whole subtree, chart and
+     all. Normalised to 0–360 first so the spring's overshoot past 180° still
+     reads as "the back" instead of wrapping round to the front. */
+  const showFace = useCallback((deg) => {
+    const a = (((deg ?? 0) % 360) + 360) % 360;
+    const isBack = a > 90 && a < 270;
+    if (frontRef.current) frontRef.current.style.opacity = isBack ? "0" : "1";
+    if (backRef.current) backRef.current.style.opacity = isBack ? "1" : "0";
+  }, []);
+
+  /* Seed the first paint only. If the turn never runs (throttled rAF in a
+     background tab) the card never rotates either, so the front is correct;
+     onAnimationComplete settles the final state once the spring stops. */
+  useLayoutEffect(() => { showFace(0); }, [showFace]);
 
   const onClick = (e) => {
     if (e.target.closest?.(INTERACTIVE_SELECTOR)) return;
@@ -132,6 +139,8 @@ export function FlipCard({
     >
       <motion.div
         className="relative h-full w-full"
+        onUpdate={(latest) => showFace(latest.rotateY)}
+        onAnimationComplete={() => showFace(flipped ? 180 : 0)}
         style={{
           transformStyle: "preserve-3d",
           WebkitTransformStyle: "preserve-3d",
@@ -150,6 +159,7 @@ export function FlipCard({
       >
         {/* Front — normal flow, so its natural size is the card's size. */}
         <div
+          ref={frontRef}
           className={cx("h-full w-full", cardClassName)}
           style={{ ...FACE, pointerEvents: flipped ? "none" : "auto" }}
         >
@@ -162,6 +172,7 @@ export function FlipCard({
             dropped out of the overlay into normal flow. Inline always wins,
             so no caller's chrome string can re-break it. */}
         <div
+          ref={backRef}
           className={cx("overflow-hidden", backCls)}
           style={{
             ...FACE,
