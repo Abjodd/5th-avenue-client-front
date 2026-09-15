@@ -28,6 +28,27 @@
  * front like a ghost. Same for `transform-style: preserve-3d`. Both are set
  * with both the unprefixed and `Webkit`-prefixed style keys below.
  *
+ * Both spellings are still not enough on their own, and that is what
+ * produced the ghosted cards on the Overview. WebKit stops culling the
+ * reverse face of any 3D-transformed element that carries a
+ * `backdrop-filter` — and every chrome string this portal hands FlipCard
+ * carries one, because `bg-glass` + `backdrop-blur-*` is the standard panel
+ * recipe here. Both faces then keep painting, and since `bg-glass` is only
+ * 68% opaque white the turned-away face reads straight through the one you
+ * are meant to be looking at: pale mirrored text over what looks like a
+ * card that has lost its background. Chromium culls correctly either way,
+ * which is why it only ever showed up on Safari.
+ *
+ * So the blur is switched off on the two faces, inline, where no caller's
+ * class string can put it back (see FACE below). Nothing is lost: these
+ * cards sit inside a panel that is already blurring its own backdrop, so a
+ * second blur on a tile within it had nothing left to blur.
+ *
+ * Taking the turned-away face out with `visibility: hidden` instead was
+ * tried and does not work here — toggling visibility inside the rotating
+ * element strands Motion's spring part-way through the turn, leaving the
+ * card stuck at an angle with both faces gone.
+ *
  * `prefers-reduced-motion` swaps the 3D turn for a plain crossfade — the
  * same back face, no rotation.
  */
@@ -42,14 +63,27 @@ const POP = { duration: 0.55, ease: EASE };
 const INTERACTIVE_SELECTOR =
   'button, a[href], input, select, textarea, [role="tab"], [role="button"], [contenteditable="true"]';
 
-/**
- * `cardClassName` is the front's visual chrome — the same rounded/border/bg/
- * shadow classes the caller would otherwise put on a plain Panel/tile, and
- * what actually sizes the card. `backClassName` (defaults to `cardClassName`)
- * is the back's chrome — kept separate because the back almost never wants
- * the front's own layout classes (flex/padding for the real content)
- * repeated under FlipSummary's own layout.
- */
+/* The chrome every face gets no matter what the caller passed in.
+
+   `backfaceVisibility` is the whole mechanism: it is what stops the face that
+   is turned away from painting. `backdropFilter: none` is what lets it work —
+   see the note at the top of this file. Both spellings of both, because
+   WebKit is the browser that needs them and the one that prefixes them.
+
+   Set inline rather than merged into the class strings so a call site cannot
+   re-break it by passing a `backdrop-blur-*` in its chrome — which every one
+   of them does today, because that is the portal's standard panel recipe. */
+const FACE = {
+  backfaceVisibility: "hidden",
+  WebkitBackfaceVisibility: "hidden",
+  backdropFilter: "none",
+  WebkitBackdropFilter: "none",
+};
+
+/** `cardClassName` is the front's chrome, and what sizes the card.
+ *  `backClassName` (defaults to it) is the back's — kept separate because the
+ *  back rarely wants the front's padding/flex repeated under FlipSummary's
+ *  own layout, which is what squeezed the KPI and stat tiles' summaries. */
 export function FlipCard({
   children,
   back,
@@ -117,34 +151,22 @@ export function FlipCard({
         {/* Front — normal flow, so its natural size is the card's size. */}
         <div
           className={cx("h-full w-full", cardClassName)}
-          style={{
-            backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
-            pointerEvents: flipped ? "none" : "auto",
-          }}
+          style={{ ...FACE, pointerEvents: flipped ? "none" : "auto" }}
         >
           {children}
         </div>
-        {/* Back — pinned to the front's box, clipped rather than left to grow
-            past it. `back` is written to fit that box, not the other way
-            round; overflow-hidden is the guard rail if it ever doesn't.
-            `position`/`inset` are set inline rather than via the `absolute
-            inset-0` utility classes: `backCls` (usually the same chrome
-            string as the front) often carries its own `relative` class for
-            unrelated reasons, and Tailwind emits `.relative` after
-            `.absolute` in its stylesheet — so with equal specificity,
-            `.relative` silently wins and the back face drops out of the
-            overlay into normal flow, stacking below the front instead of
-            covering it (this is what produced the oversized, blank-then-
-            text cards). Inline styles always beat a class, so this can't
-            be re-broken by whatever chrome string a caller passes in. */}
+        {/* Back — pinned to the front's box and clipped, not left to grow.
+            `position`/`inset` are inline, not `absolute inset-0` classes:
+            `backCls` often carries its own `relative`, and Tailwind emits
+            `.relative` after `.absolute`, so at equal specificity the back
+            dropped out of the overlay into normal flow. Inline always wins,
+            so no caller's chrome string can re-break it. */}
         <div
           className={cx("overflow-hidden", backCls)}
           style={{
+            ...FACE,
             position: "absolute",
             inset: 0,
-            backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
             transform: "rotateY(180deg)",
             pointerEvents: flipped ? "auto" : "none",
           }}
@@ -156,53 +178,84 @@ export function FlipCard({
   );
 }
 
-/** Shared back-face layout — a headline, then a short read of what the chart
-    actually MEANS, then an optional closing note — the one reading order
-    every flipped card uses so the back never has to invent its own
-    hierarchy.
+/** Shared back-face layout — headline, then the reading, then an optional
+ *  note — so no back has to invent its own hierarchy.
  *
- * `points` (a sentence or two, as an array) is the normal case: a flip exists
- * to answer "so what?", not to re-print the same figures the front already
- * plots as a table would — a label/value list beside its own chart is the
- * chart's numbers said twice, once as a bar and once as a row. Each caller
- * derives its points from the underlying data (a leader vs the rest, a
- * direction, a share, a ratio), not a per-item echo of it.
- *
- * `lines` still exists for the rare back that is genuinely a short lookup —
- * a campaign's date window, its region tags — rather than a trend with a
- * reading to state. Reach for `points` first; `lines` is the exception, not
- * the default.
- *
- * `padding` matches the front's own padding by default assumption
- * (px-6 py-5); pass the front's actual padding classes for a tile whose
- * chrome is tighter than that, so the back doesn't out-grow the box FlipCard
- * clips it to. */
+ *  `points` is the normal case: a flip answers "so what?", not "the same
+ *  figures again as a table". Derive them from the data (a leader vs the
+ *  rest, a direction, a ratio), never a per-item echo of the front.
+ *  `lines` is the exception, for a back that is genuinely a short lookup.
+ *  `padding` must match the front's, or the back outgrows its clipped box. */
 export function FlipSummary({ title, hint, points = [], lines = [], note, padding = "px-6 py-5", className }) {
+  /* Prose reads from the top, the same edge the front's title starts at.
+     Centred in `h-full` it left a ~120px block hovering mid-card on a 580px
+     panel — the "floating / out of place" read. A title-and-one-line back has
+     nothing to read DOWN, so those stay centred in their small tile. */
+  const rich = points.length > 0 || lines.length > 0;
+
   return (
-    <div className={cx("flex h-full flex-col justify-center", padding, className)}>
-      {title && <h3 className="font-serif text-[15px] font-semibold italic leading-tight text-ink">{title}</h3>}
-      {hint && <p className="mt-1 text-[11px] leading-snug text-sub">{hint}</p>}
-      {points.length > 0 && (
-        <ul className={cx("flex flex-col gap-1.5", (title || hint) && "mt-2.5")}>
-          {points.map((p, i) => (
-            <li key={i} className="flex items-start gap-1.5 text-[11px] leading-snug text-ink">
-              <span className="mt-[5px] size-1 shrink-0 rounded-full bg-accent" />
-              <span>{p}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {lines.length > 0 && (
-        <div className={cx("flex flex-col gap-1.5", (title || hint || points.length > 0) && "mt-2.5")}>
-          {lines.map((l, i) => (
-            <div key={i} className="flex items-baseline justify-between gap-3 border-b border-line pb-1.5 last:border-b-0 last:pb-0">
-              <span className="min-w-0 truncate text-[10.5px] text-sub">{l.label}</span>
-              <span className="tnum shrink-0 text-[12px] font-bold text-ink">{l.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {note && <p className="mt-2 text-[10.5px] leading-snug text-mute">{note}</p>}
+    /* overflow-y-auto, not hidden, so a back that outgrows its box scrolls
+       instead of losing its last line. Centring uses `my-auto` rather than
+       `justify-center`: an overflowing centred flex child is clipped at the
+       TOP and can't be scrolled back to; auto margins stay reachable. */
+    <div className={cx("flex h-full flex-col overflow-y-auto", padding, className)}>
+      {/* Capped measure — these cards run to ~1900px, and an uncapped reading
+          either spanned it or sat ragged at the left looking like a mistake. */}
+      <div className={cx("max-w-[56ch]", !rich && "my-auto")}>
+        {/* PanelTitle's own 19/12.5, so a flipped panel keeps its front's
+            heading. The old flat 15/11/11 merged hint and reading into one
+            grey block with no entry point. */}
+        {title && (
+          <h3
+            className={cx(
+              "font-serif font-semibold italic leading-tight text-ink",
+              rich ? "text-[19px]" : "text-[15px]",
+            )}
+          >
+            {title}
+          </h3>
+        )}
+        {hint && (
+          <p
+            className={cx(
+              "leading-snug",
+              rich ? "text-[12.5px]" : "text-[11px]",
+              // With no title, the hint IS the content, not a subtitle — so
+              // it takes the reading colour and loses the heading gap.
+              title ? "mt-1 text-sub" : "text-ink",
+            )}
+          >
+            {hint}
+          </p>
+        )}
+
+        {points.length > 0 && (
+          /* The same hairline the masthead uses, doing the same job. */
+          <ul className={cx("flex flex-col gap-2.5", (title || hint) && "mt-3.5 border-t border-line pt-3.5")}>
+            {points.map((p, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink">
+                {/* A short rule, not a dot — the portal's marks are drawn
+                    rules (the name underline, the KPI column tick). */}
+                <span aria-hidden className="mt-[9px] h-[1.5px] w-2.5 shrink-0 rounded-full bg-accent/60" />
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {lines.length > 0 && (
+          <div className={cx("flex flex-col gap-2", (title || hint || points.length > 0) && "mt-3.5 border-t border-line pt-3.5")}>
+            {lines.map((l, i) => (
+              <div key={i} className="flex items-baseline justify-between gap-3 border-b border-line pb-2 last:border-b-0 last:pb-0">
+                <span className="min-w-0 truncate text-[11.5px] text-sub">{l.label}</span>
+                <span className="tnum shrink-0 text-[12.5px] font-bold text-ink">{l.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {note && <p className="mt-3 text-[11px] leading-snug text-mute">{note}</p>}
+      </div>
     </div>
   );
 }
