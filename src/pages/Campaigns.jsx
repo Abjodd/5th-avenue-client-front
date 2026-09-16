@@ -113,7 +113,7 @@ export default function CampaignsPage() {
               <h1 className="font-serif text-[42px] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Campaigns</h1>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-baseline gap-4 rounded-full border border-line bg-[--color-glass] px-4 py-2 shadow-sm backdrop-blur-md">
+              <div className="flex items-baseline gap-4 rounded-full border border-line bg-glass px-4 py-2 shadow-sm backdrop-blur-md">
                 {nPending > 0 && <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-amber"><AnimatedNumber value={nPending}/></span><span className="text-[10.5px] text-mute">Pending</span></div>}
                 <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-ink"><AnimatedNumber value={nActive}/></span><span className="text-[10.5px] text-mute">Active</span></div>
                 <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-donetxt"><AnimatedNumber value={nDone}/></span><span className="text-[10.5px] text-mute">Done</span></div>
@@ -125,18 +125,18 @@ export default function CampaignsPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3.5">
             <div className="flex items-center gap-2">
-              <div className="flex w-44 items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-3 py-1.5 shadow-sm backdrop-blur-sm transition-all duration-200 focus-within:border-accent/40 focus-within:shadow-md">
+              <div className="flex w-44 items-center gap-1.5 rounded-full border border-line bg-glass px-3 py-1.5 shadow-sm backdrop-blur-sm transition-all duration-200 focus-within:border-accent/40 focus-within:shadow-md">
                 <span className="text-[12px] text-mute">⌕</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className="w-full border-none bg-transparent text-[12px] text-ink outline-none"/>
               </div>
               {/* Service filter */}
-              <div className="flex overflow-hidden rounded-full border border-line bg-[--color-glass] shadow-sm backdrop-blur-sm">
+              <div className="flex overflow-hidden rounded-full border border-line bg-glass shadow-sm backdrop-blur-sm">
                 {seg(svcFilter === "all", () => setSvcFilter("all"), "All", "svc-pill")}
                 {allServices.map(s => seg(svcFilter === s, () => setSvcFilter(s), s === "Influencer Marketing" ? "IM" : s === "Performance Ads" ? "Ads" : s, "svc-pill"))}
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <div className="flex overflow-hidden rounded-full border border-line bg-[--color-glass] shadow-sm backdrop-blur-sm">
+              <div className="flex overflow-hidden rounded-full border border-line bg-glass shadow-sm backdrop-blur-sm">
                 {seg(view === "board", () => setView("board"), "Board", "view-pill")}
                 {seg(view === "grid", () => setView("grid"), "Grid", "view-pill")}
               </div>
@@ -175,7 +175,7 @@ export default function CampaignsPage() {
                   className="flex min-w-[220px] flex-col rounded-[18px] p-1.5"
                   style={{ flex: `1 1 ${100 / PHASES.length}%`, background: `${color}06` }}>
                   {/* Phase-tinted column header: icon · label · count · budget sum */}
-                  <div className="mb-2 rounded-[14px] border bg-[--color-glass] px-3 py-2 backdrop-blur-sm" style={{ borderColor: `${color}25` }}>
+                  <div className="mb-2 rounded-[14px] border bg-glass px-3 py-2 backdrop-blur-sm" style={{ borderColor: `${color}25` }}>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ color }}>
                         <PhaseIcon phase={phase.id} />{phase.label}

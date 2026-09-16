@@ -236,7 +236,7 @@ function RankRow({ color, title, sub, stats, share, onClick, index = 0 }) {
       // colour spine down the left edge as well said the same thing a third
       // time, and a stack of them read as a chart of stripes rather than a
       // ranked list.
-      className="anim-up group relative mb-3 block w-full overflow-hidden rounded-[16px] border border-line bg-[--color-glass] px-5 py-4 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
+      className="anim-up group relative mb-3 block w-full overflow-hidden rounded-[16px] border border-line bg-glass px-5 py-4 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-[3px] hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
       style={{ animationDelay: `${index * 30}ms` }}>
       <div className="flex items-center gap-4">
         <span className="relative flex size-9 shrink-0 items-center justify-center">
@@ -496,7 +496,7 @@ export default function RegionalMap() {
               <h1 className="font-serif text-[clamp(30px,4vw,42px)] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Reach across India</h1>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[12.5px] text-sub">
                 {[[t.creators, "creator", "mapped"], [t.states, "state", ""], [t.regions, "region", ""], [t.languages, "language", ""]].map(([n, noun, suffix], i) => (
-                  <span key={noun} className="fi rounded-full border border-line bg-[--color-glass] px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{ animationDelay: `${i * 60}ms` }}>
+                  <span key={noun} className="fi rounded-full border border-line bg-glass px-2.5 py-1 shadow-sm backdrop-blur-sm" style={{ animationDelay: `${i * 60}ms` }}>
                     <b className="tnum text-ink"><AnimatedNumber value={n} /></b> {noun}{n === 1 ? "" : "s"}{suffix ? ` ${suffix}` : ""}
                   </span>
                 ))}
@@ -511,7 +511,7 @@ export default function RegionalMap() {
                 onClick={() => setTinted(v => !v)}
                 role="switch"
                 aria-checked={tinted}
-                className="flex items-center gap-2 rounded-full border border-line bg-[--color-glass] py-1.5 pl-1.5 pr-3.5 text-[12px] font-medium text-sub shadow-sm backdrop-blur-sm transition-colors hover:text-ink"
+                className="flex items-center gap-2 rounded-full border border-line bg-glass py-1.5 pl-1.5 pr-3.5 text-[12px] font-medium text-sub shadow-sm backdrop-blur-sm transition-colors hover:text-ink"
               >
                 <span className={`relative h-[18px] w-[32px] rounded-full transition-colors duration-200 ${tinted ? "bg-accent" : "bg-well"}`}>
                   <motion.span layout transition={{ type: "spring", stiffness: 500, damping: 34 }}
@@ -521,7 +521,7 @@ export default function RegionalMap() {
                 Regional colours
               </button>
 
-              <div className="flex gap-1 rounded-full border border-line bg-[--color-glass] p-1.5 shadow-[0_1px_10px_rgba(25,22,17,0.04)] backdrop-blur-xl">
+              <div className="flex gap-1 rounded-full border border-line bg-glass p-1.5 shadow-[0_1px_10px_rgba(25,22,17,0.04)] backdrop-blur-xl">
                 {MODES.map(([k, l]) => (
                   <button key={k} onClick={() => switchMode(k)}
                     className={`relative rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors duration-200 ease-out ${mode === k ? "text-white" : "text-sub hover:text-ink"}`}>
@@ -573,7 +573,7 @@ export default function RegionalMap() {
                   ? Object.entries(data.langData).sort((a, b) => b[1].creators - a[1].creators).slice(0, 6).map(([l, d]) => [l, l, LC[l] || P.mute, d.creators])
                   : Object.entries(RN).map(([r, label]) => [r, label, RC[r], data.regionData[r]?.creators || 0])
                 ).map(([key, label, color, n], i) => (
-                  <span key={key} className={`fi flex items-center gap-1.5 rounded-full border border-line bg-[--color-glass] px-2.5 py-1 text-[10.5px] shadow-sm backdrop-blur-sm ${n ? "text-sub" : "text-donetxt"}`} style={{ animationDelay: `${i * 40}ms` }}>
+                  <span key={key} className={`fi flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10.5px] shadow-sm backdrop-blur-sm ${n ? "text-sub" : "text-donetxt"}`} style={{ animationDelay: `${i * 40}ms` }}>
                     <Dot color={color} sz={6} /><span className={n ? "" : "opacity-45"}>{label}</span>
                     {n > 0 && <b className="tnum text-ink">{n}</b>}
                   </span>
@@ -602,7 +602,7 @@ export default function RegionalMap() {
                     <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))" }}>
                       {Object.entries(data.regionData).filter(([, d]) => d.creators > 0).map(([r, d], i) => (
                         <button key={r} onClick={() => { setSel(r); setSelType("region"); }}
-                          className="anim-up group cursor-pointer rounded-[16px] border border-line bg-[--color-glass] px-4 py-3.5 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
+                          className="anim-up group cursor-pointer rounded-[16px] border border-line bg-glass px-4 py-3.5 text-left shadow-sm backdrop-blur-md transition-all duration-250 ease-out hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(25,22,17,0.1)]"
                           style={{ animationDelay: `${i * 30}ms` }}>
                           <span className="mb-2.5 flex items-center gap-1.5">
                             <span className="relative flex size-6 items-center justify-center">

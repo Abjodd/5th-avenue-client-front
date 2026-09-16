@@ -84,7 +84,11 @@ function serviceColor(name, P) {
    different question than the number it sat on, and on a young account it
    mostly reported where the data starts (see audienceKnown above). */
 function StatTile({ label, value, format = fmtNum, loading, color, info, back }) {
-  const chrome = "rounded-[16px] border border-line bg-[--color-glass] px-3.5 py-3 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md";
+  // Padding kept out of the base so the back can take the chrome without it
+  // — see FlipCard's `backClassName` note. Applied twice, it left these 70px
+  // tiles ~28px of usable height for ~53px of text.
+  const chromeBase = "rounded-[16px] border border-line bg-glass shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-md";
+  const chrome = `${chromeBase} px-3.5 py-3`;
   const face = (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -100,7 +104,7 @@ function StatTile({ label, value, format = fmtNum, loading, color, info, back })
   // to a stale front the instant the real number lands.
   if (back && !loading) {
     return (
-      <FlipCard back={back} cardClassName={chrome} radius={16}>
+      <FlipCard back={back} cardClassName={chrome} backClassName={chromeBase} radius={16}>
         {face}
       </FlipCard>
     );
@@ -376,7 +380,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
   const isLoading = analytics === null && !error;
 
   return (
-    <div className="au mt-4 overflow-hidden rounded-[20px] border border-line bg-[--color-glass] shadow-[0_2px_20px_rgba(25,22,17,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
+    <div className="au mt-4 overflow-hidden rounded-[20px] border border-line bg-glass shadow-[0_2px_20px_rgba(25,22,17,0.04)] backdrop-blur-xl transition-shadow duration-300 hover:shadow-[0_10px_36px_rgba(25,22,17,0.06)]">
 
       {/* Header + period filter */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-6 py-5">
@@ -400,18 +404,18 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
               same neutral treatment — a coloured hue on it claimed a status
               the number doesn't carry. */}
           <StatTile label="Total Reach"    value={totals.reach}  loading={isLoading} color={P.neutral}
-            back={<FlipSummary padding="px-3.5 py-3" title="Total Reach"
+            back={<FlipSummary padding="px-3.5 py-3"
               hint="Combined following of creators live this period." />}/>
           <StatTile label="Views"          value={totals.views}  loading={isLoading} color={P.neutral}
-            back={<FlipSummary padding="px-3.5 py-3" title="Views"
+            back={<FlipSummary padding="px-3.5 py-3"
               hint={measuredMix.measured > 0
                 ? (measuredMix.measured < measuredMix.total ? "Measured for some creators; rest estimated." : "Measured across the whole roster.")
                 : "Estimated until post metrics are fetched."} />}/>
           <StatTile label="Engagements"    value={totals.eng}    loading={isLoading} color={P.neutral}
-            back={<FlipSummary padding="px-3.5 py-3" title="Engagements"
+            back={<FlipSummary padding="px-3.5 py-3"
               hint="Likes, comments & shares on live posts." />}/>
           <StatTile label="Total Spend"    value={totals.spend}  format={fmtINRExact} loading={isLoading} color={P.neutral}
-            back={<FlipSummary padding="px-3.5 py-3" title="Total Spend"
+            back={<FlipSummary padding="px-3.5 py-3"
               hint="Committed across campaigns counted this period." />}/>
           {/* The only rate on a strip of totals, and the only figure here where
               lower is better — hence the one tile carrying a hue. fmtCPVTo,
@@ -419,7 +423,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
               every frame; see lib/format.js. */}
           <StatTile label="CPV"            value={totals.cpv}    format={fmtCPVTo(totals.cpv)} loading={isLoading} color={P.green}
             info="Cost per view across every campaign in the selected period — committed spend ÷ measured views, to two significant digits. For one campaign's own CPV, open that campaign."
-            back={<FlipSummary padding="px-3.5 py-3" title="Cost per view"
+            back={<FlipSummary padding="px-3.5 py-3"
               hint={`${fmtINRExact(totals.spend)} ÷ ${fmtNum(totals.views)} views`} />}/>
         </div>
 
@@ -440,7 +444,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
         {false && (
         <FlipCard
           className="mb-4"
-          cardClassName="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
+          cardClassName="overflow-hidden rounded-[16px] border border-line bg-glass p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
           back={
             <FlipSummary
               padding="p-4"
@@ -571,7 +575,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
         <div className="grid gap-4 lg:grid-cols-2">
 
           <FlipCard
-            cardClassName="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
+            cardClassName="overflow-hidden rounded-[16px] border border-line bg-glass p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
             back={
               <FlipSummary
                 padding="p-4"
@@ -589,7 +593,7 @@ export default function PerformanceSection({ clientName: clientNameProp }) {
           </FlipCard>
 
           <FlipCard
-            cardClassName="overflow-hidden rounded-[16px] border border-line bg-[--color-glass] p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
+            cardClassName="overflow-hidden rounded-[16px] border border-line bg-glass p-4 shadow-[0_1px_10px_rgba(25,22,17,0.03)] backdrop-blur-md"
             back={
               <FlipSummary
                 padding="p-4"

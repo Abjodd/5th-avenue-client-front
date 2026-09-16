@@ -64,8 +64,39 @@ const SIGNAL_ICONS = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HERO — activity panel (Recent activity + Needs you, side by side)
+   HERO
    ═════════════════════════════════════════════════════════════════════════ */
+
+/** The pen mark under the reader's name — a drawn stroke, not a `border-b`,
+ *  which would just read as a link. `non-scaling-stroke` is load-bearing: the
+ *  box stretches to the word's width, so without it a short name wears a fat
+ *  stroke and a long one a hairline. `show` is the hero's intro gate. */
+function UnderStroke({ show }) {
+  const reduce = useReducedMotion();
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 120 8"
+      preserveAspectRatio="none"
+      className="pointer-events-none absolute -bottom-1 left-0 h-[7px] w-full overflow-visible text-accent"
+    >
+      <motion.path
+        d="M1.5 5.8 C 26 2.4, 64 1.5, 118.5 3.9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        opacity={0.35}
+        initial={reduce ? false : { pathLength: 0 }}
+        animate={{ pathLength: show ? 1 : 0 }}
+        transition={reduce ? { duration: 0 } : { duration: 0.75, ease: EASE, delay: 0.4 }}
+      />
+    </svg>
+  );
+}
+
+/* ── Activity panel (Recent activity + Needs you, side by side) ─────────── */
 
 /**
  * Sits beside Campaign progress in the hero, in the spot Signals used to hold.
@@ -830,14 +861,7 @@ export default function OverviewDashboard() {
   if (!campaigns) return <PageSkeleton />;
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Enhanced gradient overlay */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-40 animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-pink/10 rounded-full blur-3xl opacity-30 animate-pulse" style={{animationDelay: "2s"}} />
-        <div className="absolute top-1/2 right-0 w-96 h-96 bg-purple/5 rounded-full blur-3xl opacity-20" />
-      </div>
-
+    <div className="relative min-h-screen">
       {/* Cinematic brand story — once per login, over the loaded dashboard */}
       {!introClosed && (
         <Suspense fallback={null}>
@@ -856,35 +880,35 @@ export default function OverviewDashboard() {
           animate={introDone ? "show" : "hidden"}
           className="pt-12"
         >
-          <motion.div 
-            className="microlabel mb-3 tracking-[0.3em] text-accent/70 font-semibold"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            ✨ Overview · {clientName} · {kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}
-          </motion.div>
-          <motion.h1 
-            className="font-serif text-[clamp(40px,5.5vw,64px)] font-black leading-[1.02] tracking-[-0.03em] text-ink bg-gradient-to-r from-ink via-accent to-ink bg-clip-text text-transparent"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.6 }}
-          >
-            {greeting()}, <span className="italic text-accent drop-shadow-lg">{firstName}</span>.
-          </motion.h1>
-          <motion.p 
-            className="mt-4 max-w-[65ch] text-[15.5px] leading-relaxed text-sub/90 font-medium"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >{summary}</motion.p>
+          {/* Identity line. Hairline slashes rather than middots, so the row
+              reads as one dateline instead of three separate chips. */}
+          <div className="microlabel mb-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 tracking-[0.2em]">
+            <span className="text-ink">Overview</span>
+            <span aria-hidden className="text-line-strong">/</span>
+            <span>{clientName}</span>
+            <span aria-hidden className="text-line-strong">/</span>
+            <span className="tnum">{kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}</span>
+          </div>
 
-          <motion.div 
-            className="mt-9 grid items-stretch gap-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-          >
+          <h1 className="font-serif text-[clamp(34px,4.6vw,52px)] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">
+            {greeting()},{" "}
+            <span className="relative inline-block whitespace-nowrap text-accent">
+              {firstName}
+              <UnderStroke show={introDone} />
+            </span>
+            .
+          </h1>
+
+          <p className="mt-3 max-w-[62ch] text-[14px] leading-relaxed text-sub">{summary}</p>
+
+          {/* Masthead rule — closes the greeting off from the panels below it,
+              the way a brief's header is ruled off from its body. */}
+          <div className="rule mt-7" />
+
+          {/* Plain div: both panels already play their own `Reveal`, and a
+              wrapper starting at opacity 0 can strand the hero's two most
+              important panels invisible wherever rAF is throttled. */}
+          <div className="mt-6 grid items-stretch gap-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
             {/* Campaign progress — the mean of the progress Fifth Avenue records on
                 each live campaign. Hidden entirely when nothing is in flight. */}
             <Panel reveal className="flex flex-col items-center justify-center px-6 py-7">
@@ -905,14 +929,22 @@ export default function OverviewDashboard() {
                       showLabel={false}
                     />
                     <div className="pointer-events-none absolute inset-0 flex items-baseline justify-center gap-0.5 pt-[68px]">
-                      <span className="tnum text-[46px] font-bold leading-none tracking-tight" style={{ color: P.black }}>{health.value}</span>
-                      <span className="text-[17px] font-semibold" style={{ color: P.neutral, opacity: 0.55 }}>%</span>
+                      {/* P.text: there is no `black` key in either palette
+                          (src/context.js), so P.black resolved to undefined. */}
+                      <span className="tnum text-[46px] font-bold leading-none tracking-tight" style={{ color: P.text }}>{health.value}</span>
+                      {/* The unit is part of the same figure, so it takes the
+                          same ink and steps back on opacity alone — a second
+                          hue here made "80" and "%" read as two numbers. */}
+                      <span className="text-[17px] font-semibold" style={{ color: P.text, opacity: 0.45 }}>%</span>
                     </div>
                   </div>
-                  <div className="mt-4 text-center">
-                    <div className="text-[15px] font-bold text-ink">Campaign Progress</div>
-                    <p className="mt-1 text-[11.5px] leading-relaxed text-mute">
-                      Average progress across {health.of} active campaign{health.of === 1 ? "" : "s"}
+                  {/* Labelled like the KPI tiles below it — this panel is the
+                      largest of the same family of figures, so the ring stays
+                      the anchor and the caption stays a caption. */}
+                  <div className="mt-5 text-center">
+                    <div className="microlabel tracking-[0.09em]">Campaign progress</div>
+                    <p className="mt-1.5 text-[11.5px] leading-relaxed text-mute">
+                      Average across {health.of} active campaign{health.of === 1 ? "" : "s"}
                     </p>
                   </div>
                 </>
@@ -923,14 +955,19 @@ export default function OverviewDashboard() {
 
             {/* Recent activity + Needs you — what happened, and what's waiting */}
             <HeroActivityPanel activity={activity} queues={queues} setPage={setPage} P={P} />
-          </motion.div>
+          </div>
         </motion.header>
 
-        {/* ── ACCOUNT ──────────────────────────────────────────────────── */}
+        {/* ── ACCOUNT ──────────────────────────────────────────────────────
+            Every other section here is titled as a sentence about what the
+            reader is looking at — "What the work did once it was live.",
+            "Where the plan is working", "Who moves the needle". "Main Data
+            Cards" named the widget rather than the question, and was the one
+            heading on the page that read as scaffolding. */}
         <Section
           id="numbers"
           eyebrow="Account"
-          title="Main Data Cards"
+          title="Where the account stands"
           hint="Campaign counts and committed budget cover the whole account; audience figures follow the creator filter."
         >
           <CreatorFilters
@@ -941,41 +978,55 @@ export default function OverviewDashboard() {
             total={allCreators.length}
           />
 
-          <Stagger animate="show" stagger={0.07} className="grid gap-3.5"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            <KPI index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral}
-              back={<FlipSummary padding="px-5 py-[18px]" title="Active campaigns" hint={`${kpis.active} of ${kpis.campaigns} active now.`} />} />
-            <KPI index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral}
-              back={<FlipSummary padding="px-5 py-[18px]" title="Creators" hint={`${kpis.creators} on the roster, ${kpis.live} live.`} />} />
-            <KPI index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral}
-              back={<FlipSummary padding="px-5 py-[18px]" title="Combined audience" hint="Combined following — not unique reach, audiences overlap." />} />
-            {/* Measured on live posts only — see summarise() in portalMetrics.js
-                for why the stored profile rate no longer feeds this tile. */}
-            <KPI index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`}
-              sublabel={kpis.erMeasured
-                ? `measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}`
-                : "nothing live to measure yet"}
-              color={P.neutral}
-              back={<FlipSummary padding="px-5 py-[18px]" title="Avg engagement" hint={kpis.erMeasured
-                ? `Measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}.`
-                : "Nothing live yet to measure."} />} />
-            {/* The sublabel names what the figure leaves out. Campaigns raised
-                before a budget was agreed contribute nothing to this total, so
-                without saying so it reads as the account's whole commitment
-                when it is only the agreed part of it. */}
-            <KPI index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR}
-              sublabel={kpis.budgetPending ? `committed · ${kpis.budgetPending} to be confirmed` : "committed"}
-              color={P.neutral}
-              back={<FlipSummary padding="px-5 py-[18px]" title="Campaign budget" hint={kpis.budgetPending
-                ? `${kpis.budgetPending} campaign${kpis.budgetPending === 1 ? "" : "s"} still unconfirmed.`
-                : "Committed across every priced campaign."} />} />
-            {/* Same cpvOf() used by PerformanceSection's own CPV tile, over the
-                account's full committed budget and measured views rather than
-                one filtered period — the portfolio rate, not a period rate. */}
-            <KPI index={5} label="CPV" value={cpvOf(kpis.budget, kpis.views)} format={fmtCPV}
-              sublabel="external, on measured views" color={P.green}
-              back={<FlipSummary padding="px-5 py-[18px]" title="Cost per view" hint="Committed budget ÷ measured views, account-wide." />} />
-          </Stagger>
+          {/* One ledger band, not six floating cards.
+              The six account figures belong to one statement, so they are
+              ruled into a single panel the way a broadsheet prints a summary
+              table — which also takes the section from six drop shadows down
+              to one. The hairlines are the grid's own `gap-px` showing the
+              container's colour through between cells, so they land correctly
+              however the row wraps; fixed column counts (not auto-fit) are
+              what keep that wrapping predictable at every width.
+              Each cell still flips — see KPI's `flush` in portal/Shell.jsx. */}
+          <Panel reveal className="overflow-hidden">
+            <Stagger
+              animate="show"
+              stagger={0.07}
+              className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 xl:grid-cols-6"
+            >
+              <KPI flush index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Active campaigns" hint={`${kpis.active} of ${kpis.campaigns} active now.`} />} />
+              <KPI flush index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Creators" hint={`${kpis.creators} on the roster, ${kpis.live} live.`} />} />
+              <KPI flush index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Combined audience" hint="Combined following — not unique reach, audiences overlap." />} />
+              {/* Measured on live posts only — see summarise() in portalMetrics.js
+                  for why the stored profile rate no longer feeds this tile. */}
+              <KPI flush index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`}
+                sublabel={kpis.erMeasured
+                  ? `measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}`
+                  : "nothing live to measure yet"}
+                color={P.neutral}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Avg engagement" hint={kpis.erMeasured
+                  ? `Measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}.`
+                  : "Nothing live yet to measure."} />} />
+              {/* The sublabel names what the figure leaves out. Campaigns raised
+                  before a budget was agreed contribute nothing to this total, so
+                  without saying so it reads as the account's whole commitment
+                  when it is only the agreed part of it. */}
+              <KPI flush index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR}
+                sublabel={kpis.budgetPending ? `committed · ${kpis.budgetPending} to be confirmed` : "committed"}
+                color={P.neutral}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Campaign budget" hint={kpis.budgetPending
+                  ? `${kpis.budgetPending} campaign${kpis.budgetPending === 1 ? "" : "s"} still unconfirmed.`
+                  : "Committed across every priced campaign."} />} />
+              {/* Same cpvOf() used by PerformanceSection's own CPV tile, over the
+                  account's full committed budget and measured views rather than
+                  one filtered period — the portfolio rate, not a period rate. */}
+              <KPI flush index={5} label="CPV" value={cpvOf(kpis.budget, kpis.views)} format={fmtCPV}
+                sublabel="external, on measured views" color={P.green}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Cost per view" hint="Committed budget ÷ measured views, account-wide." />} />
+            </Stagger>
+          </Panel>
         </Section>
 
         {/* ── AUDIENCE ─────────────────────────────────────────────────── */}
@@ -1026,10 +1077,13 @@ export default function OverviewDashboard() {
                       title={g.service}
                       hint={`${g.progress}% average progress across ${g.campaigns} campaign${g.campaigns === 1 ? "" : "s"}${g.active ? `, ${g.active} active now` : ""}.`}
                       points={[pacingPoint(g), efficiencyPoint(g)].filter(Boolean)}
-                      lines={[
-                        { label: "Window", value: `${g.from ? prettyDate(g.from) : "—"} – ${g.to ? prettyDate(g.to) : "—"}` },
-                        ...(g.regions.length ? [{ label: "Regions", value: g.regions.join(", ") }] : []),
-                      ]}
+                      /* `lines` used to repeat the window and the region tags
+                         here, which this card's own FRONT already prints —
+                         exactly the "chart's numbers said twice" that
+                         FlipSummary's doc warns against, and the reason this
+                         back overflowed its box by ~67px and lost its last
+                         line. The pacing and efficiency reads are the part
+                         the front cannot show. */
                     />
                   }
                 >

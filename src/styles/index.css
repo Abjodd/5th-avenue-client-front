@@ -552,6 +552,30 @@
 .bounce-1 { animation: bounce-soft 1.4s ease-in-out infinite; }
 
 /* Ambient background blobs — slow, GPU-friendly drift */
+/* Paper grain — the portal's ground is a warm cream stock, and a flat fill of
+   it reads as a screen colour rather than as paper. One fractal-noise tile at
+   very low opacity gives it tooth. Lives inside <AmbientBackground/>, so every
+   portal page gets it and none has to remember to ask. Blend modes mirror the
+   marketing site's .fa-grain: multiply darkens the light ground, overlay lifts
+   the dark one, so the same tile works in both themes. */
+.paper-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .paper-grain { opacity: 0.035; mix-blend-mode: overlay; }
+
+/* The KPI band's column rule, alive under the cursor. It is the only thing
+   that moves on a hovered cell, so it carries the whole interaction: the width
+   grows (a transition on the element itself) while the ink breathes (this).
+   Opacity only — a transform here would fight that width transition.
+   Animations outrank the inline `opacity` the tick carries at rest. */
+@keyframes kpi-tick { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+.group:hover .kpi-tick { animation: kpi-tick 1.5s ease-in-out infinite; }
+
 .ambient-blob { animation: ambient-drift 26s ease-in-out infinite alternate; will-change: transform; }
 @keyframes ambient-drift {
   from { transform: translate3d(0, 0, 0) scale(1); }
@@ -790,7 +814,7 @@
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   /* motion/react handles its own via MotionConfig; this covers CSS animation */
-  .au, .anim-up, .fi, .fade-in, .slide-in, .pulse, .bounce-1, .ambient-blob, .funnel-layer, .funnel-sheen { animation: none !important; }
+  .au, .anim-up, .fi, .fade-in, .slide-in, .pulse, .bounce-1, .ambient-blob, .funnel-layer, .funnel-sheen, .group:hover .kpi-tick { animation: none !important; }
   .fa-toast { animation: none; }
   *,
   *::before,

@@ -10,10 +10,13 @@ export const TIERS = {
   neutral:  { cls: "bg-well text-sub",         label: "Not started" },
 };
 
-export function StatusPill({ tier = "neutral", children }) {
-  const t = TIERS[tier] || TIERS.neutral;
+/* `tone` bypasses the tier map with raw colour classes, for a pill whose
+   states aren't the four client-facing delivery tiers — Billing's finance
+   milestones are the case. The shape stays defined once, here. */
+export function StatusPill({ tier = "neutral", tone, children }) {
+  const cls = tone || (TIERS[tier] || TIERS.neutral).cls;
   return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${t.cls}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${cls}`}>
       <span className="size-1.5 rounded-full bg-current" />
       {children}
     </span>
