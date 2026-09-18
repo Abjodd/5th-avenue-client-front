@@ -13,6 +13,7 @@ import {
 import {
   Target, Users, MessageSquareQuote, Package, IndianRupee, CalendarRange,
   FileText, Eye, Heart, MessageCircle, Share2, Check, X, Sparkles,
+  CheckCircle2, XCircle, Wrench,
 } from "lucide-react";
 import { useApp } from "../../context";
 import { useAuth } from "../../context/AuthContext";
@@ -527,6 +528,36 @@ function SentimentStrip({ avgPositivity, creators }) {
 }
 
 /* ═══ OBSERVATIONS + STRATEGY INSIGHTS ═══ */
+const CAMPAIGN_INSIGHT_FIELDS = [
+  { key: "whatWorked", label: "What Worked", icon: CheckCircle2 },
+  { key: "whatDidntWork", label: "What Didn't Work", icon: XCircle },
+  { key: "nextActions", label: "Next Actions", icon: Target },
+  { key: "areasToImprove", label: "Areas to Improve", icon: Wrench },
+];
+
+function CampaignInsights({ insights }) {
+  if (!insights) return null;
+  const filled = CAMPAIGN_INSIGHT_FIELDS.filter((f) => String(insights[f.key] || "").trim());
+  if (!filled.length) return null;
+
+  return (
+    <div className="mt-4">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Campaign Insights</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {filled.map(({ key, label, icon: Icon }) => (
+          <div key={key} className="rounded-[14px] border border-accent/[0.1] bg-accent/[0.03] px-4 py-3.5 shadow-sm backdrop-blur-md">
+            <div className="mb-1.5 flex items-center gap-2">
+              <Icon size={15} strokeWidth={2.2} className="shrink-0 text-accent"/>
+              <span className="text-[14px] font-bold leading-snug text-ink">{label}</span>
+            </div>
+            <p className="text-[12px] leading-relaxed text-sub">{insights[key]}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Observations({ creators, topAssets }) {
   const obs = [];
   if (topAssets?.length) { const best = topAssets[0]; obs.push(`Top performer: ${best.creator} with ${best.label.split("—")[1]?.trim() || "strong results"}.`); }
@@ -1108,6 +1139,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                     </div>
                   )}
                   {!c.topAssets?.length && creators.length > 0 && <Observations creators={creators} topAssets={c.topAssets}/>}
+                  <CampaignInsights insights={c.insights}/>
                 </div>
               )}
 

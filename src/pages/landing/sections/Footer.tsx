@@ -78,13 +78,23 @@ export function Footer() {
 
       {/* oversized ghosted wordmark */}
       <div className="overflow-hidden border-t border-line">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6 py-6 md:px-10">
+        <div className="mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-6 md:px-10">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
             India · Est. MMXXVI
           </p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
-            © 2026 Fifth Avenue Marketing
-          </p>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://5th-internal-front.vercel.app/login"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-8 items-center rounded-md border border-line px-3 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+            >
+              Admin login
+            </a>
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
+              © 2026 Fifth Avenue Marketing
+            </p>
+          </div>
         </div>
         <div
           aria-hidden

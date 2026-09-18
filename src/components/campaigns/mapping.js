@@ -382,5 +382,16 @@ export function toViewCampaign(c) {
     status: phase === "completed" ? "done" : "active",
     creators,
     topAssets: [],
+    // Campaign-specific retrospective, written by the internal team on the
+    // campaign's Insights tab. Only carried through when at least one of the
+    // four answers is actually filled in, so the client view can gate on a
+    // single truthy check rather than four empty-string ones.
+    insights: (() => {
+      const ins = c.insights;
+      if (!ins || typeof ins !== "object") return null;
+      const hasContent = ["whatWorked", "whatDidntWork", "nextActions", "areasToImprove"]
+        .some((k) => String(ins[k] || "").trim().length > 0);
+      return hasContent ? ins : null;
+    })(),
   };
 }
