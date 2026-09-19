@@ -246,7 +246,7 @@ export function ScrollCue({ onClick }) {
       type="button"
       onClick={onClick}
       aria-label="Scroll to explore"
-      className="group relative flex size-16 shrink-0 items-center justify-center rounded-full text-black/55 transition-colors duration-200 hover:text-[#171410] dark:text-white/50 dark:hover:text-white sm:size-20"
+      className="group relative flex size-24 shrink-0 items-center justify-center rounded-full text-black/55 transition-colors duration-200 hover:text-[#171410] dark:text-white/50 dark:hover:text-white sm:size-28"
     >
       <svg
         viewBox="0 0 100 100"
@@ -264,8 +264,8 @@ export function ScrollCue({ onClick }) {
         </text>
       </svg>
       <ChevronDown
-        size={26}
-        strokeWidth={2.4}
+        size={34}
+        strokeWidth={2.3}
         className="relative transition-transform duration-300 group-hover:translate-y-1"
         style={{ animation: reduced ? "none" : "iw-bounce-y 1.5s ease-in-out infinite" }}
       />
@@ -284,6 +284,7 @@ export function SectionBand({ section, onActivate }) {
   const ref = useRef(null);
   const numeralRef = useRef(null);
   const washRef = useRef(null);
+  const { resolved } = useTheme();
 
   useGSAP(
     () => {
@@ -346,7 +347,7 @@ export function SectionBand({ section, onActivate }) {
           <span
             ref={numeralRef}
             className="select-none font-serif text-[52px] italic leading-none sm:text-[76px]"
-            style={{ WebkitTextStroke: `1.4px ${section.accent}`, color: "transparent" }}
+            style={{ WebkitTextStroke: `1.4px ${resolved === "dark" ? "#ffffff" : section.accent}`, color: "transparent" }}
           >
             {section.roman}
           </span>

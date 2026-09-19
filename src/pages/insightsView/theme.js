@@ -39,22 +39,33 @@ export const INK = {
 // gold/bronze instead. Kept as a two-stop `from`/`to` pair (rather than one
 // flat color) purely because several consumers already expect a gradient
 // shape — visually it now reads as one consistent tone across the page.
-const FORMAL_ACCENT = "#c0973a";
-const FORMAL_FROM = "#d4ab5c";
-const FORMAL_TO = "#a17a2c";
-const FORMAL_GLOW = "rgba(192,151,58,0.32)";
+const FORMAL_ACCENT = "#070707";
+const FORMAL_FROM = "#020202";
+const FORMAL_TO = "#3f6fbd";
+const FORMAL_GLOW = "rgba(94,143,224,0.32)";
 
+// The quadrant cards (Questions/"The quadrants") break from the single
+// formal accent for three of their four fields, so a reader can tell a
+// positive answer from a negative one at a glance: green for what's
+// working, red for what isn't, and the portal's own brand blue for next
+// actions. "Areas to Improve" keeps the formal gold. One value per color
+// (not a light/dark pair) for the same reason the formal accent has only
+// one — these sit on the page's own two-tone glass cards, not the plain
+// canvas, so a single mid-brightness tone reads clearly in both themes.
+export const QUAD_GREEN = "#3fb97e";
+export const QUAD_RED = "#e06a6a";
+export const QUAD_BLUE = "#5e8fe0";
+export const QUAD_YELLOW = "#c0973a";
+export const QUAD_black  = "#171410";
 export const SECTIONS = [
   {
     id: "questions",
     roman: "I",
     n: "01",
-    label: "Questions",
+    label: "The Quadrant",
     hint: "Worth asking about the account right now.",
     accent: FORMAL_ACCENT,
-    from: FORMAL_FROM,
-    to: FORMAL_TO,
-    glow: FORMAL_GLOW,
+   
   },
   {
     id: "trending",
@@ -63,9 +74,7 @@ export const SECTIONS = [
     label: "Trending",
     hint: "What's moving across the roster and the wider platforms.",
     accent: FORMAL_ACCENT,
-    from: FORMAL_FROM,
-    to: FORMAL_TO,
-    glow: FORMAL_GLOW,
+    
   },
   {
     id: "market-watch",
@@ -74,9 +83,7 @@ export const SECTIONS = [
     label: "Market Watch",
     hint: "Signals from outside the account — category and competitor moves.",
     accent: FORMAL_ACCENT,
-    from: FORMAL_FROM,
-    to: FORMAL_TO,
-    glow: FORMAL_GLOW,
+   
   },
   {
     id: "newsletter",
@@ -85,9 +92,7 @@ export const SECTIONS = [
     label: "Newsletter",
     hint: "The latest dispatch from Fifth Avenue.",
     accent: FORMAL_ACCENT,
-    from: FORMAL_FROM,
-    to: FORMAL_TO,
-    glow: FORMAL_GLOW,
+    
   },
 ];
 

@@ -11,10 +11,10 @@
 // about how it *looks*, plus the GSAP scroll-batch reveal every card now
 // enters on (see useScrollBatch in primitives.jsx) in place of the portal's
 // shared Stagger/StaggerItem.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Radar, Heart, MessageCircle, Eye,
-  ArrowUpRight, Camera, Sparkles, ChevronLeft, ChevronRight, ChevronDown,
+  Heart, MessageCircle, Eye, Star, Lightbulb,
+  ArrowUpRight, Camera, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Target, Wrench, Newspaper, FileText,
   Volume2, VolumeX,
 } from "lucide-react";
@@ -22,11 +22,13 @@ import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } fro
 import { HoverLift } from "../../components/motion/Motion";
 import {
   usePortalTrending, usePortalQuestions, usePortalMarketWatch, usePortalNews, usePortalNewsletter,
+  usePortalFavourites,
 } from "../../lib/usePortalData";
 import { PortalAPI } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import { fmtNum } from "../../lib/format";
-import { GLASS_CARD, GLASS_CARD_SOFT, sectionById } from "./theme";
+import { GLASS_CARD, GLASS_CARD_SOFT, sectionById, QUAD_GREEN, QUAD_RED, QUAD_BLUE,QUAD_YELLOW} from "./theme";
 import { useScrollBatch } from "./primitives";
 
 /* ── Shared bits ─────────────────────────────────────────────────────── */
@@ -55,12 +57,13 @@ function SkeletonGrid({
   );
 }
 
-function Kicker({ icon: Icon, children, accent }) {
+function Kicker({ icon: Icon, children, accent, mb = "mb-5" }) {
+  const { resolved } = useTheme();
   return (
     <div
-      className="mb-4 flex items-center gap-2.5 font-serif text-[19px] font-bold italic tracking-[-0.01em] text-[#171410] sm:text-[23px] dark:text-white"
+      className={`${mb} flex items-center gap-3 py-2 font-serif text-[30px] font-bold italic tracking-[-0.01em] text-[#171410] sm:text-[36px] dark:text-white`}
     >
-      <Icon size={19} strokeWidth={2.2} style={{ color: accent }} />
+      <Icon size={30} strokeWidth={2.1} style={{ color: resolved === "dark" ? "#ffffff" : accent }} />
       {children}
     </div>
   );
@@ -69,14 +72,16 @@ function Kicker({ icon: Icon, children, accent }) {
 /* ── I. Questions ────────────────────────────────────────────────────── */
 
 const QUESTION_FIELDS = [
-  { key: "whatWorked", label: "What Worked", icon: CheckCircle2, n: "01" },
-  { key: "whatDidntWork", label: "What Didn't Work", icon: XCircle, n: "02" },
-  { key: "nextActions", label: "Next Actions", icon: Target, n: "03" },
-  { key: "areasToImprove", label: "Areas to Improve", icon: Wrench, n: "04" },
+  { key: "whatWorked", label: "What Works for", icon: CheckCircle2, n: "01", color: QUAD_GREEN },
+  { key: "whatDidntWork", label: "What Didn't Work for", icon: XCircle, n: "02", color: QUAD_RED },
+  { key: "nextActions", label: "Next Actions for", icon: Target, n: "03", color: QUAD_BLUE },
+  { key: "areasToImprove", label: "Areas to Improve for", icon: Wrench, n: "04", color: QUAD_YELLOW },
 ];
 
 export function QuestionsSection() {
   const { data, error } = usePortalQuestions();
+  const { user } = useAuth();
+  const brand = user?.clientName ?? "Your Brand";
   const ref = useRef(null);
   const theme = sectionById("questions");
   useScrollBatch(ref, "[data-reveal]", { y: 30, scale: 0.97 }, [data == null, !!error]);
@@ -97,28 +102,24 @@ export function QuestionsSection() {
       {QUESTION_FIELDS.map((q) => {
         const answer = data[q.key];
         const Icon = q.icon;
+        const color = q.color ?? theme.accent;
+        const labelText = `${q.label} ${brand}`;
         return (
           <div key={q.key} data-reveal className="h-full">
             <div
               className={`${GLASS_CARD} group relative flex h-full min-h-[220px] flex-col overflow-hidden p-7 transition-[border-color,transform] duration-300 hover:-translate-y-1 sm:p-8`}
-              style={{ borderColor: `${theme.accent}30` }}
+              // style={{ borderColor: `${color}30` }}
             >
-              <span className="absolute left-7 top-0 h-[3px] w-12 rounded-full sm:left-8" style={{ background: theme.accent }} />
-              <Icon
-                size={124}
-                strokeWidth={1}
-                className="pointer-events-none absolute -bottom-7 -right-7 opacity-[0.07] transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-6"
-                style={{ color: theme.accent }}
-              />
+              {/* <span className="absolute left-7 top-0 h-[3px] w-12 rounded-full sm:left-8" style={{ background: color }} /> */}
               <div className="relative flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span
                     className="inline-flex size-10 shrink-0 items-center justify-center rounded-full"
-                    style={{ background: `${theme.accent}1c`, color: theme.accent }}
+                    style={{ background: `${color}1c`, color }}
                   >
                     <Icon size={19} strokeWidth={2.2} />
                   </span>
-                  <span className="font-serif text-[19px] font-bold tracking-[-0.01em] text-[#171410] dark:text-white sm:text-[21px]">{q.label}</span>
+                  <span className="font-serif text-[19px] font-bold tracking-[-0.01em] text-[#171410] dark:text-white sm:text-[21px]">{labelText}</span>
                 </div>
                 <span className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-black/35 dark:text-white/30">{q.n}</span>
               </div>
@@ -143,7 +144,7 @@ function statList(media) {
   ].filter(Boolean);
 }
 
-function ReelCard({ reel }) {
+function ReelCard({ reel, favourited, onToggleFavourite }) {
   const media = reel.media;
   const reduced = useReducedMotion();
   const [hovered, setHovered] = useState(false);
@@ -152,8 +153,8 @@ function ReelCard({ reel }) {
 
   const rx = useMotionValue(0.5);
   const ry = useMotionValue(0.5);
-  const rotateX = useSpring(useTransform(ry, [0, 1], [10, -10]), { stiffness: 300, damping: 24 });
-  const rotateY = useSpring(useTransform(rx, [0, 1], [-10, 10]), { stiffness: 300, damping: 24 });
+  const rotateX = useSpring(useTransform(ry, [0, 1], [-10, 10]), { stiffness: 300, damping: 24 });
+  const rotateY = useSpring(useTransform(rx, [0, 1], [10, -10]), { stiffness: 300, damping: 24 });
 
   function handleMove(e) {
     if (reduced || !cardRef.current) return;
@@ -262,6 +263,26 @@ function ReelCard({ reel }) {
           {muted ? <VolumeX size={13} strokeWidth={2.2} /> : <Volume2 size={13} strokeWidth={2.2} />}
         </button>
       )}
+
+      {/* Always visible, not hover-gated like the rest of this card's
+          chrome — a brand needs to be able to tell (and change) whether a
+          reel is favourited without first discovering the button is
+          there. Sibling of the anchor for the same reason as the mute
+          button above. */}
+      {onToggleFavourite && (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavourite(); }}
+          aria-label={favourited ? "Remove from favourites" : "Add to favourites"}
+          aria-pressed={favourited}
+          style={{ color: favourited ? "#fbbf24" : undefined }}
+          className={`absolute bottom-3 left-3 z-20 flex size-9 items-center justify-center transition-colors duration-200 ${
+            favourited ? "" : "text-white/85 hover:text-white"
+          }`}
+        >
+          <Star size={20} strokeWidth={2.2} fill={favourited ? "currentColor" : "none"} />
+        </button>
+      )}
     </div>
   );
 }
@@ -313,9 +334,13 @@ function aggregateReelStats(reels) {
 
 const MAX_VISIBLE_OFFSET = 3;
 const AUTOPLAY_MS = 3200;
-const CAROUSEL_THRESHOLD = 3;
 
-function TrendingCarousel({ reels, glow, big }) {
+function CarouselCard({ reel, favourited, onToggleFavourite }) {
+  const Card = reel.__source === "market-watch" ? MarketWatchReelCard : ReelCard;
+  return <Card reel={reel} favourited={favourited} onToggleFavourite={onToggleFavourite} />;
+}
+
+function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite }) {
   const reduced = useReducedMotion();
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -369,7 +394,15 @@ function TrendingCarousel({ reels, glow, big }) {
             }}
             transition={{ type: "spring", stiffness: 260, damping: 28 }}
           >
-            {isActive ? <ReelCard reel={reel} /> : <GhostReelCard reel={reel} onSelect={() => setActive(i)} />}
+            {isActive ? (
+              <CarouselCard
+                reel={reel}
+                favourited={isFavourited?.(reel)}
+                onToggleFavourite={onToggleFavourite ? () => onToggleFavourite(reel) : undefined}
+              />
+            ) : (
+              <GhostReelCard reel={reel} onSelect={() => setActive(i)} />
+            )}
           </motion.div>
         );
       })}
@@ -390,23 +423,53 @@ function TrendingCarousel({ reels, glow, big }) {
   );
 }
 
-function TrendingRow({ reels, big }) {
+const TREND_TABS = [
+  { id: "general", label: "General" },
+  { id: "industry", label: "Industry" },
+  { id: "favourite", label: "Favourite" },
+];
+
+/* Replaces the old "Trending now" heading — a three-way switch between
+   this brand's own trending reels (general), the industry/competitor
+   reels the internal team curates for this brand on Market Watch
+   (industry — moved here from that section entirely, see
+   MarketWatchSection below), and whichever of the two this brand has
+   starred (favourite). */
+function TrendTabToggle({ active, onChange }) {
   return (
-    <div className="flex flex-wrap gap-3.5">
-      {reels.map((reel) => (
-        <div key={reel.id} className={big ? "aspect-[9/16] w-[220px] sm:w-[260px]" : "aspect-[9/16] w-[168px] sm:w-[192px]"}>
-          <ReelCard reel={reel} />
-        </div>
+    <div role="tablist" aria-label="Reel source" className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-black/[0.03] p-1.5 dark:border-white/10 dark:bg-white/[0.04]">
+      {TREND_TABS.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={active === t.id}
+          onClick={() => onChange(t.id)}
+          className={`rounded-full px-5 py-2.5 font-mono text-[13px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+            active === t.id
+              ? "bg-[#171410] text-white dark:bg-white dark:text-[#171410]"
+              : "text-black/50 hover:text-[#171410] dark:text-white/50 dark:hover:text-white"
+          }`}
+        >
+          {t.label}
+        </button>
       ))}
     </div>
   );
 }
 
+/* The Favourite tab's own layout: a plain wrapping grid (neither the
+   carousel's arc math nor the filmstrip's auto-drift makes sense for a
+   set that can be anywhere from empty to a handful of mixed-origin
+   reels), with each reel still rendered by whichever card its own shelf
+   uses — ReelCard for one favourited off General, MarketWatchReelCard
+   for one favourited off Industry — so it looks exactly as it did where
+   it was starred. */
 function TrendingStat({ label, value }) {
   return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="font-mono text-[22px] font-bold text-[#171410] dark:text-white">{value}</span>
-      <span className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-black/40 dark:text-white/35">{label}</span>
+    <div className="flex flex-col items-center gap-2 px-6 py-2">
+      <span className="font-serif text-[26px] font-bold text-[#171410] dark:text-white">{value}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-black/40 dark:text-white/35">{label}</span>
     </div>
   );
 }
@@ -422,7 +485,7 @@ function InsightsTile({ notes, month, accent }) {
       style={{ borderColor: `${accent}28` }}
     >
       <div className="mb-1.5 flex items-center gap-2.5">
-        <MessageCircle size={17} strokeWidth={2.2} className="shrink-0" style={{ color: accent }} />
+        <Lightbulb size={17} strokeWidth={2.2} className="shrink-0" style={{ color: accent }} />
         <span
           className="text-[19px] font-bold italic tracking-[-0.01em] text-[#171410] dark:text-white"
           style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
@@ -463,51 +526,166 @@ function InsightsTile({ notes, month, accent }) {
 
 export function TrendingSection() {
   const { data: items, error } = usePortalTrending();
+  const { data: mwItems, error: mwError } = usePortalMarketWatch();
+  const { data: favourites, setData: setFavourites } = usePortalFavourites();
+  const { user } = useAuth();
+  const scope = useMemo(() => ({ brandId: user?.brandId, clientName: user?.clientName }), [user?.brandId, user?.clientName]);
   const ref = useRef(null);
-  const ready = items != null && items.length > 0;
-  useScrollBatch(ref, "[data-reveal]", {}, [ready, !!error]);
   const theme = sectionById("trending");
   // Our Insights starts collapsed: the reels read edge-to-edge and bigger by
   // default, with the "Our Insights" button there to bring the notes panel
   // back whenever it's wanted.
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [bulbHovered, setBulbHovered] = useState(false);
+  // Which of this brand's three reel shelves is showing — replaces the old
+  // plain "Trending now" heading (see TrendTabToggle above).
+  const [tab, setTab] = useState("general");
+
+  useScrollBatch(ref, "[data-reveal]", {}, [items == null, mwItems == null, !!error, !!mwError, tab]);
+
+  const generalReels = useMemo(
+    () => (items || []).filter((it) => it.kind === "reel").map((r) => ({ ...r, __source: "trending" })),
+    [items],
+  );
+  const notes = useMemo(() => (items || []).filter((it) => it.kind === "note"), [items]);
+  // Industry reels are Market Watch's own reel shelf — the same brand-scoped
+  // items MarketWatchSection used to render under its own "Reels" heading.
+  // They live only here now (see the matching removal in MarketWatchSection
+  // below); this is a relocation, not a second copy of the data.
+  const industryReels = useMemo(
+    () => (mwItems || []).filter((it) => it.kind === "reel").map((r) => ({ ...r, __source: "market-watch" })),
+    [mwItems],
+  );
+
+  const favouriteKeys = useMemo(
+    () => new Set((favourites || []).map((f) => `${f.itemType}:${f.itemId}`)),
+    [favourites],
+  );
+  const isFavourited = useCallback((source, id) => favouriteKeys.has(`${source}:${id}`), [favouriteKeys]);
+
+  // Optimistic: the star flips the instant it's clicked and only rolls back
+  // if the write itself fails — a brand shouldn't wait on a round trip to
+  // see its own tap register.
+  const toggleFavourite = useCallback(
+    (source, id) => {
+      const key = `${source}:${id}`;
+      const already = favouriteKeys.has(key);
+      setFavourites((prev) =>
+        already
+          ? (prev || []).filter((f) => `${f.itemType}:${f.itemId}` !== key)
+          : [...(prev || []), { itemType: source, itemId: id }],
+      );
+      PortalAPI.toggleFavourite(scope, id, source).catch(() => {
+        setFavourites((prev) =>
+          already
+            ? [...(prev || []), { itemType: source, itemId: id }]
+            : (prev || []).filter((f) => `${f.itemType}:${f.itemId}` !== key),
+        );
+      });
+    },
+    [favouriteKeys, scope, setFavourites],
+  );
+
+  const favouriteReels = useMemo(
+    () => [
+      ...generalReels.filter((r) => isFavourited("trending", r.id)).map((r) => ({ ...r, __source: "trending" })),
+      ...industryReels.filter((r) => isFavourited("market-watch", r.id)).map((r) => ({ ...r, __source: "market-watch" })),
+    ],
+    [generalReels, industryReels, isFavourited],
+  );
+
+  // All three shelves render through the same TrendingCarousel now, so
+  // favouriting is wired off each reel's own __source rather than per-tab.
+  const reelFavourited = useCallback((reel) => isFavourited(reel.__source, reel.id), [isFavourited]);
+  const reelToggleFavourite = useCallback((reel) => toggleFavourite(reel.__source, reel.id), [toggleFavourite]);
+
+  const month = new Date().toLocaleDateString("en-US", { month: "long" });
+  const activeReels = tab === "general" ? generalReels : tab === "industry" ? industryReels : favouriteReels;
+  const stats = aggregateReelStats(activeReels);
 
   if (error) return <EmptyState>Trending couldn't load right now — try again shortly.</EmptyState>;
   if (items == null) return <SkeletonGrid n={4} />;
-  if (!items.length) return <EmptyState>Nothing here yet.</EmptyState>;
-
-  const reels = items.filter((it) => it.kind === "reel");
-  const notes = items.filter((it) => it.kind === "note");
-  const month = new Date().toLocaleDateString("en-US", { month: "long" });
-  const stats = aggregateReelStats(reels);
 
   return (
     <div ref={ref} className="flex flex-col gap-5">
       <div className={`flex flex-col gap-5 ${insightsOpen ? "lg:flex-row lg:items-stretch" : ""}`}>
         <div className="min-w-0 lg:flex-1" data-reveal>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <Kicker icon={Sparkles} accent={theme.accent}>Trending now</Kicker>
+            <TrendTabToggle active={tab} onChange={setTab} />
             <button
               type="button"
               onClick={() => setInsightsOpen((v) => !v)}
+              onMouseEnter={() => setBulbHovered(true)}
+              onMouseLeave={() => setBulbHovered(false)}
               aria-expanded={insightsOpen}
-              className="inline-flex items-center gap-1.5 rounded-full border border-black/15 bg-black/[0.03] px-3.5 py-1.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-black/60 transition-colors hover:border-black/30 hover:text-[#171410] dark:border-white/15 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/30 dark:hover:text-white"
+              aria-label={insightsOpen ? "Hide Our Insights" : "Our Insights"}
+              title={insightsOpen ? "Hide Our Insights" : "Our Insights"}
+              style={{ color: insightsOpen || bulbHovered ? "#fbbf24" : undefined }}
+              className={`group/insights relative inline-flex shrink-0 items-center justify-center transition-colors duration-200 ${
+                insightsOpen || bulbHovered ? "" : "text-black/60 dark:text-white/60"
+              }`}
             >
-              <MessageCircle size={12} strokeWidth={2.2} />
-              {insightsOpen ? "Hide Our Insights" : "Our Insights"}
-              <ChevronDown size={12} strokeWidth={2.4} className={`transition-transform duration-200 ${insightsOpen ? "rotate-180" : ""}`} />
+              <Lightbulb size={insightsOpen ? 40 : 34} strokeWidth={2} fill={insightsOpen ? "currentColor" : "none"} />
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#171410] px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/insights:opacity-100 dark:bg-white dark:text-[#171410]"
+              >
+                {insightsOpen ? "Hide Our Insights" : "Our Insights"}
+              </span>
             </button>
           </div>
-          {reels.length > 0 ? (
-            reels.length > CAROUSEL_THRESHOLD
-              ? <TrendingCarousel reels={reels} glow={theme.glow} big={!insightsOpen} />
-              : <TrendingRow reels={reels} big={!insightsOpen} />
+
+          {tab === "general" ? (
+            generalReels.length > 0 ? (
+              <TrendingCarousel
+                reels={generalReels}
+                glow={theme.glow}
+                big={!insightsOpen}
+                isFavourited={reelFavourited}
+                onToggleFavourite={reelToggleFavourite}
+              />
+            ) : (
+              <EmptyState tall>No reels yet.</EmptyState>
+            )
+          ) : tab === "industry" ? (
+            mwError ? (
+              <EmptyState tall>Couldn't load right now — try again shortly.</EmptyState>
+            ) : mwItems == null ? (
+              <SkeletonGrid
+                n={4}
+                className="flex gap-3.5 overflow-hidden"
+                itemClassName="aspect-[9/16] w-[196px] shrink-0 animate-pulse rounded-[16px] bg-black/[0.045] dark:bg-white/[0.04] sm:w-[224px]"
+              />
+            ) : industryReels.length > 0 ? (
+              <TrendingCarousel
+                reels={industryReels}
+                glow={theme.glow}
+                big={!insightsOpen}
+                isFavourited={reelFavourited}
+                onToggleFavourite={reelToggleFavourite}
+              />
+            ) : (
+              <EmptyState tall>No reels yet.</EmptyState>
+            )
+          ) : mwError ? (
+            <EmptyState tall>Couldn't load right now — try again shortly.</EmptyState>
+          ) : mwItems == null || favourites == null ? (
+            <SkeletonGrid n={4} />
+          ) : favouriteReels.length > 0 ? (
+            <TrendingCarousel
+              reels={favouriteReels}
+              glow={theme.glow}
+              big={!insightsOpen}
+              isFavourited={reelFavourited}
+              onToggleFavourite={reelToggleFavourite}
+            />
           ) : (
-            <EmptyState tall>No reels yet.</EmptyState>
+            <EmptyState tall>Nothing favourited yet.</EmptyState>
           )}
-          {!insightsOpen && reels.length > 0 && (
-            <div className="mt-8 flex items-center justify-center gap-10 border-t border-black/[0.08] pt-6 dark:border-white/[0.08]">
-              <TrendingStat label="Reels" value={reels.length} />
+
+          {!insightsOpen && activeReels.length > 0 && (
+            <div className="mt-8 flex items-center justify-center gap-70 border-t border-black/[0.08] px-4 pt-8 dark:border-white/[0.08]">
+              <TrendingStat label="Reels" value={activeReels.length} />
               <TrendingStat label="Total views" value={stats.views != null ? fmtNum(stats.views) : "—"} />
               <TrendingStat label="Total likes" value={stats.likes != null ? fmtNum(stats.likes) : "—"} />
             </div>
@@ -591,7 +769,7 @@ function NewsGrid({ news, newsError, accent }) {
   );
 }
 
-function MarketWatchReelCard({ reel }) {
+function MarketWatchReelCard({ reel, favourited, onToggleFavourite }) {
   const media = reel.media;
   const reduced = useReducedMotion();
   const [hovered, setHovered] = useState(false);
@@ -668,100 +846,58 @@ function MarketWatchReelCard({ reel }) {
           {muted ? <VolumeX size={13} strokeWidth={2.2} /> : <Volume2 size={13} strokeWidth={2.2} />}
         </button>
       )}
+
+      {/* Always visible — see the matching comment on ReelCard's own
+          favourite button above. */}
+      {onToggleFavourite && (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavourite(); }}
+          aria-label={favourited ? "Remove from favourites" : "Add to favourites"}
+          aria-pressed={favourited}
+          style={{ color: favourited ? "#fbbf24" : undefined }}
+          className={`absolute bottom-3.5 left-3.5 z-20 flex size-9 items-center justify-center transition-colors duration-200 ${
+            favourited ? "" : "text-white/85 hover:text-white"
+          }`}
+        >
+          <Star size={20} strokeWidth={2.2} fill={favourited ? "currentColor" : "none"} />
+        </button>
+      )}
     </HoverLift>
   );
 }
 
-function MarketWatchReelRow({ reels }) {
-  const scrollerRef = useRef(null);
-  const pausedRef = useRef(false);
-  const reduced = useReducedMotion();
-
-  function scrollByViewport(dir) {
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
-  }
-
-  // Always-drifting filmstrip: a slow constant scrollLeft nudge each frame,
-  // bouncing direction at either end rather than jump-cutting back to the
-  // start. Paused whenever the row is hovered (pausedRef, flipped straight
-  // in the DOM handlers below so hovering never waits on a re-render) and
-  // skipped entirely for prefers-reduced-motion or a one-card row.
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el || reduced || reels.length < 2) return;
-    let raf;
-    let dir = 1;
-    const SPEED = 0.45; // px per frame — a slow, steady drift
-    const step = () => {
-      if (!pausedRef.current) {
-        const max = el.scrollWidth - el.clientWidth;
-        if (max > 0) {
-          let next = el.scrollLeft + dir * SPEED;
-          if (next >= max) { next = max; dir = -1; }
-          else if (next <= 0) { next = 0; dir = 1; }
-          el.scrollLeft = next;
-        }
-      }
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [reduced, reels.length]);
-
-  return (
-    <div
-      className="group/row relative"
-      onMouseEnter={() => { pausedRef.current = true; }}
-      onMouseLeave={() => { pausedRef.current = false; }}
-    >
-      <div ref={scrollerRef} className="flex gap-3.5 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ scrollSnapType: "x proximity" }}>
-        {reels.map((reel) => (
-          <div key={reel.id} data-reveal className="aspect-[9/16] w-[196px] shrink-0 sm:w-[224px]" style={{ scrollSnapAlign: "start" }}>
-            <MarketWatchReelCard reel={reel} />
-          </div>
-        ))}
-      </div>
-      {reels.length > 1 && (
-        <>
-          <button type="button" onClick={() => scrollByViewport(-1)} aria-label="Scroll reels left"
-            className="absolute -left-1 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center px-3 py-8 text-black/45 opacity-0 transition-all duration-200 hover:text-[#171410] group-hover/row:opacity-100 dark:text-white/50 dark:hover:text-white sm:flex">
-            <ChevronLeft size={32} strokeWidth={2} />
-          </button>
-          <button type="button" onClick={() => scrollByViewport(1)} aria-label="Scroll reels right"
-            className="absolute -right-1 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center px-3 py-8 text-black/45 opacity-0 transition-all duration-200 hover:text-[#171410] group-hover/row:opacity-100 dark:text-white/50 dark:hover:text-white sm:flex">
-            <ChevronRight size={32} strokeWidth={2} />
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
-function OurWatchNote({ note, accent, first }) {
+function OurWatchNote({ note, first }) {
   return (
     <article className={`group relative py-7 ${first ? "pt-0" : "border-t border-black/[0.08] dark:border-white/[0.08]"}`}>
+      {note.topic && (
+        <div className="mb-1.5 font-serif text-[22px] font-bold not-italic leading-tight tracking-[-0.01em] text-[#171410] dark:text-white sm:text-[25px]">
+          {note.topic}
+        </div>
+      )}
       {note.createdAt && (
-        <div className="mb-2.5 flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: accent }}>
-          <span className="size-1 rounded-full" style={{ background: accent }} />
+        <div className="mb-2.5 flex items-center gap-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-black/40 dark:text-white/35">
+          <span className="size-1 rounded-full bg-black/30 dark:bg-white/30" />
           {new Date(note.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}
         </div>
       )}
-      <p className="max-w-2xl font-serif text-[16.5px] italic leading-relaxed text-black/85 transition-colors duration-300 group-hover:text-[#171410] dark:text-white/85 dark:group-hover:text-white">
+      <p
+        className="text-[19px] italic leading-relaxed text-black/85 transition-colors duration-300 group-hover:text-[#171410] dark:text-white/85 dark:group-hover:text-white sm:text-[21px]"
+        style={{ fontFamily: "'Times New Roman', Times, serif" }}
+      >
         {note.text}
       </p>
     </article>
   );
 }
 
-function OurWatchList({ notes, accent }) {
+function OurWatchList({ notes }) {
   if (!notes.length) return <EmptyState>Nothing here yet.</EmptyState>;
   return (
     <div className="flex flex-col">
       {notes.map((n, i) => (
         <div key={n.id} data-reveal>
-          <OurWatchNote note={n} accent={accent} first={i === 0} />
+          <OurWatchNote note={n} first={i === 0} />
         </div>
       ))}
     </div>
@@ -775,7 +911,6 @@ export function MarketWatchSection() {
   const theme = sectionById("market-watch");
 
   const notes = (items || []).filter((it) => it.kind === "note");
-  const reels = (items || []).filter((it) => it.kind === "reel");
 
   useScrollBatch(ref, "[data-reveal]", {}, [news == null, items == null, !!error, !!newsError]);
 
@@ -786,24 +921,11 @@ export function MarketWatchSection() {
         <NewsGrid news={news} newsError={!!newsError} accent={theme.accent} />
       </div>
       <div data-reveal>
-        <Kicker icon={Eye} accent={theme.accent}>Our watch</Kicker>
+        <Kicker icon={Eye} accent={theme.accent} mb="mb-9">Our watch</Kicker>
         {error ? <EmptyState>Couldn't load right now — try again shortly.</EmptyState>
           : items == null ? <EmptyState>Loading…</EmptyState>
-          : notes.length <= 3 ? <OurWatchList notes={notes} accent={theme.accent} />
-          : <div className={`pr-1 ${NEWS_SCROLL_CLASS}`}><OurWatchList notes={notes} accent={theme.accent} /></div>}
-      </div>
-      <div className="min-w-0">
-        <Kicker icon={Radar} accent={theme.accent}>Reels</Kicker>
-        {error ? <EmptyState tall>Couldn't load right now — try again shortly.</EmptyState>
-          : items == null ? (
-            <SkeletonGrid
-              n={4}
-              className="flex gap-3.5 overflow-hidden"
-              itemClassName="aspect-[9/16] w-[168px] shrink-0 animate-pulse rounded-[16px] bg-black/[0.045] dark:bg-white/[0.04] sm:w-[188px]"
-            />
-          )
-          : reels.length > 0 ? <MarketWatchReelRow reels={reels} />
-          : <EmptyState tall>No reels yet.</EmptyState>}
+          : notes.length <= 3 ? <OurWatchList notes={notes} />
+          : <div className={`pr-1 ${NEWS_SCROLL_CLASS}`}><OurWatchList notes={notes} /></div>}
       </div>
     </div>
   );
