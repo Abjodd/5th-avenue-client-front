@@ -51,8 +51,6 @@ const CREATOR_COLOR = "var(--color-accent)";
 const FEE_COLOR = "var(--color-teal)";
 const INK = "var(--color-ink)";
 
-const shareOf = (part, whole) => (whole > 0 ? `${fmtShare((part / whole) * 100)} of committed` : null);
-
 /* Rank as fade, capped so the tail never disappears into the well behind it.
    The bars are a supporting read — the figure and the share are printed on the
    row itself — so this only has to separate neighbours, not identify them. */
@@ -320,7 +318,7 @@ function CampaignBill({ c, index }) {
           answer "where did the budget go", these answer "what do I pay", and
           that second question should be findable without reading the first. */}
       {!c.pending && (
-        <div className="mt-4 border-t border-line bg-well px-5 py-4 sm:px-6">
+        <div className="mt-auto border-t border-line bg-well px-5 py-4 sm:px-6">
           <BlockHead label="To pay" />
           <div className="divide-y divide-line">
             <LedgerRow label={`GST @ ${GST_RATE * 100}%`} sub={`On the ${fmtINRExact(c.base)} campaign budget`}
@@ -346,19 +344,12 @@ export default function BillingPage() {
     // Summed per campaign, not 18% of the total, so the rounding agrees with the
     // cards below — this page gets checked against an invoice.
     const gst = list.reduce((s, c) => s + c.gst, 0);
-    return {
-      billed,
-      gst,
-      payable: billed + gst,
-      creators: list.reduce((s, c) => s + c.creatorTotal, 0),
-      fees: list.reduce((s, c) => s + c.fee, 0),
-    };
+    return { billed, payable: billed + gst };
   }, [campaigns]);
 
   if (error) return <ErrorState message={error} onRetry={retry} />;
   if (!campaigns) return <PageSkeleton />;
 
-  const split = totals.creators + totals.fees;
   const n = campaigns.length;
 
   return (
@@ -398,60 +389,40 @@ export default function BillingPage() {
                   the grid's own `gap-px` showing the container through, so
                   they land correctly however the row wraps — fixed column
                   counts (not auto-fit) keep that predictable. */}
+              {/* The creator/fee/GST split lives on each statement below —
+                  repeating it here was the same numbers twice. This band only
+                  answers "what's the account-wide total and how much of it". */}
               <Panel reveal className="mt-6 overflow-hidden">
-                <Stagger animate="show" stagger={0.07}
-                  className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 xl:grid-cols-6">
-                  {/* `tick` carries the legend here rather than the figure's
-                      colour — the creator/fee split is the page's argument.
-                      Figures stay in one ink, as they do portal-wide. */}
-                  <KPI flush size="sm" index={0} color={INK} label="Total billed"
+                <Stagger animate="show" stagger={0.07} className="grid grid-cols-3 gap-px bg-line">
+                  <KPI flush index={0} color={INK} label="Total billed"
                     value={totals.billed} format={fmtINRExact} sublabel="agreed budgets, ex-tax" />
-                  <KPI flush size="sm" index={1} color={INK} tick={CREATOR_COLOR} label="To creators"
-                    value={totals.creators} format={fmtINRExact} sublabel={shareOf(totals.creators, split)} />
-                  <KPI flush size="sm" index={2} color={INK} tick={FEE_COLOR} label="Agency fees"
-                    value={totals.fees} format={fmtINRExact} sublabel={shareOf(totals.fees, split)} />
-                  <KPI flush size="sm" index={3} color={INK} label={`GST @ ${GST_RATE * 100}%`}
-                    value={totals.gst} format={fmtINRExact} sublabel="on agreed budgets" />
-                  <KPI flush size="sm" index={4} color={INK} label="Total payable"
+                  <KPI flush index={1} color={INK} label="Total payable"
                     value={totals.payable} format={fmtINRExact} sublabel="inclusive of GST" />
-                  <KPI flush size="sm" index={5} color={INK} label="Campaigns"
+                  <KPI flush index={2} color={INK} label="Campaigns"
                     value={n} format={Math.round} sublabel="with costs to show" />
                 </Stagger>
-
-                {/* Just the creator/fee proportion, NOT AllocationBar: that
-                    scales against the budget, and pending campaigns add lines
-                    without one — account-wide it would cry "over budget". */}
-                {split > 0 && (
-                  <div className="border-t border-line px-5 py-4 sm:px-6">
-                    <div className="flex h-1.5 gap-px overflow-hidden rounded-full bg-well">
-                      <Bar pct={(totals.creators / split) * 100} color={CREATOR_COLOR} className="h-full rounded-l-full" />
-                      <Bar pct={(totals.fees / split) * 100} color={FEE_COLOR} delay={80} className="h-full rounded-r-full" />
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10.5px] text-mute">
-                      <Key color={CREATOR_COLOR} label="Creators" value={totals.creators} />
-                      <Key color={FEE_COLOR} label="Agency fee" value={totals.fees} />
-                      <span>across {n} campaign{n === 1 ? "" : "s"}</span>
-                    </div>
-                  </div>
-                )}
               </Panel>
 
               {/* Two up from xl: a bill is read against one invoice at a time,
                   so the second column costs nothing and keeps each statement
-                  near the ~700px a name/share/figure row wants. `items-start`
-                  so a two-creator campaign doesn't stretch to match a thirty. */}
+                  near the ~700px a name/share/figure row wants. Stretched
+                  (the grid default) so two statements sharing a row read as
+                  one size — CampaignBill's `mt-auto` on its "To pay" band
+                  absorbs the difference as a gap rather than a shorter card. */}
               <Section eyebrow="Statements" title="Every campaign, line by line"
                 hint="What each creator was charged, the agency fee, and what the campaign comes to with tax.">
-                <div className="grid items-start gap-5 xl:grid-cols-2">
+                <div className="grid gap-5 xl:grid-cols-2">
                   {campaigns.map((c, i) => <CampaignBill key={c.id} c={c} index={i} />)}
                 </div>
               </Section>
 
-              <p className="mt-8 max-w-[78ch] text-[11px] leading-relaxed text-mute">
-                Figures are the agreed cost per creator and the agency fee for each campaign. GST is charged at {GST_RATE * 100}% on the
-                agreed campaign budget and is stated separately — every other figure on this page, and everywhere else in the portal, is
-                exclusive of tax. A campaign whose budget is still to be confirmed carries no GST figure yet.
-              </p>
+              <div className="mt-10 border-t border-line pt-5">
+                <p className="max-w-2xl text-[11px] leading-relaxed text-mute">
+                  Figures are the agreed cost per creator and the agency fee for each campaign. GST is charged at {GST_RATE * 100}% on the
+                  agreed campaign budget and is stated separately — every other figure on this page, and everywhere else in the portal, is
+                  exclusive of tax. A campaign whose budget is still to be confirmed carries no GST figure yet.
+                </p>
+              </div>
             </>}
       </div>
     </div>
