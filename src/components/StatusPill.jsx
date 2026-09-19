@@ -30,5 +30,5 @@ export function StatusLegend() {
         <StatusPill key={k} tier={k}>{t.label}</StatusPill>
       ))}
     </div>
-  );
+  ); 
 }

@@ -126,6 +126,26 @@ export const erOf = (likes, comments, views) =>
 export const cpvOf = (spend, views) =>
   spend > 0 && views > 0 ? spend / views : null;
 
+/* ── SAVED VS. INDUSTRY-STANDARD CPV ─────────────────────────────────────────
+   What the same measured views would have cost at an assumed industry-
+   standard CPV, minus what was actually committed here. A positive number is
+   what running through 5th Avenue saved against that assumed benchmark; a
+   negative one means this account's own blended CPV came in above it. The
+   0.30 rate is an assumption, not a sourced figure — every place this number
+   is shown says so, rather than presenting it as audited fact. Null under the
+   same guard as cpvOf: no committed budget or no measured views, nothing to
+   compare. */
+export const INDUSTRY_CPV = 0.3;
+export const savedVsIndustryOf = (spend, views, rate = INDUSTRY_CPV) =>
+  spend > 0 && views > 0 ? views * rate - spend : null;
+
+/** Views a single rupee buys at this account's own blended CPV — cpvOf's
+    rate read the other way round, for a reader who thinks in "what does ₹1
+    get me" rather than "what does one view cost." Null under the same guard
+    as cpvOf. */
+export const viewsPerRupeeOf = (spend, views) =>
+  spend > 0 && views > 0 ? views / spend : null;
+
 /** Numeric-or-null: never coerces a missing metric into a zero. */
 const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 

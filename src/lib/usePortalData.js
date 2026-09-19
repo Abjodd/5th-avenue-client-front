@@ -61,6 +61,15 @@ export const usePortalQuestions = () => usePortalResource(PortalAPI.questions);
  *  usePortalTrending's hand-rolled universal-fetch version. */
 export const usePortalMarketWatch = () => usePortalResource(PortalAPI.marketWatch);
 
+/** The Insights → Trending shelf's Favourite tab — which of this brand's
+ *  own Trending/Market Watch items it has starred, as bare pointers
+ *  ({ itemId, itemType }); brand-scoped like usePortalMarketWatch above,
+ *  not universal like usePortalTrending below. `setData` is exposed (same
+ *  as the return of usePortalResource itself) so the star button on a
+ *  reel can flip this list optimistically the instant it's clicked,
+ *  rather than waiting on a round trip before the star fills in. */
+export const usePortalFavourites = () => usePortalResource(PortalAPI.favourites);
+
 /** The Insights → Newsletter section — this brand's own dated history of
  *  uploaded newsletter PDFs (see PortalAPI.newsletter). Brand-scoped, same
  *  as usePortalMarketWatch above. */

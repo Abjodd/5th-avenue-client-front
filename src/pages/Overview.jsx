@@ -41,6 +41,7 @@ import {
   GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
   platformPerformance, livePosts, POST_SORTS, activityFeed, needsYou,
   greeting, heroSummary, growthAcross, countsInMetrics, cpvOf, actionableCount,
+  savedVsIndustryOf, viewsPerRupeeOf,
 } from "../lib/portalMetrics";
 
 import { Dot } from "../components/Dot";
@@ -882,6 +883,11 @@ export default function OverviewDashboard() {
   const creators = useMemo(() => applyFilters(allCreators, filters), [allCreators, filters]);
 
   const kpis = useMemo(() => summarise(list, creators), [list, creators]);
+  // Shared by the CPV tile and the "You saved with 5th Avenue" tile below —
+  // computed once here rather than separately inline in each tile's JSX.
+  const cpv = cpvOf(kpis.budget, kpis.views);
+  const viewsPerRupee = viewsPerRupeeOf(kpis.budget, kpis.views);
+  const savedVsIndustry = savedVsIndustryOf(kpis.budget, kpis.views);
   const health = useMemo(() => healthScore(list), [list]);
   const phases = useMemo(() => pipeline(list), [list]);
   const busiestPhase = useMemo(
@@ -1064,8 +1070,8 @@ export default function OverviewDashboard() {
             total={allCreators.length}
           />
 
-          {/* One ledger band, not six floating cards.
-              The six account figures belong to one statement, so they are
+          {/* One ledger band, not seven floating cards.
+              The seven account figures belong to one statement, so they are
               ruled into a single panel the way a broadsheet prints a summary
               table — which also takes the section from six drop shadows down
               to one. The hairlines are the grid's own `gap-px` showing the
@@ -1077,7 +1083,7 @@ export default function OverviewDashboard() {
             <Stagger
               animate="show"
               stagger={0.07}
-              className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 xl:grid-cols-6"
+              className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 xl:grid-cols-7"
             >
               <KPI flush index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Active campaigns" hint={`${kpis.active} of ${kpis.campaigns} active now.`} />} />
@@ -1108,9 +1114,19 @@ export default function OverviewDashboard() {
               {/* Same cpvOf() used by PerformanceSection's own CPV tile, over the
                   account's full committed budget and measured views rather than
                   one filtered period — the portfolio rate, not a period rate. */}
-              <KPI flush index={5} label="CPV" value={cpvOf(kpis.budget, kpis.views)} format={fmtCPV}
+              <KPI flush index={5} label="CPV" value={cpv} format={fmtCPV}
                 sublabel="external, on measured views" color={P.green}
-                back={<FlipSummary padding="px-5 py-[18px]" title="Cost per view" hint="Committed budget ÷ measured views, account-wide." />} />
+                back={<FlipSummary padding="px-5 py-[18px]" title="Cost per view" hint={viewsPerRupee != null
+                  ? `₹1 = ${fmtNum(viewsPerRupee)} views, account-wide.`
+                  : "Committed budget ÷ measured views, account-wide."} />} />
+              {/* Same guard as cpvOf(): no rate to compare without both a
+                  committed budget and measured views. INDUSTRY_CPV (₹0.30) is
+                  an assumption, not a sourced benchmark — the back face says
+                  so, so the figure is never read as an audited fact. */}
+              <KPI flush index={6} label="You saved " value={savedVsIndustry} format={fmtINR}
+                sublabel={savedVsIndustry != null ? "with Fifth-Avenue " : "no rate to compare yet"}
+                color={P.green}
+                back={<FlipSummary padding="px-5 py-[18px]" title="You saved with Fifth-Avenue" hint="Assuming ₹0.30 per view as the industry-standard CPV: what your account's measured views would have cost at that rate, minus what was actually committed." />} />
             </Stagger>
           </Panel>
         </Section>

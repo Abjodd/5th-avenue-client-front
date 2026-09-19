@@ -179,6 +179,27 @@ export const PortalAPI = {
   // the id alone, so a guessed id for another brand's PDF 404s instead of
   // leaking it.
   newsletterFileUrl: (id, scope) => `${BASE}/api/portal/newsletter/${id}/file?${scopeParams(scope)}`,
+
+  // The Insights → Trending shelf's Favourite tab — which of this brand's
+  // own Trending/Market Watch items it has starred, as bare pointers
+  // ({ itemId, itemType }). The client already holds the full reel/note
+  // content from trending()/marketWatch() above, so this only says which
+  // ones are starred; it doesn't repeat their content. See
+  // /api/portal/favourites in 5th-internal-back/server.js.
+  favourites: (scope) =>
+    request(`/api/portal/favourites?${scopeParams(scope)}`).then((r) => r.items || []),
+
+  // Star or unstar one Trending/Market Watch item for the signed-in brand.
+  // The portal's other write against this data (see addAssetComment/
+  // decideCreator above) — toggles rather than taking an explicit on/off,
+  // so the caller doesn't need to already know the current state.
+  // `itemType` is "trending" or "market-watch", matching whichever shelf
+  // `itemId` came from.
+  toggleFavourite: (scope, itemId, itemType) =>
+    request(`/api/portal/favourites`, {
+      method: "POST",
+      body: JSON.stringify({ ...scopeBody(scope), itemId, itemType }),
+    }),
 };
 
 /**

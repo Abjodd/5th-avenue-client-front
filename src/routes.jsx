@@ -62,7 +62,7 @@ const RegionalMap = lazy(() => import("./pages/RegionalMap"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Assets = lazy(() => import("./pages/assets"));
 const Billing = lazy(() => import("./pages/billing"));
-// const Insights = lazy(() => import("./pages/Insights"));
+const Insights = lazy(() => import("./pages/Insights"));
 
 /** Suspense boundary for a lazily-loaded route element. The marketing site
     fades in from a bare tinted panel; the portal shows its own skeleton. */
@@ -120,7 +120,7 @@ export const router = createBrowserRouter([
       { path: "profile", element: <Profile /> },
       { path: "assets", element: <Assets /> },
       { path: "billing", element: <Billing /> },
-      // { path: "insights", element: <Insights /> },
+      { path: "insights", element: <Insights /> },
       { path: "*", element: <Navigate to="/portal/overview" replace /> },
     ],
   },
