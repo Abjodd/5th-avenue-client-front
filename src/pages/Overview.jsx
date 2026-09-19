@@ -40,17 +40,17 @@ import {
   summarise, healthScore, pipeline, signals, groupBy, availableMetrics,
   GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
   platformPerformance, livePosts, POST_SORTS, activityFeed, needsYou,
-  greeting, heroSummary, growthAcross, countsInMetrics, cpvOf,
+  greeting, heroSummary, growthAcross, countsInMetrics, cpvOf, actionableCount,
 } from "../lib/portalMetrics";
 
 import { Dot } from "../components/Dot";
+import AnimatedNumber from "../components/AnimatedNumber";
 import { StatusPill } from "../components/StatusPill";
 import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import PerformanceSection from "../components/PerformanceSection";
 import { Stagger, AmbientBackground } from "../components/motion/Motion";
-import { Panel, Subpanel, Section, PanelTitle, KPI, MetricSwitch, PanelEmpty } from "../components/portal/Shell";
+import { Panel, Section, PanelTitle, KPI, MetricSwitch, PanelEmpty } from "../components/portal/Shell";
 import { FlipSummary } from "../components/portal/FlipCard";
-import { ProgressRing } from "../components/primitives/ProgressRing";
 import { BarList, ColumnChart, Podium, PlatformScorecard, LineChart } from "../components/charts";
 
 /* Brand-story intro is its own chunk — most sessions load it once per login */
@@ -96,150 +96,240 @@ function UnderStroke({ show }) {
   );
 }
 
-/* ── Activity panel (Recent activity + Needs you, side by side) ─────────── */
-
 /**
- * Sits beside Campaign progress in the hero, in the spot Signals used to hold.
- * Two questions — "what happened" and "what's waiting on me" — read better
- * side by side than stacked, since neither needs the other's full column
- * width, and the hero is wide enough to hold both without crowding.
+ * Three metrics as one graphic, outer to inner — the Apple Activity-rings
+ * pattern, in the app's own accent/teal/green rather than Apple's red/green/
+ * blue — paired with a legend that spreads across the rest of the row (same
+ * `flex-1` treatment as the KPI band below, so this doesn't strand a wide
+ * screen mostly empty beside a small ring).
  *
- * Each half scrolls independently (min-h-0 + overflow-y-auto) so a long
- * history or a long queue can't stretch the hero taller than Campaign
- * progress — the grid's items-stretch already pins both hero panels to the
- * same height, so the content inside has to yield to it, not the other way
- * round.
+ * The two halves are linked by one hover state: resting a pointer on a ring
+ * (or its legend row — either direction works) dims the other two rings and
+ * lifts that one stat, so it's obvious at a glance which number a given ring
+ * is. Rings and legend live in one component, not two, because that state
+ * has to be shared and a prop-drilled callback pair for three rows each way
+ * would be more machinery than the two `useState` lines it replaces.
+ *
+ * Sweeps in together on mount, not on an initial `animate={{}}`: rAF is
+ * paused in a background tab, so a motion-driven grow-in would leave every
+ * ring flat until the tab is looked at — same trap billing.jsx's own Bar
+ * documents, worked around the same way (a plain CSS transition, set by an
+ * effect that always runs). The hover lift/dim is a separate, much shorter
+ * transition — not gated on that effect or on reduced-motion, the way the
+ * KPI tiles' own `hover:-translate-y-1` isn't either.
+ *
+ * A ring whose `pct` is null draws just its neutral track, not a colored arc
+ * at 0% — `healthScore()` returns null for "nothing in flight to measure",
+ * and a 0% ring would misread that as "measured, and it's zero".
  */
-function HeroActivityPanel({ activity, queues, setPage, P }) {
-  const hasActivity = activity.length > 0;
-  const hasQueues = queues.length > 0;
-  const totalQueue = queues.reduce((s, q) => s + q.count, 0);
-  // Which campaign's card is expanded to show its individual creators — one
-  // at a time, accordion-style, so opening a second doesn't stack the panel
-  // taller than the Recent activity column beside it.
-  const [openQueue, setOpenQueue] = useState(null);
+function HeroMetrics({ items, size = 168, stroke = 13, gap = 7 }) {
+  const reduce = useReducedMotion();
+  const [grown, setGrown] = useState(reduce);
+  useEffect(() => { if (!reduce) setGrown(true); }, [reduce]);
+  const [hovered, setHovered] = useState(null);
 
   return (
-    <Panel reveal delay={0.06} className="flex h-full flex-col gap-5 px-6 py-5 lg:flex-row">
-      {/* Recent activity */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <PanelTitle title="Recent activity" hint="Dated events across your campaigns" />
-        {hasActivity ? (
-          <div className="mt-1 min-h-0 flex-1 overflow-y-auto pr-1">
-            {activity.slice(0, 6).map((a) => {
-              const tone = a.kind === "live" ? P.green : a.kind === "metrics" ? P.accent : a.kind === "end" ? P.doneTxt : P.purple;
-              const Icon = a.kind === "live" ? Radio : a.kind === "metrics" ? TrendingUp : Rocket;
-              return (
+    <div className="mt-6 flex flex-wrap items-center gap-x-14 gap-y-8">
+      <svg viewBox="0 0 200 200" style={{ width: size, height: size, transform: "rotate(-90deg)" }} className="shrink-0">
+        {items.map((it, i) => {
+          const radius = 84 - i * (stroke + gap);
+          const c = 2 * Math.PI * radius;
+          const pct = Math.min(Math.max(it.pct ?? 0, 0), 100);
+          const isHovered = hovered === it.key;
+          const dimmed = hovered && !isHovered;
+          return (
+            <g
+              key={it.key}
+              onMouseEnter={() => it.pct != null && setHovered(it.key)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ cursor: it.pct != null ? "pointer" : "default" }}
+            >
+              {/* Invisible, wider hit area — a 13px stroke is a thin target
+                  to land a pointer on precisely. */}
+              <circle cx="100" cy="100" r={radius} fill="none" stroke="transparent" strokeWidth={stroke + 16} />
+              <circle cx="100" cy="100" r={radius} fill="none" stroke="var(--color-line)" strokeWidth={stroke} />
+              {it.pct != null && (
+                <circle
+                  cx="100" cy="100" r={radius} fill="none" stroke={it.color} strokeLinecap="round"
+                  strokeWidth={isHovered ? stroke + 3 : stroke}
+                  strokeDasharray={c}
+                  strokeDashoffset={grown ? c * (1 - pct / 100) : c}
+                  style={{
+                    opacity: dimmed ? 0.35 : 1,
+                    transition:
+                      `stroke-dashoffset 1100ms cubic-bezier(0.16,1,0.3,1) ${i * 90}ms, ` +
+                      "stroke-width 200ms ease-out, opacity 200ms ease-out",
+                  }}
+                />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="flex min-w-[280px] flex-1 flex-wrap items-center">
+        {items.map((it, i) => {
+          const isHovered = hovered === it.key;
+          const dimmed = hovered && !isHovered;
+          return (
+            <div key={it.key} className="flex min-w-[170px] flex-1 items-stretch">
+              {i > 0 && <div className="mr-6 hidden self-stretch border-l border-line sm:block" />}
+              <button
+                type="button"
+                onMouseEnter={() => setHovered(it.key)}
+                onMouseLeave={() => setHovered(null)}
+                onFocus={() => setHovered(it.key)}
+                onBlur={() => setHovered(null)}
+                className="flex flex-1 items-center gap-3 rounded-lg py-1 text-left transition-[transform,opacity] duration-300 ease-out"
+                style={{ transform: isHovered ? "translateY(-3px)" : "translateY(0)", opacity: dimmed ? 0.5 : 1 }}
+              >
+                <span aria-hidden className="size-[9px] shrink-0 rounded-full" style={{ background: it.color }} />
+                <div className="min-w-0">
+                  <div className="microlabel tracking-[0.09em]">{it.label}</div>
+                  {it.value}
+                  {it.sub}
+                </div>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Activity digest (Recent activity + Needs you, merged) ──────────────── */
+
+/**
+ * Per-creator decisions, expandable to who's behind a "+N more" — extra
+ * detail behind Signals' own aggregate rows, so it lives inside that same
+ * section rather than a second one making its own competing claim.
+ *
+ * Filtered to `statusTier === "action"` rows only. needsYou() also carries
+ * creators stuck on "Waiting on Our Team" or "Waiting on Creator"
+ * (LIVE_WAIT_LABELS, above) — agency-side work in flight, not the brand's to
+ * clear — and rendering those as "needs a decision" is exactly what used to
+ * have this block claiming open decisions one line above Signals saying
+ * there were none. Those rows aren't dropped; RecentActivity below still
+ * counts them, just as "in progress" rather than "on you".
+ */
+function NeedsYouExtra({ queues, setPage, P }) {
+  const [openQueue, setOpenQueue] = useState(null);
+  const actionable = queues
+    .map((q) => ({ ...q, rows: q.rows.filter((r) => r.statusTier === "action") }))
+    .filter((q) => q.rows.length > 0);
+  if (!actionable.length) return null;
+
+  return (
+    <div className="mt-6">
+      <div className="microlabel mb-3">Who, specifically</div>
+      <Panel reveal className="divide-y divide-line overflow-hidden">
+        {actionable.map((q) => {
+          const open = openQueue === q.campaignId;
+          const lead = q.rows[0];
+          return (
+            <div key={q.campaignId} className="px-5 py-3.5">
+              <div className="flex w-full items-center gap-1">
                 <button
-                  key={a.id}
-                  onClick={() => setPage("campaigns", { campaignId: a.campaignId })}
-                  className="group flex w-full items-center gap-3 border-b border-line py-2.5 text-left last:border-b-0 hover:bg-accent/[0.03]"
+                  onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                  className="group flex min-w-0 flex-1 items-center gap-3 text-left"
                 >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-[10px]" style={{ background: `${tone}14`, color: tone }}>
-                    <Icon size={13} strokeWidth={2} />
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-[12px]" style={{ background: `${P.accent}14`, color: P.accent }}>
+                    <UserCheck size={14} strokeWidth={2} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12.5px] font-semibold text-ink">{a.title}</span>
-                    <span className="block truncate text-[10.5px] text-mute">{a.meta}</span>
-                  </span>
-                  <span className="shrink-0 text-[10.5px] text-mute">{prettyDate(a.at)}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <PanelEmpty>Nothing dated to show yet. Posts going live and metric refreshes appear here as they happen.</PanelEmpty>
-        )}
-      </div>
-
-      <div className="hidden shrink-0 border-l border-line lg:block" />
-
-      {/* Needs you */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <PanelTitle
-          title="Needs you"
-          hint="Creators sitting in your court"
-          action={
-            hasQueues && (
-              <span
-                className="tnum flex size-6 items-center justify-center rounded-full text-[11px] font-bold"
-                style={{ background: `${P.neutral}14`, color: P.neutral }}
-              >
-                {totalQueue}
-              </span>
-            )
-          }
-        />
-        {hasQueues ? (
-          <div className="mt-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
-            {queues.map((q, i) => {
-              const open = openQueue === q.campaignId;
-              return (
-              <Subpanel
-                key={q.campaignId}
-                className={`shrink-0 overflow-hidden transition-all duration-200 hover:-translate-y-px hover:shadow-md ${
-                  i === 0 ? "border-accent/25 bg-accent/[0.06]" : ""
-                }`}
-              >
-                <div className="flex w-full items-center gap-1">
-                  <button
-                    onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
-                    className="group flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2.5 text-left"
-                  >
-                    {i === 0 && <span className="size-1.5 shrink-0 rounded-full" style={{ background: P.neutral }} />}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12.5px] font-semibold text-ink">
-                        {q.lead.name} {q.count > 1 ? `+${q.count - 1} more` : ""} need{q.count === 1 ? "s" : ""} a decision
-                      </span>
-                      <span className="mt-1 flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[10.5px] text-mute">{q.campaignName}</span>
-                        <StatusPill tier={q.lead.statusTier}>{q.lead.statusLabel}</StatusPill>
-                      </span>
+                    <span className="block truncate text-[12.5px] font-semibold text-ink">
+                      {lead.name} {q.rows.length > 1 ? `+${q.rows.length - 1} more` : ""} need{q.rows.length === 1 ? "s" : ""} a decision
                     </span>
-                    <ArrowRight size={13} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
+                    <span className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className="truncate text-[10.5px] text-mute">{q.campaignName}</span>
+                      <StatusPill tier={lead.statusTier}>{lead.statusLabel}</StatusPill>
+                    </span>
+                  </span>
+                  <ArrowRight size={13} className="shrink-0 text-mute transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
+                </button>
+                {q.rows.length > 1 && (
+                  <button
+                    onClick={() => setOpenQueue(open ? null : q.campaignId)}
+                    aria-label={open ? "Collapse creators" : "Show individual creators"}
+                    className="shrink-0 rounded-full p-1 text-mute transition-colors hover:bg-well hover:text-ink"
+                  >
+                    <ChevronDown size={13} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
                   </button>
-                  {/* Sub-points — same "expand a campaign to see who's behind
-                      the count" pattern as a campaign notification, so the
-                      names hiding behind "+N more" are one tap away rather
-                      than only visible after leaving this panel. */}
-                  {q.count > 1 && (
-                    <button
-                      onClick={() => setOpenQueue(open ? null : q.campaignId)}
-                      aria-label={open ? "Collapse creators" : "Show individual creators"}
-                      className="mr-2 shrink-0 rounded-full p-1 text-mute transition-colors hover:bg-well hover:text-ink"
-                    >
-                      <ChevronDown size={13} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
-                    </button>
-                  )}
-                </div>
-                <AnimatePresence initial={false}>
-                  {open && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.18, ease: "easeOut" }} className="overflow-hidden border-t border-line/60"
-                    >
-                      {q.rows.map((cr, j) => (
-                        <button
-                          key={j}
-                          onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
-                          className="flex w-full items-center gap-2 px-4 py-2 text-left last:pb-2.5 hover:bg-accent/[0.03]"
-                        >
-                          <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink">{cr.name}</span>
-                          <StatusPill tier={cr.statusTier}>{cr.statusLabel}</StatusPill>
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </Subpanel>
-              );
-            })}
-          </div>
-        ) : (
-          <PanelEmpty>Nothing needs your call right now.</PanelEmpty>
-        )}
-      </div>
-    </Panel>
+                )}
+              </div>
+              <AnimatePresence initial={false}>
+                {open && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }} className="overflow-hidden pl-11"
+                  >
+                    {q.rows.map((cr, j) => (
+                      <button
+                        key={j}
+                        onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                        className="flex w-full items-center gap-2 py-1.5 text-left hover:bg-accent/[0.03]"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink">{cr.name}</span>
+                        <StatusPill tier={cr.statusTier}>{cr.statusLabel}</StatusPill>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </Panel>
+    </div>
+  );
+}
+
+/**
+ * Closing history strip: what happened, most recent first, plus a one-line
+ * mention of anyone still in progress (the non-actionable rows NeedsYouExtra
+ * leaves out). Last on the page and lightest in tone, since neither is
+ * something to act on today — that's what the top of this section is for.
+ */
+function RecentActivity({ activity, queues, setPage, P }) {
+  const inProgress = queues.reduce(
+    (s, q) => s + q.rows.filter((r) => r.statusTier !== "action").length, 0,
+  );
+  if (!activity.length && !inProgress) return null;
+
+  return (
+    <div className="mt-8 border-t border-line pt-6">
+      <div className="microlabel mb-3">Recently</div>
+      {activity.length > 0 && (
+        <div className="flex flex-col">
+          {activity.slice(0, 6).map((a) => {
+            const tone = a.kind === "live" ? P.green : a.kind === "metrics" ? P.accent : a.kind === "end" ? P.doneTxt : P.purple;
+            const Icon = a.kind === "live" ? Radio : a.kind === "metrics" ? TrendingUp : Rocket;
+            return (
+              <button
+                key={a.id}
+                onClick={() => setPage("campaigns", { campaignId: a.campaignId })}
+                className="group flex w-full items-center gap-3 border-b border-line py-2.5 text-left last:border-b-0 hover:bg-accent/[0.03]"
+              >
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-[10px]" style={{ background: `${tone}14`, color: tone }}>
+                  <Icon size={13} strokeWidth={2} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] font-semibold text-ink">{a.title}</span>
+                  <span className="block truncate text-[10.5px] text-mute">{a.meta}</span>
+                </span>
+                <span className="shrink-0 text-[10.5px] text-mute">{prettyDate(a.at)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {inProgress > 0 && (
+        <p className={`text-[11.5px] text-mute${activity.length > 0 ? " mt-3" : ""}`}>
+          {inProgress} more creator{inProgress === 1 ? "" : "s"} {inProgress === 1 ? "is" : "are"} still in progress — waiting on our team or the creator, not you.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -806,12 +896,17 @@ export default function OverviewDashboard() {
      where that difference is actually known. */
   const actionSignals = signalRows.filter((s) => s.kind === "action");
   const noteSignals = signalRows.filter((s) => s.kind !== "action");
-  const signalHint =
-    actionSignals.length === 0 ? "Nothing is blocking your campaigns right now."
-    : actionSignals.length === 1 ? "One thing is sitting in your court."
-    : `${actionSignals.length} things are sitting in your court — the top one first.`;
   const activity = useMemo(() => activityFeed(list, allCreators), [list, allCreators]);
   const queues = useMemo(() => needsYou(list, allCreators), [list, allCreators]);
+  // actionableCount(), not actionSignals.length: needsYou() catches a
+  // decision signals() never sees (a live post held on "Waiting on You"), so
+  // this is the one place both are combined — every "what needs you" surface
+  // on the page reads this same total, so none of them can disagree.
+  const totalActionable = actionableCount(signalRows, queues);
+  const signalHint =
+    totalActionable === 0 ? "Nothing is blocking your campaigns right now."
+    : totalActionable === 1 ? "One thing is sitting in your court."
+    : `${totalActionable} things are sitting in your court — the top one first.`;
 
   const goals = useMemo(() => serviceGroups(list, allCreators), [list, allCreators]);
   // Off the RAW campaigns, not allCreators: flattenCreators projects a creator
@@ -837,8 +932,8 @@ export default function OverviewDashboard() {
   const postSortHint = (POST_SORTS.find((o) => o.id === postSort) ?? POST_SORTS[0]).hint;
 
   const summary = useMemo(
-    () => heroSummary({ kpis, health, signalRows }),
-    [kpis, health, signalRows],
+    () => heroSummary({ kpis, health, signalRows, queues }),
+    [kpis, health, signalRows, queues],
   );
 
   const introData = useMemo(() => ({
@@ -905,57 +1000,48 @@ export default function OverviewDashboard() {
               the way a brief's header is ruled off from its body. */}
           <div className="rule mt-7" />
 
-          {/* Plain div: both panels already play their own `Reveal`, and a
-              wrapper starting at opacity 0 can strand the hero's two most
-              important panels invisible wherever rAF is throttled. */}
-          <div className="mt-6 grid items-stretch gap-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-            {/* Campaign progress — the mean of the progress Fifth Avenue records on
-                each live campaign. Hidden entirely when nothing is in flight. */}
-            <Panel reveal className="flex flex-col items-center justify-center px-6 py-7">
-              {health ? (
-                <>
-                  <div className="relative">
-                    <ProgressRing
-                      value={health.value}
-                      size={168}
-                      stroke={13}
-                      // Neutral, not a grade: this ring reports how far the
-                      // work has come, and a fixed color regardless of value
-                      // keeps a campaign that's simply just started from
-                      // reading as "in trouble." It also now matches every
-                      // other figure on the page instead of standing out
-                      // as the one green number.
-                      color={P.green}
-                      showLabel={false}
-                    />
-                    <div className="pointer-events-none absolute inset-0 flex items-baseline justify-center gap-0.5 pt-[68px]">
-                      {/* P.text: there is no `black` key in either palette
-                          (src/context.js), so P.black resolved to undefined. */}
-                      <span className="tnum text-[46px] font-bold leading-none tracking-tight" style={{ color: P.text }}>{health.value}</span>
-                      {/* The unit is part of the same figure, so it takes the
-                          same ink and steps back on opacity alone — a second
-                          hue here made "80" and "%" read as two numbers. */}
-                      <span className="text-[17px] font-semibold" style={{ color: P.text, opacity: 0.45 }}>%</span>
-                    </div>
-                  </div>
-                  {/* Labelled like the KPI tiles below it — this panel is the
-                      largest of the same family of figures, so the ring stays
-                      the anchor and the caption stays a caption. */}
-                  <div className="mt-5 text-center">
-                    <div className="microlabel tracking-[0.09em]">Campaign progress</div>
-                    <p className="mt-1.5 text-[11.5px] leading-relaxed text-mute">
-                      Average across {health.of} active campaign{health.of === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <PanelEmpty>Nothing in flight — every campaign is complete.</PanelEmpty>
-              )}
-            </Panel>
-
-            {/* Recent activity + Needs you — what happened, and what's waiting */}
-            <HeroActivityPanel activity={activity} queues={queues} setPage={setPage} P={P} />
-          </div>
+          {/* Three metrics, one graphic: the Apple Activity-rings pattern —
+              outer to inner, Campaign progress / Active campaigns / Creators
+              live — instead of a lonely boxed ring or a row of flat stats.
+              Still no card of its own: the rings and their legend sit right
+              on the page, the same treatment the greeting above them gets.
+              Hovering either a ring or its legend row highlights both —
+              see HeroMetrics. */}
+          <HeroMetrics items={[
+            {
+              key: "progress", color: "var(--color-accent)", label: "Campaign progress",
+              pct: health ? health.value : null,
+              value: health && (
+                <div className="tnum flex items-baseline gap-0.5 text-[30px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
+                  <AnimatedNumber value={health.value} format={(v) => Math.round(v)} />
+                  <span className="text-[15px] font-semibold" style={{ color: P.text, opacity: 0.4 }}>%</span>
+                </div>
+              ),
+              sub: health
+                ? <div className="text-[11px] text-mute">avg across {health.of} active campaign{health.of === 1 ? "" : "s"}</div>
+                : <div className="text-[13px] font-semibold text-mute">Nothing in flight — every campaign is complete.</div>,
+            },
+            {
+              key: "active", color: "var(--color-teal)", label: "Active campaigns",
+              pct: kpis.campaigns > 0 ? (kpis.active / kpis.campaigns) * 100 : null,
+              value: (
+                <div className="tnum flex items-baseline gap-1 text-[30px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
+                  <AnimatedNumber value={kpis.active} format={(v) => Math.round(v)} /><span className="text-[15px] font-semibold text-mute">/{kpis.campaigns}</span>
+                </div>
+              ),
+              sub: <div className="text-[11px] text-mute">{kpis.completed} completed</div>,
+            },
+            {
+              key: "live", color: "var(--color-green)", label: "Creators live",
+              pct: kpis.creators > 0 ? (kpis.live / kpis.creators) * 100 : null,
+              value: (
+                <div className="tnum flex items-baseline gap-1 text-[30px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
+                  <AnimatedNumber value={kpis.live} format={(v) => Math.round(v)} /><span className="text-[15px] font-semibold text-mute">/{kpis.creators}</span>
+                </div>
+              ),
+              sub: <div className="text-[11px] text-mute">on the roster</div>,
+            },
+          ]} />
         </motion.header>
 
         {/* ── ACCOUNT ──────────────────────────────────────────────────────
@@ -1376,10 +1462,13 @@ export default function OverviewDashboard() {
             </Panel>
           )}
 
-          {/* Nothing to decide. The full empty-state panel would be a large box
-              announcing an absence directly above real content, so it shrinks
-              to one line whenever there are notes to follow it. */}
-          {actionSignals.length === 0 && (noteSignals.length > 0 ? (
+          {/* Nothing to decide — across BOTH sources (actionSignals and the
+              needsYou queue below), or this could say "nothing blocking you"
+              directly above a creator NeedsYouExtra then lists as needing
+              exactly that. The full empty-state panel would be a large box
+              announcing an absence directly above real content, so it
+              shrinks to one line whenever there are notes to follow it. */}
+          {totalActionable === 0 && (noteSignals.length > 0 ? (
             <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
               <Radio size={15} className="text-green" />
               You&rsquo;re all caught up — nothing is waiting on your call.
@@ -1394,8 +1483,12 @@ export default function OverviewDashboard() {
             </Panel>
           ))}
 
+          {/* Per-creator detail behind the count above — same section, same
+              story, instead of a second heading making its own claim. */}
+          <NeedsYouExtra queues={queues} setPage={setPage} P={P} />
+
           {noteSignals.length > 0 && (
-            <div className={actionSignals.length ? "mt-6" : "mt-4"}>
+            <div className={totalActionable > 0 ? "mt-6" : "mt-4"}>
               <div className="microlabel mb-3">Also worth knowing</div>
               <div className="grid gap-3.5 sm:grid-cols-2">
                 {noteSignals.map((s) => (
@@ -1404,6 +1497,9 @@ export default function OverviewDashboard() {
               </div>
             </div>
           )}
+
+          {/* History, last and lightest — what happened, not what to do. */}
+          <RecentActivity activity={activity} queues={queues} setPage={setPage} P={P} />
         </Section>
       </div>
     </div>

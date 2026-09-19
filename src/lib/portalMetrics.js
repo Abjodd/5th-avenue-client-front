@@ -734,6 +734,26 @@ export function needsYou(campaigns = [], creators = []) {
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * How many things actually need the brand's call — the ONE count every
+ * "what needs you" surface (the hero greeting, the Signals hint, the Signals
+ * empty-state, needsYou's own detail list) reads, so they can't drift into
+ * disagreeing about whether anything is waiting.
+ *
+ * signals() and needsYou() cover different ground: signals' `kind: "action"`
+ * rows are shortlist/demo/brief-level asks, while needsYou also carries a
+ * live post held on `pending_client` ("Waiting on You") that signals()
+ * never sees. Both count as the brand's to clear; neither is a decision on
+ * its own without the other.
+ */
+export function actionableCount(signalRows = [], queues = []) {
+  const fromSignals = signalRows.filter((s) => s.kind === "action").length;
+  const fromQueues = queues.reduce(
+    (s, q) => s + q.rows.filter((r) => r.statusTier === "action").length, 0,
+  );
+  return fromSignals + fromQueues;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    REGIONAL
    ═════════════════════════════════════════════════════════════════════════ */
@@ -839,11 +859,15 @@ export const longDate = (date = new Date()) =>
  * brand with one quiet campaign gets a short honest sentence rather than a
  * template with holes in it.
  */
-export function heroSummary({ kpis, health, signalRows, date = new Date() }) {
+export function heroSummary({ kpis, health, signalRows, queues = [], date = new Date() }) {
   const parts = [`It's ${longDate(date)}.`];
   if (health) parts.push(`Campaign progress is at ${health.value}%, averaged across ${health.of} active campaign${health.of === 1 ? "" : "s"}.`);
-  if (signalRows.length) {
-    parts.push(`${signalRows.length} signal${signalRows.length === 1 ? "" : "s"} need${signalRows.length === 1 ? "s" : ""} a decision today.`);
+  // actionableCount(), not signalRows.length — that counted the "Also worth
+  // knowing" observations too, so the greeting claimed decisions were
+  // waiting when Signals itself said none were.
+  const actionable = actionableCount(signalRows, queues);
+  if (actionable) {
+    parts.push(`${actionable} signal${actionable === 1 ? "" : "s"} need${actionable === 1 ? "s" : ""} a decision today.`);
   } else {
     parts.push("Nothing is waiting on you right now.");
   }
