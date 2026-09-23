@@ -144,11 +144,10 @@ function statList(media) {
   ].filter(Boolean);
 }
 
-function ReelCard({ reel, favourited, onToggleFavourite }) {
+function ReelCard({ reel, favourited, onToggleFavourite, muted = true, onToggleMuted }) {
   const media = reel.media;
   const reduced = useReducedMotion();
   const [hovered, setHovered] = useState(false);
-  const [muted, setMuted] = useState(true);
   const cardRef = useRef(null);
 
   const rx = useMotionValue(0.5);
@@ -256,7 +255,7 @@ function ReelCard({ reel, favourited, onToggleFavourite }) {
       {showVideo && (
         <button
           type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMuted((m) => !m); }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleMuted?.(); }}
           aria-label={muted ? "Unmute this reel" : "Mute this reel"}
           className="absolute bottom-2 right-2 z-20 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur-md transition-opacity duration-200 hover:bg-black/70 group-hover:opacity-100"
         >
@@ -335,12 +334,12 @@ function aggregateReelStats(reels) {
 const MAX_VISIBLE_OFFSET = 3;
 const AUTOPLAY_MS = 3200;
 
-function CarouselCard({ reel, favourited, onToggleFavourite }) {
+function CarouselCard({ reel, favourited, onToggleFavourite, muted, onToggleMuted }) {
   const Card = reel.__source === "market-watch" ? MarketWatchReelCard : ReelCard;
-  return <Card reel={reel} favourited={favourited} onToggleFavourite={onToggleFavourite} />;
+  return <Card reel={reel} favourited={favourited} onToggleFavourite={onToggleFavourite} muted={muted} onToggleMuted={onToggleMuted} />;
 }
 
-function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite }) {
+function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite, muted, onToggleMuted }) {
   const reduced = useReducedMotion();
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -399,6 +398,8 @@ function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite })
                 reel={reel}
                 favourited={isFavourited?.(reel)}
                 onToggleFavourite={onToggleFavourite ? () => onToggleFavourite(reel) : undefined}
+                muted={muted}
+                onToggleMuted={onToggleMuted}
               />
             ) : (
               <GhostReelCard reel={reel} onSelect={() => setActive(i)} />
@@ -537,6 +538,12 @@ export function TrendingSection() {
   // back whenever it's wanted.
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [bulbHovered, setBulbHovered] = useState(false);
+  // Sound preference for reel playback — shared across every reel and every
+  // tab so unmuting once sticks until the user mutes again, rather than
+  // resetting to muted each time a new reel becomes active (each reel
+  // mounts/unmounts its own card, so per-card state kept forgetting it).
+  const [reelsMuted, setReelsMuted] = useState(true);
+  const toggleReelsMuted = useCallback(() => setReelsMuted((m) => !m), []);
   // Which of this brand's three reel shelves is showing — replaces the old
   // plain "Trending now" heading (see TrendTabToggle above).
   const [tab, setTab] = useState("general");
@@ -643,6 +650,8 @@ export function TrendingSection() {
                 big={!insightsOpen}
                 isFavourited={reelFavourited}
                 onToggleFavourite={reelToggleFavourite}
+                muted={reelsMuted}
+                onToggleMuted={toggleReelsMuted}
               />
             ) : (
               <EmptyState tall>No reels yet.</EmptyState>
@@ -663,6 +672,8 @@ export function TrendingSection() {
                 big={!insightsOpen}
                 isFavourited={reelFavourited}
                 onToggleFavourite={reelToggleFavourite}
+                muted={reelsMuted}
+                onToggleMuted={toggleReelsMuted}
               />
             ) : (
               <EmptyState tall>No reels yet.</EmptyState>
@@ -678,6 +689,8 @@ export function TrendingSection() {
               big={!insightsOpen}
               isFavourited={reelFavourited}
               onToggleFavourite={reelToggleFavourite}
+              muted={reelsMuted}
+              onToggleMuted={toggleReelsMuted}
             />
           ) : (
             <EmptyState tall>Nothing favourited yet.</EmptyState>
@@ -769,11 +782,10 @@ function NewsGrid({ news, newsError, accent }) {
   );
 }
 
-function MarketWatchReelCard({ reel, favourited, onToggleFavourite }) {
+function MarketWatchReelCard({ reel, favourited, onToggleFavourite, muted = true, onToggleMuted }) {
   const media = reel.media;
   const reduced = useReducedMotion();
   const [hovered, setHovered] = useState(false);
-  const [muted, setMuted] = useState(true);
   const stats = statList(media);
   const playable = media?.ok && (media.video || media.thumbnail);
   // Plain at rest — hover is what plays the video and reveals everything else.
@@ -839,7 +851,7 @@ function MarketWatchReelCard({ reel, favourited, onToggleFavourite }) {
       {showVideo && (
         <button
           type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMuted((m) => !m); }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleMuted?.(); }}
           aria-label={muted ? "Unmute this reel" : "Mute this reel"}
           className="absolute bottom-2.5 right-2.5 z-20 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur-md transition-opacity duration-200 hover:bg-black/70 group-hover:opacity-100"
         >

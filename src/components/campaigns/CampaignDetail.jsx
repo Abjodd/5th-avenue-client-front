@@ -4,16 +4,16 @@
 // sentiment read and several charts; 680px of drawer over a blurred board was
 // never enough room for any of it, and it hid the page you came from.
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  ResponsiveContainer, AreaChart, Area, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
+  PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import {
   Target, Users, MessageSquareQuote, Package, IndianRupee, CalendarRange,
   FileText, Eye, Heart, MessageCircle, Share2, Check, X, Sparkles,
-  CheckCircle2, XCircle, Wrench,
+  CheckCircle2, XCircle, Wrench, MapPin, Cake, Lock, ChevronDown,
 } from "lucide-react";
 import { useApp } from "../../context";
 import { useAuth } from "../../context/AuthContext";
@@ -25,7 +25,7 @@ import { fmtNum, fmtINR, fmtCPV, fmtShare, prettyDate, dayLabel } from "../../li
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
-import { STATUS_MAP, ACTIONABLE_STATUSES, LIVE_WAIT_LABELS, LIVE_WAIT_TIER, BCOLORS, chipOn, toAssetComments } from "./mapping";
+import { STATUS_MAP, ACTIONABLE_STATUSES, LIVE_WAIT_LABELS, LIVE_WAIT_TIER, BCOLORS, chipOn, toAssetComments, hasAudienceData } from "./mapping";
 import { budgetLines } from "../../lib/portalMetrics";
 import AssetReview, { ASSETS } from "./AssetReview";
 
@@ -681,6 +681,448 @@ function LivePost({ cr }) {
   );
 }
 
+/* ═══ ADVANCE STATS TOGGLE ═══
+   Sits beside "Viewing as" at the top of the Creators tab. Its enabled state
+   is never a client-side guess: `available` comes straight off
+   advanceStatsAvailable (mapping.js), which is only true when at least one
+   creator on this campaign actually carries audience data — and the backend
+   only ever sends that data once the internal team has switched "Ship to
+   client" on for this campaign. So a disabled toggle here means exactly what
+   its tooltip says: nobody has turned this on for you yet, not a bug. */
+function AdvanceStatsToggle({ enabled, available, onToggle }) {
+  const [showTip, setShowTip] = useState(false);
+  return (
+    <div className="relative"
+      onMouseEnter={() => !available && setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}>
+      <button type="button" onClick={() => available && onToggle()} disabled={!available}
+        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-200 ${
+          !available
+            ? "cursor-not-allowed border-line bg-well/60 text-mute"
+            : enabled
+              ? "border-accent/30 bg-accent/[0.1] text-accent shadow-sm"
+              : "border-line bg-glass text-sub hover:border-accent/30 hover:text-accent"
+        }`}>
+        {available ? <Sparkles size={12} strokeWidth={2.2}/> : <Lock size={11} strokeWidth={2.2}/>}
+        Advance Stats
+        <span className={`relative inline-flex h-[15px] w-[26px] shrink-0 items-center rounded-full transition-colors duration-200 ${enabled ? "bg-accent" : "bg-black/15"}`}>
+          <span className={`absolute size-[11px] rounded-full bg-white shadow transition-all duration-200 ${enabled ? "left-[13px]" : "left-[2px]"}`}/>
+        </span>
+      </button>
+      <AnimatePresence>
+        {showTip && !available && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full z-30 mt-1.5 w-[218px] rounded-[10px] border border-line bg-modal px-3 py-2.5 text-[10.5px] leading-snug text-sub shadow-modal">
+            <span className="font-semibold text-ink">Premium feature.</span> Ask your Fifth Avenue account manager to enable Advance Stats for this campaign.
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* Small centered placeholder for a chart card with nothing to draw — the
+   selected creator(s) can have SOME audience fields filled in and not
+   others (gender done, locations never added), and an empty chart shape
+   drawn from zeros would look like a bug rather than an honest "no data
+   here yet". */
+function NoAudienceData({ label }) {
+  return <div className="flex h-[132px] items-center justify-center px-2 text-center text-[10.5px] leading-snug text-mute">No {label} data on file for the selected creator(s) yet.</div>;
+}
+
+/* One of the three demographic groups — no card, no border, no fill. Just an
+   icon + label heading so Location/Gender/Age still read as three distinct
+   things, sitting directly on the page rather than boxed off from it. The
+   three sit side by side in a grid, so a thin vertical rule between columns
+   (not around each one) is what separates them instead. */
+function AudienceCard({ tint, Icon, label, children }) {
+  return (
+    <div className="lg:px-5 lg:first:pl-1 lg:last:pr-1">
+      <div className="mb-3 flex items-center gap-1.5">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full" style={{ background: `${tint}22`, color: tint }}>
+          <Icon size={12} strokeWidth={2.2}/>
+        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink">{label}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const pctFmt = (v) => `${typeof v === "number" && v % 1 ? v.toFixed(1) : Math.round(v)}%`;
+
+// A soft pastel set, kept apart from the app's own saturated chart palette
+// (BCOLORS) on purpose — this is the one screen meant to look airy and
+// approachable rather than corporate. Still run through the six-check
+// method (dataviz skill: lightness band, chroma floor, CVD adjacency,
+// normal-vision floor, contrast-or-relief, documented palette) against both
+// the skill's default surface and this app's own white one — the sub-3:1
+// contrast on a couple of slots is why every chart here also carries a
+// direct-label legend underneath it. Fixed slots, never cycled within one
+// chart.
+const PASTEL = ["#6FA8E8", "#E8935F", "#4FBE96", "#DCA430", "#E890B8", "#6FB85C", "#9880DE", "#E87873"];
+
+const GENDER_META = [
+  { key: "female", name: "Female", color: PASTEL[4] },
+  { key: "male", name: "Male", color: PASTEL[0] },
+  { key: "other", name: "Other", color: PASTEL[3] },
+];
+const AGE_META = [
+  { key: "13-17", name: "13–17", color: PASTEL[0] },
+  { key: "18-24", name: "18–24", color: PASTEL[1] },
+  { key: "25-34", name: "25–34", color: PASTEL[2] },
+  { key: "35-44", name: "35–44", color: PASTEL[3] },
+  { key: "45-64", name: "45–64", color: PASTEL[4] },
+];
+
+/* Combine one Location's share across a set of selected creators,
+   follower-weighted so an 820K-follower creator's split outweighs a 5K
+   one's. A creator who never filled that particular box in contributes
+   nothing rather than a zero — `getRaw` returning null/undefined/"" drops
+   them from the average instead of dragging it down, which is the
+   difference between "no data" and "0%". Also returns the combined
+   ESTIMATED follower count for this value, summed directly from each
+   contributor's own followers × their own share. Gender and Age don't use
+   this — see combineCounts below, which answers a different question
+   (a bucket's share of every bucket's headcount, not of the followers
+   behind it alone). */
+function combineField(selected, getRaw) {
+  const contributions = selected
+    .map((cr) => {
+      const raw = getRaw(cr);
+      const val = raw == null || raw === "" ? null : Number(raw);
+      if (val == null || !Number.isFinite(val)) return null;
+      const followers = cr.followersNum || 0;
+      // Each creator's own percentage turned into a headcount for this field
+      // FIRST — an 820K-follower creator's 60% is 492,000 people, a 5K
+      // creator's 60% is 3,000. Kept unrounded here; only the number we
+      // actually display gets rounded, below.
+      return { followers, count: (followers * val) / 100 };
+    })
+    .filter(Boolean);
+  if (!contributions.length) return { value: null, est: null };
+  const totalFollowers = contributions.reduce((s, c) => s + c.followers, 0);
+  // No follower count on file for anyone contributing means there is no
+  // headcount to derive a number-based share from — and averaging the raw
+  // percentages instead is exactly the thing this is meant to avoid, so this
+  // reads as no data rather than a disguised percentage average.
+  if (!totalFollowers) return { value: null, est: null };
+  const totalCount = contributions.reduce((s, c) => s + c.count, 0);
+  // The combined percentage is DERIVED from the summed headcounts, never
+  // averaged from the creators' own percentages directly — two creators with
+  // the same 60% but wildly different audiences must not count equally.
+  const value = (totalCount / totalFollowers) * 100;
+  const est = Math.round(totalCount);
+  return { value, est };
+}
+
+/* Gender and age are exhaustive categories — every follower in the combined
+   selection is SOME gender, SOME age bracket — so a bucket's share is its own
+   headcount against every bucket's headcount added together, not against the
+   followers behind it (that's a different question, and combineField above
+   answers it for Location, where the categories aren't exhaustive and don't
+   owe anyone a 100%).
+   female% = female headcount / (female + male + other headcount), and the
+   same for each age bracket — which is also why the three (or five) always
+   land on exactly 100% together, with no separate rescale needed afterward.
+   A bucket nobody filled in for anyone selected drops out rather than
+   counting as a zero. */
+function combineCounts(selected, meta, getRaw) {
+  const withCounts = meta.map((m) => {
+    const contributions = selected
+      .map((cr) => {
+        const raw = getRaw(cr, m.key);
+        const val = raw == null || raw === "" ? null : Number(raw);
+        if (val == null || !Number.isFinite(val)) return null;
+        return ((cr.followersNum || 0) * val) / 100;
+      })
+      .filter((v) => v != null);
+    if (!contributions.length) return { ...m, count: null };
+    return { ...m, count: contributions.reduce((s, v) => s + v, 0) };
+  });
+  const total = withCounts.reduce((s, d) => s + (d.count || 0), 0);
+  if (!total) return [];
+  return withCounts
+    .filter((d) => d.count != null)
+    .map((d) => ({ ...d, value: (d.count / total) * 100, est: Math.round(d.count) }));
+}
+
+/* The creator picker — a multi-select dropdown (checkable rows plus a Select
+   all / Clear pair) rather than a native <select>, so the brand can build a
+   combined view across as many creators as they want at once. Closes on an
+   outside click or its own Done button; picking a row never closes it,
+   since the whole point of a multi-select is picking several in a row. */
+function CreatorMultiPicker({ creators, selected, onToggle, onSelectAll, onClear }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const n = selected.size;
+  const single = n === 1 ? creators.find((c) => selected.has(c._key)) : null;
+  const label = n === 0 ? "Select creators"
+    : n === creators.length ? `All creators (${n})`
+    : single ? single.name
+    : `${n} creators selected`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <motion.button type="button" onClick={() => setOpen((o) => !o)} whileTap={{ scale: 0.98 }}
+        className="flex w-full items-center gap-2.5 rounded-[12px] border border-line bg-glass px-3.5 py-2.5 text-left shadow-sm backdrop-blur-sm transition-colors duration-150 hover:border-accent/25 sm:w-auto sm:min-w-[280px]">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-accent/[0.14] to-accent/[0.04] text-[11px] font-semibold text-accent">
+          {single ? single.avatar : n || <Users size={13} strokeWidth={1.9}/>}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{label}</span>
+        <ChevronDown size={14} className={`shrink-0 text-mute transition-transform duration-200 ${open ? "rotate-180" : ""}`}/>
+      </motion.button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-[12px] border border-line bg-modal shadow-modal sm:w-[320px]">
+            <div className="flex items-center justify-between border-b border-line px-3 py-2">
+              <button type="button" onClick={onSelectAll} className="text-[10.5px] font-semibold text-accent hover:underline">Select all</button>
+              <button type="button" onClick={onClear} className="text-[10.5px] font-medium text-sub hover:text-ink hover:underline">Clear</button>
+            </div>
+            <div className="max-h-[220px] overflow-y-auto py-1">
+              {creators.map((c2) => {
+                const on = selected.has(c2._key);
+                return (
+                  <button key={c2._key} type="button" onClick={() => onToggle(c2._key)}
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-150 ${on ? "bg-accent/[0.06]" : "hover:bg-well/70"}`}>
+                    <span className={`flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors duration-150 ${on ? "border-accent bg-accent" : "border-line-mid bg-transparent"}`}>
+                      {on && <Check size={10} strokeWidth={3} className="text-white"/>}
+                    </span>
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[10.5px] font-semibold text-accent">{c2.avatar}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-medium text-ink">{c2.name}</span>
+                      <span className="block truncate text-[10.5px] text-sub">{c2.handle} · {c2.platform}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="border-t border-line px-3 py-2 text-right">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-full bg-accent/[0.1] px-3 py-1 text-[10.5px] font-semibold text-accent transition-colors hover:bg-accent/[0.16]">Done</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* Plain flat-filled pie/donut — no gradient, no hover-grow — matching every
+   other chart on this page (GrowthChart's lines, HBars' bars). `stroke={P.surface}`
+   still gives every slice the 2px surface gap the dataviz method calls for
+   between adjacent fills; a slight cornerRadius keeps the wedges from
+   looking cut with a razor, without reading as glossy or playful. */
+function AudiencePie({ data, donut, P, tooltipStyle }) {
+  return (
+    <ResponsiveContainer width="100%" height={158}>
+      <PieChart>
+        <Pie data={data} dataKey="value" nameKey="name"
+          innerRadius={donut ? 38 : 0} outerRadius={62} paddingAngle={2} cornerRadius={donut ? 3 : 0}
+          stroke={P.surface} strokeWidth={2}
+          isAnimationActive animationDuration={500} animationEasing="ease-out">
+          {data.map((d, i) => <Cell key={i} fill={d.color}/>)}
+        </Pie>
+        <Tooltip {...tooltipStyle}
+          formatter={(v, n, p) => [`${pctFmt(v)}${p?.payload?.est != null ? ` · ≈${fmtNum(p.payload.est)}` : ""}`, n]}/>
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* ═══ AUDIENCE INSIGHTS — the screen behind the Advance Stats toggle ═══════
+   A multi-select creator picker (every creator with data on by default), a
+   summary of who's selected, and three demographic charts combined across
+   all of them: a vertical bar per location, a pie for gender, a donut for
+   age. Combining is follower-weighted and per-field null-aware — Location
+   via combineField (a share of the followers behind it), Gender and Age via
+   combineCounts (a share of every bucket's headcount added together, which
+   is what makes them land on 100%) — and every percentage carries its
+   estimated follower count alongside it, the same "share of a real number"
+   math the internal team's own roster view does. */
+function AudienceInsights({ creators }) {
+  const P = useP();
+  const { tooltipStyle } = chartTheme(P);
+  const withData = creators
+    .filter((cr) => hasAudienceData(cr.audience))
+    .map((cr, i) => ({ ...cr, _key: cr.ref || cr.handle || `i${i}` }));
+  // Every creator with data is selected by default — the combined view
+  // across the whole cast is the useful starting point, not an empty one
+  // the brand has to build up row by row before seeing anything.
+  const [selected, setSelected] = useState(() => new Set(withData.map((cr) => cr._key)));
+  if (!withData.length) return null;
+
+  const toggle = (key) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  const selectedCreators = withData.filter((cr) => selected.has(cr._key));
+  const combinedFollowers = selectedCreators.reduce((s, cr) => s + (cr.followersNum || 0), 0);
+
+  const genderData = combineCounts(selectedCreators, GENDER_META, (cr, key) => cr.audience?.gender?.[key]);
+  const ageData = combineCounts(selectedCreators, AGE_META, (cr, key) => cr.audience?.age?.[key]);
+  const locNames = new Set();
+  selectedCreators.forEach((cr) => (cr.audience?.locations || []).forEach((l) => l?.name && locNames.add(l.name)));
+  const locData = [...locNames]
+    .map((name, i) => ({
+      name, color: PASTEL[i % PASTEL.length],
+      ...combineField(selectedCreators, (cr) => (cr.audience?.locations || []).find((l) => l?.name === name)?.pct),
+    }))
+    .filter((d) => d.value != null)
+    .sort((x, y) => y.value - x.value)
+    // Capped — a combined view across many creators can union into a long
+    // tail of one-off cities that would crowd a bar chart without changing
+    // the picture; the top 10 is where a brand's attention actually goes.
+    .slice(0, 10);
+
+  return (
+    <div className="mb-4 px-1 py-2 sm:px-2">
+      <div className="mb-3 flex items-center gap-1.5">
+        <Sparkles size={13} strokeWidth={2.2} className="text-accent"/>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-accent">Audience Insights</span>
+      </div>
+
+      <CreatorMultiPicker creators={withData} selected={selected} onToggle={toggle}
+        onSelectAll={() => setSelected(new Set(withData.map((cr) => cr._key)))}
+        onClear={() => setSelected(new Set())}/>
+
+      {!selectedCreators.length ? (
+        <div className="mt-3 flex flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-line px-4 py-9 text-center">
+          <Users size={18} strokeWidth={1.6} className="text-mute opacity-50"/>
+          <div className="text-[11.5px] text-mute">Pick one or more creators above to see their audience breakdown.</div>
+        </div>
+      ) : (
+        <>
+          {/* One creator: the same facts their roster row already shows this
+              brand. More than one: who's in the combined view, and how big
+              it is — an overlapping avatar stack rather than a name list,
+              since past four or five names a list is just noise. */}
+          {selectedCreators.length === 1 ? (
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[14px] border border-line bg-glass px-4 py-3 shadow-sm backdrop-blur-md">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[13px] font-semibold text-accent shadow-sm">{selectedCreators[0].avatar}</span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[13.5px] font-medium text-ink">{selectedCreators[0].name}</span>
+                    {selectedCreators[0].url
+                      ? <a href={selectedCreators[0].url} target="_blank" rel="noopener noreferrer" className="text-[12px] text-accent no-underline hover:underline">{selectedCreators[0].handle}</a>
+                      : <span className="text-[12px] text-sub">{selectedCreators[0].handle}</span>}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-sub">{selectedCreators[0].platform} · {selectedCreators[0].followers} followers</div>
+                </div>
+              </div>
+              <div className="ml-auto flex flex-wrap gap-x-4 gap-y-1 text-[11.5px]">
+                <span><span className="text-mute">ER </span><b className="text-accent">{selectedCreators[0].engRate}</b></span>
+                {selectedCreators[0].avgLikes != null && <span><span className="text-mute">Avg likes </span><b className="text-ink">{fmtNum(selectedCreators[0].avgLikes)}</b></span>}
+                {selectedCreators[0].collab && <span className="rounded-full border border-line bg-well/70 px-2 py-px text-[10.5px] font-medium text-sub">{selectedCreators[0].collab}</span>}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[14px] border border-line bg-glass px-4 py-3 shadow-sm backdrop-blur-md">
+              <div className="flex items-center -space-x-2.5">
+                {selectedCreators.slice(0, 6).map((cr, i) => (
+                  <span key={cr._key} className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-accent/[0.14] to-accent/[0.04] text-[10.5px] font-semibold text-accent shadow-sm"
+                    style={{ border: `2px solid ${P.surface}`, zIndex: 10 - i }}>
+                    {cr.avatar}
+                  </span>
+                ))}
+                {selectedCreators.length > 6 && (
+                  <span className="flex size-9 items-center justify-center rounded-full border-2 bg-well text-[10px] font-semibold text-mute" style={{ borderColor: P.surface }}>
+                    +{selectedCreators.length - 6}
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="text-[13px] font-medium text-ink">{selectedCreators.length} creators combined</div>
+                <div className="mt-0.5 text-[11px] text-sub">≈{fmtNum(combinedFollowers)} combined followers</div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-line/60">
+            <AudienceCard tint={PASTEL[2]} Icon={MapPin} label="Location">
+              {locData.length ? (
+                <>
+                  <ResponsiveContainer width="100%" height={190}>
+                    <BarChart data={locData} margin={{ top: 8, right: 4, left: -22, bottom: 4 }}>
+                      <CartesianGrid stroke={P.border} vertical={false}/>
+                      <XAxis dataKey="name" tick={{ fontSize: 9.5, fill: P.mute, fontFamily: "Sora, sans-serif" }}
+                        axisLine={false} tickLine={false} interval={0} angle={-32} textAnchor="end" height={46}/>
+                      <YAxis hide domain={[0, "dataMax"]}/>
+                      <Tooltip {...tooltipStyle}
+                        formatter={(v, n, p) => [`${pctFmt(v)}${p?.payload?.est != null ? ` · ≈${fmtNum(p.payload.est)} followers` : ""}`, "Share"]}/>
+                      <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={34}
+                        isAnimationActive animationDuration={450} animationEasing="ease-out">
+                        {locData.map((d, i) => <Cell key={i} fill={d.color}/>)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="mt-1.5 flex flex-col gap-1">
+                    {locData.map((d, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
+                        <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
+                        <span className="flex-1 truncate">{d.name}</span>
+                        <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
+                        {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : <NoAudienceData label="location"/>}
+            </AudienceCard>
+
+            <AudienceCard tint={PASTEL[4]} Icon={Users} label="Gender">
+              {genderData.length ? (
+                <>
+                  <AudiencePie data={genderData} P={P} tooltipStyle={tooltipStyle}/>
+                  <div className="mt-1 flex flex-col gap-1">
+                    {genderData.map((d, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
+                        <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
+                        <span className="flex-1 truncate">{d.name}</span>
+                        <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
+                        {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : <NoAudienceData label="gender"/>}
+            </AudienceCard>
+
+            <AudienceCard tint={PASTEL[3]} Icon={Cake} label="Age">
+              {ageData.length ? (
+                <>
+                  <AudiencePie data={ageData} donut P={P} tooltipStyle={tooltipStyle}/>
+                  <div className="mt-1 flex flex-col gap-1">
+                    {ageData.map((d, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
+                        <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
+                        <span className="flex-1 truncate">{d.name}</span>
+                        <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
+                        {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : <NoAudienceData label="age"/>}
+            </AudienceCard>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* One answer to that question. Filled and tinted when it's the standing one,
    quiet otherwise — so the pair reads as a choice with a state rather than two
    buttons that both look pressable. */
@@ -992,6 +1434,10 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const { user } = useAuth();
   const [tab, setTab] = useState("overview");
   const [creators, setCreators] = useState(c.creators || []);
+  // The Creators-tab "Advance Stats" screen. Starts closed even when it's
+  // available — the roster is still the thing most brands open this tab for,
+  // and the toggle is right there at the top if they want the extra screen.
+  const [advanceOn, setAdvanceOn] = useState(false);
 
   /* The brand's yes/no on a suggested creator. Writes through to the roster
      row's status — the internal app's own vocabulary — then folds the server's
@@ -1147,10 +1593,21 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
 
               {tab === "creators" && (
                 <div>
-                  <div className="mb-2.5 flex items-center gap-1.5 rounded-full border border-accent/[0.06] bg-accent/[0.02] px-3 py-1.5">
+                  <div className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-full border border-accent/[0.06] bg-accent/[0.02] px-3 py-1.5">
                     <span className="text-[10.5px] text-sub">Viewing as</span><span className="rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">{userRole === "management" ? "Mgmt" : "Exec"}</span>
-                    <div className="ml-auto"><StatusLegend/></div>
+                    <div className="ml-auto flex items-center gap-2.5">
+                      <AdvanceStatsToggle enabled={advanceOn} available={!!c.advanceStatsAvailable} onToggle={() => setAdvanceOn((o) => !o)}/>
+                      <StatusLegend/>
+                    </div>
                   </div>
+                  <AnimatePresence initial={false}>
+                    {advanceOn && c.advanceStatsAvailable && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
+                        <AudienceInsights creators={creators}/>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {/* Empty roster: was three bouncing 👤 emoji. A campaign that
                       hasn't been cast yet is a normal state, not a moment that
                       wants a jiggling animation — and it left the reader

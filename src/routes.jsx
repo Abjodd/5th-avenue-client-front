@@ -51,6 +51,8 @@ const LegalPage = lazy(() => import("./pages/legal/LegalPage"));
 const CareersPage = lazy(() => import("./pages/careers/CareersPage"));
 const ApplyPage = lazy(() => import("./pages/apply/ApplyPage"));
 const StartProjectPage = lazy(() => import("./pages/start/StartProjectPage"));
+const PitchApprove = lazy(() => import("./pages/PitchApprove"));
+const PitchDraftView = lazy(() => import("./pages/PitchDraftView"));
 const Styleguide = lazy(() => import("./pages/Styleguide"));
 
 /* ── Client portal (real data) ── */
@@ -101,6 +103,13 @@ export const router = createBrowserRouter([
   { path: "/apply", element: <S><ApplyPage /></S> },
   { path: "/start", element: <S><StartProjectPage /></S> },
   { path: "/login", element: <S><Login /></S> },
+  // Public, code-gated — not the brand login. See src/pages/PitchApprove
+  // and 5th-internal-back/routes/pitch.js.
+  { path: "/pitch/:brandId", element: <S><PitchApprove /></S> },
+  // The prospect-stage version of the link above — a brand that doesn't
+  // exist in the system yet. See src/pages/PitchDraftView and
+  // 5th-internal-back/routes/pitchDrafts.js.
+  { path: "/pitch-draft/:draftId", element: <S><PitchDraftView /></S> },
 
   /* The portal proper. */
   {

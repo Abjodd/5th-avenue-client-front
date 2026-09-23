@@ -276,6 +276,41 @@ export const AccountAPI = {
   },
 };
 
+// Pitch approval — the one page in this whole app that isn't behind a
+// brand login. Scoped purely by a per-campaign access code, the link sent
+// alongside it (see 5th-internal-back/routes/pitch.js, PitchAPI in
+// 5th-internal-front/src/lib/api.js for the internal, code-issuing half).
+export const PitchAPI = {
+  // Scoped to the whole CLIENT (brand), not one campaign — this one link
+  // shows everything ever pitched to them, across every campaign they have.
+  get: (brandId, code) =>
+    request(`/api/pitch/${encodeURIComponent(brandId)}?code=${encodeURIComponent(code || "")}`),
+  decide: (brandId, pitchId, code, status, by) =>
+    request(`/api/pitch/${encodeURIComponent(brandId)}/${encodeURIComponent(pitchId)}?code=${encodeURIComponent(code || "")}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, by }),
+    }),
+  // Same relative-vs-external-URL split as the internal app's own
+  // PitchAPI.avatarUrl — a directory-sourced avatar is a relative path into
+  // this backend, a fresh Hiker fetch is already a full external URL.
+  avatarUrl: (avatar) => (avatar ? (avatar.startsWith("/") ? `${BASE}${avatar}` : avatar) : null),
+};
+
+// Pitch Draft (public, code-gated) — the client-facing half of pitching a
+// brand that isn't in the system yet. Same access-code model as PitchAPI
+// above, scoped to one DRAFT rather than one brand (a draft has no brand
+// record yet to hang a code off) — see 5th-internal-back/routes/pitchDrafts.js.
+export const PitchDraftAPI = {
+  get: (draftId, code) =>
+    request(`/api/pitch-drafts/public/${encodeURIComponent(draftId)}?code=${encodeURIComponent(code || "")}`),
+  decide: (draftId, profileId, code, status, by) =>
+    request(`/api/pitch-drafts/public/${encodeURIComponent(draftId)}/profiles/${encodeURIComponent(profileId)}?code=${encodeURIComponent(code || "")}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, by }),
+    }),
+  avatarUrl: (avatar) => (avatar ? (avatar.startsWith("/") ? `${BASE}${avatar}` : avatar) : null),
+};
+
 // Stage → client-facing phase now lives with the phase registry in
 // lib/phases.js, so pure modules can map a stage without pulling in this
 // fetch client. Re-exported for the callers that already import it here.

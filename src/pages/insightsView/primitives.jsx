@@ -334,7 +334,7 @@ export function SectionBand({ section, onActivate }) {
   return (
     <div
       ref={ref}
-      className="relative overflow-hidden rounded-[28px] border border-black/[0.08] bg-black/[0.015] px-6 py-9 dark:border-white/[0.08] dark:bg-white/[0.02] sm:px-10 sm:py-12"
+      className="relative overflow-hidden rounded-[28px] border border-black/[0.08] bg-[#fffdf8] px-6 py-9 dark:border-white/[0.08] dark:bg-[#111118] sm:px-10 sm:py-12"
     >
       <div
         ref={washRef}

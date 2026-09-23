@@ -148,6 +148,21 @@ const COLLAB_LABELS = { collab: "Collab", non_collab: "Non-Collab" };
    for the row to name them back. */
 const DECISION_OF = { shortlisted: "approve", brand_reject: "reject" };
 
+/* Whether a creator's `audience` object actually has anything filled in, as
+   opposed to being present-but-empty ({} or all-null). The backend only ever
+   sends this field at all when the campaign's own shipAdvanceDetails switch
+   is on (see CREATOR_ADVANCE in server.js) — but a creator on a shipped
+   campaign can still have nobody having filled in their demographics yet, so
+   presence of the key isn't enough on its own. Exported because both
+   toViewCampaign below (to decide whether the "Advance Stats" toggle can be
+   turned on at all) and CampaignDetail (to filter the creator picker down to
+   ones actually worth showing) need the same answer. */
+export const hasAudienceData = (a) => !!a && (
+  Object.values(a.gender || {}).some((v) => v != null && v !== "") ||
+  (a.locations || []).length > 0 ||
+  Object.values(a.age || {}).some((v) => v != null && v !== "")
+);
+
 /**
  * `campaign` is required to read deliverables: what a creator owes is their own
  * `numDeliverables` override *or* the campaign's plan, so the creator can't be
@@ -237,6 +252,19 @@ export function toViewCreator(cr, campaign) {
     // row says what happened without putting a name to it.
     decidedBy: cr.brandDecision?.decision && cr.brandDecision.decision === DECISION_OF[cr.status]
       ? (cr.brandDecision.by || null) : null,
+    // Gender/location/age skew — only ever present on the wire when this
+    // campaign's shipAdvanceDetails switch is on (see CREATOR_ADVANCE in
+    // server.js); absent otherwise, never an empty shape, so hasAudienceData
+    // above and the "Advance Stats" toggle can tell "not shared" from "shared
+    // but nobody filled it in yet" apart. Raw pass-through — the three chart
+    // cards in CampaignDetail read gender/locations/age directly off it.
+    audience: cr.audience && typeof cr.audience === "object" ? cr.audience : null,
+    // The parsed follower count, alongside the display string above — the
+    // audience charts turn each gender/location/age percentage into an
+    // estimated follower count, and re-parsing the compact display string
+    // ("820K") back into a number on every render is the exact inverse of
+    // what parseFollowers already did once, here.
+    followersNum: followers,
   };
 }
 
@@ -368,6 +396,13 @@ export function toViewCampaign(c) {
     // the detail view show for this campaign.
     live: creators.some(cr => cr.live),
     waiting: creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status)).length,
+    // Whether the "Advance Stats" toggle on the Creators tab can be turned on
+    // at all. There is no `shipAdvanceDetails` field to read here — the
+    // backend strips the switch itself and only lets its EFFECT (an
+    // `audience` object on creators) through — so this is the only signal
+    // the portal has, and it is also the correct one: a client can never see
+    // the toggle "on" without the data actually being there to back it up.
+    advanceStatsAvailable: creators.some((cr) => hasAudienceData(cr.audience)),
     trackTotals: hasTrackTotals ? trackTotals : null,
     growth,
     growthPerCreator,
