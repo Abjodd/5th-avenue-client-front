@@ -12,15 +12,13 @@ import ThemeToggle from "../components/ThemeToggle";
 
 const NAV_ITEMS = [
   { id: "overview",  label: "Overview",     icon: "◎" },
-  // Right after Overview: Insights is a second read on the same account, not
-  // a workflow step in between what the account IS doing (Campaigns onward)
-  // and what it has cost (Billing, last).
-  { id: "insights",  label: "Insights",     icon: "✦" },
   { id: "campaigns", label: "Campaigns",    icon: "▤" },
-  { id: "regional",  label: "Regional Map", icon: "◯" },
+  { id: "insights",  label: "Insights",     icon: "✦" },
   { id: "assets",    label: "Assets",       icon: "⚙" },
-  // After Assets deliberately: the tabs run from what the account IS doing to
-  // what it has cost, and money is the thing you check last and least often.
+  { id: "regional",  label: "Regional Map", icon: "◯" },
+  // After Regional Map deliberately: the tabs run from what the account IS
+  // doing to what it has cost, and money is the thing you check last and
+  // least often.
   { id: "billing",   label: "Billing",      icon: "₹" },
 ];
 
@@ -118,10 +116,7 @@ export default function AppShell({ children }) {
 
           {/* Client identity — scoped to the logged-in brand */}
           <div className="hidden shrink-0 items-center gap-2.5 border-r border-line px-5 sm:flex">
-            <span className="whitespace-nowrap rounded-full bg-glass px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-mute shadow-sm ring-1 ring-line">
-              Client
-            </span>
-            <span className="whitespace-nowrap text-[13.5px] font-semibold text-ink">{user?.clientName}</span>
+            <span className="whitespace-nowrap text-[19px] font-bold text-ink">{user?.clientName}</span>
           </div>
 
           {/* Nav tabs — active pill slides between tabs via layoutId */}

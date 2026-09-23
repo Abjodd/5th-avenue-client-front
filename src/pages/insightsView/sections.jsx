@@ -57,11 +57,21 @@ function SkeletonGrid({
   );
 }
 
-function Kicker({ icon: Icon, children, accent, mb = "mb-5" }) {
+function Kicker({
+  icon: Icon, children, accent, mb = "mb-5", py = "py-2",
+  // Full replacement for the default size/weight classes (not an addition —
+  // Tailwind's generated stylesheet order isn't the same as class-string
+  // order, so layering a bigger text-[Npx] after the default one isn't a
+  // reliable way to override it). `style` is a plain passthrough, mainly for
+  // an explicit font-family that needs to beat the theme's own font-serif.
+  titleClass = "text-[30px] font-bold sm:text-[36px]",
+  style,
+}) {
   const { resolved } = useTheme();
   return (
     <div
-      className={`${mb} flex items-center gap-3 py-2 font-serif text-[30px] font-bold italic tracking-[-0.01em] text-[#171410] sm:text-[36px] dark:text-white`}
+      className={`${mb} ${py} flex items-center gap-3 font-serif italic tracking-[-0.01em] text-[#171410] dark:text-white ${titleClass}`}
+      style={style}
     >
       <Icon size={30} strokeWidth={2.1} style={{ color: resolved === "dark" ? "#ffffff" : accent }} />
       {children}
@@ -367,6 +377,16 @@ function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite, m
         style={{ height: CARD_H + 32, ...(big ? {} : { maxWidth: CARD_W + MAX_VISIBLE_OFFSET * STEP_X * 2 + 60 }) }}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
+        // Same left/right the chevron buttons already do — reachable by
+        // hovering (mouse) or tabbing to either chevron (keyboard), since a
+        // keydown on either button bubbles up to this wrapper.
+        onKeyDown={(e) => {
+          if (count <= 1) return;
+          if (e.key === "ArrowLeft") { e.preventDefault(); setActive((a) => (a - 1 + count) % count); }
+          else if (e.key === "ArrowRight") { e.preventDefault(); setActive((a) => (a + 1) % count); }
+        }}
       >
       <div
         aria-hidden
@@ -881,9 +901,12 @@ function MarketWatchReelCard({ reel, favourited, onToggleFavourite, muted = true
 
 function OurWatchNote({ note, first }) {
   return (
-    <article className={`group relative py-7 ${first ? "pt-0" : "border-t border-black/[0.08] dark:border-white/[0.08]"}`}>
+    <article className={`group relative py-4 ${first ? "pt-0" : "border-t border-black/[0.08] dark:border-white/[0.08]"}`}>
       {note.topic && (
-        <div className="mb-1.5 font-serif text-[22px] font-bold not-italic leading-tight tracking-[-0.01em] text-[#171410] dark:text-white sm:text-[25px]">
+        <div
+          className="mb-2 text-[27px] font-extrabold not-italic leading-tight tracking-[-0.01em] text-[#171410] dark:text-white sm:text-[32px]"
+          style={{ fontFamily: "'Times New Roman', Times, serif" }}
+        >
           {note.topic}
         </div>
       )}
@@ -894,8 +917,8 @@ function OurWatchNote({ note, first }) {
         </div>
       )}
       <p
-        className="text-[19px] italic leading-relaxed text-black/85 transition-colors duration-300 group-hover:text-[#171410] dark:text-white/85 dark:group-hover:text-white sm:text-[21px]"
-        style={{ fontFamily: "'Times New Roman', Times, serif" }}
+        className="whitespace-pre-wrap text-[19px] italic text-black/85 transition-colors duration-300 group-hover:text-[#171410] dark:text-white/85 dark:group-hover:text-white sm:text-[21px]"
+        style={{ fontFamily: "'Times New Roman', Times, serif", lineHeight: 1.5 }}
       >
         {note.text}
       </p>
@@ -908,7 +931,9 @@ function OurWatchList({ notes }) {
   return (
     <div className="flex flex-col">
       {notes.map((n, i) => (
-        <div key={n.id} data-reveal>
+        // No data-reveal here — Our watch renders in place, no scroll-in
+        // animation, unlike the rest of this page's cards.
+        <div key={n.id}>
           <OurWatchNote note={n} first={i === 0} />
         </div>
       ))}
@@ -932,8 +957,17 @@ export function MarketWatchSection() {
         <Kicker icon={Newspaper} accent={theme.accent}>Latest news</Kicker>
         <NewsGrid news={news} newsError={!!newsError} accent={theme.accent} />
       </div>
-      <div data-reveal>
-        <Kicker icon={Eye} accent={theme.accent} mb="mb-9">Our watch</Kicker>
+      <div>
+        <Kicker
+          icon={Eye}
+          accent={theme.accent}
+          mb="mb-9"
+          py="py-6"
+          titleClass="text-[38px] font-extrabold sm:text-[48px]"
+          style={{ fontFamily: "'Times New Roman', Times, serif" }}
+        >
+          Our watch
+        </Kicker>
         {error ? <EmptyState>Couldn't load right now — try again shortly.</EmptyState>
           : items == null ? <EmptyState>Loading…</EmptyState>
           : notes.length <= 3 ? <OurWatchList notes={notes} />
