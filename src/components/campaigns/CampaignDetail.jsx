@@ -950,6 +950,112 @@ function AudiencePie({ data, donut, P, tooltipStyle }) {
   );
 }
 
+/* The three-chart grid (Location bar, Gender pie, Age donut) for a set of
+   creators — shared by AudienceInsights (the combined, multi-select view
+   behind the Advance Stats toggle) and CreatorRow's own "Profile" dropdown
+   (a single creator, no picker, no combined-view header). Same combine math
+   either way: combineField/combineCounts degrade correctly to one creator's
+   own numbers when `creators` is a single-item array — a lone contributor's
+   "share of the selection" is just their own figure. */
+function AudienceCharts({ creators }) {
+  const P = useP();
+  const { tooltipStyle } = chartTheme(P);
+  const palette = CATEGORY_PALETTE(P);
+  const genderData = combineCounts(creators, GENDER_META, (cr, key) => cr.audience?.gender?.[key])
+    .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
+  const ageData = combineCounts(creators, AGE_META, (cr, key) => cr.audience?.age?.[key])
+    .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
+  const locNames = new Set();
+  creators.forEach((cr) => (cr.audience?.locations || []).forEach((l) => l?.name && locNames.add(l.name)));
+  // One series, one hue — every bar is the brand's own accent blue rather
+  // than PASTEL's rotating set, since these bars encode one location each
+  // by position (the x-axis label), not by color.
+  const locData = [...locNames]
+    .map((name) => ({
+      name, color: P.accent,
+      ...combineField(creators, (cr) => (cr.audience?.locations || []).find((l) => l?.name === name)?.pct),
+    }))
+    .filter((d) => d.value != null)
+    .sort((x, y) => y.value - x.value)
+    // Capped — a single creator can already have more than a handful of
+    // locations on file, and a combined view across many creators can union
+    // into a long tail of one-off cities on top of that; either way the top
+    // 5 is where a brand's attention actually goes, and a taller bar chart
+    // just for the tail wouldn't change the picture.
+    .slice(0, 5);
+
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-line/60">
+      <AudienceCard tint={PASTEL[2]} Icon={MapPin} label="Location">
+        {locData.length ? (
+          <>
+            <ResponsiveContainer width="100%" height={190}>
+              <BarChart data={locData} margin={{ top: 8, right: 4, left: -22, bottom: 4 }}>
+                <CartesianGrid stroke={P.border} vertical={false}/>
+                <XAxis dataKey="name" tick={{ fontSize: 9.5, fill: P.mute, fontFamily: "Sora, sans-serif" }}
+                  axisLine={false} tickLine={false} interval={0} angle={-32} textAnchor="end" height={46}/>
+                <YAxis hide domain={[0, "dataMax"]}/>
+                <Tooltip {...tooltipStyle}
+                  formatter={(v, n, p) => [`${pctFmt(v)}${p?.payload?.est != null ? ` · ≈${fmtNum(p.payload.est)} followers` : ""}`, "Share"]}/>
+                <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={34}
+                  isAnimationActive animationDuration={450} animationEasing="ease-out">
+                  {locData.map((d, i) => <Cell key={i} fill={d.color}/>)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-1.5 flex flex-col gap-1">
+              {locData.map((d, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
+                  <span className="flex-1 truncate">{d.name}</span>
+                  <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
+                  {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : <NoAudienceData label="location"/>}
+      </AudienceCard>
+
+      <AudienceCard tint={PASTEL[4]} Icon={Users} label="Gender">
+        {genderData.length ? (
+          <>
+            <AudiencePie data={genderData} P={P} tooltipStyle={tooltipStyle}/>
+            <div className="mt-1 flex flex-col gap-1">
+              {genderData.map((d, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
+                  <span className="flex-1 truncate">{d.name}</span>
+                  <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
+                  {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : <NoAudienceData label="gender"/>}
+      </AudienceCard>
+
+      <AudienceCard tint={PASTEL[3]} Icon={Cake} label="Age">
+        {ageData.length ? (
+          <>
+            <AudiencePie data={ageData} donut P={P} tooltipStyle={tooltipStyle}/>
+            <div className="mt-1 flex flex-col gap-1">
+              {ageData.map((d, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
+                  <span className="flex-1 truncate">{d.name}</span>
+                  <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
+                  {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : <NoAudienceData label="age"/>}
+      </AudienceCard>
+    </div>
+  );
+}
+
 /* ═══ AUDIENCE INSIGHTS — the screen behind the Advance Stats toggle ═══════
    A multi-select creator picker (every creator with data on by default), a
    summary of who's selected, and three demographic charts combined across
@@ -962,7 +1068,6 @@ function AudiencePie({ data, donut, P, tooltipStyle }) {
    math the internal team's own roster view does. */
 function AudienceInsights({ creators }) {
   const P = useP();
-  const { tooltipStyle } = chartTheme(P);
   const withData = creators
     .filter((cr) => hasAudienceData(cr.audience))
     .map((cr, i) => ({ ...cr, _key: cr.ref || cr.handle || `i${i}` }));
@@ -979,30 +1084,6 @@ function AudienceInsights({ creators }) {
   });
   const selectedCreators = withData.filter((cr) => selected.has(cr._key));
   const combinedFollowers = selectedCreators.reduce((s, cr) => s + (cr.followersNum || 0), 0);
-
-  const palette = CATEGORY_PALETTE(P);
-  const genderData = combineCounts(selectedCreators, GENDER_META, (cr, key) => cr.audience?.gender?.[key])
-    .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
-  const ageData = combineCounts(selectedCreators, AGE_META, (cr, key) => cr.audience?.age?.[key])
-    .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
-  const locNames = new Set();
-  selectedCreators.forEach((cr) => (cr.audience?.locations || []).forEach((l) => l?.name && locNames.add(l.name)));
-  // One series, one hue — every bar is the brand's own accent blue rather
-  // than PASTEL's rotating set, since these bars encode one location each
-  // by position (the x-axis label), not by color.
-  const locData = [...locNames]
-    .map((name) => ({
-      name, color: P.accent,
-      ...combineField(selectedCreators, (cr) => (cr.audience?.locations || []).find((l) => l?.name === name)?.pct),
-    }))
-    .filter((d) => d.value != null)
-    .sort((x, y) => y.value - x.value)
-    // Capped — a single creator can already have more than a handful of
-    // locations on file, and a combined view across many creators can union
-    // into a long tail of one-off cities on top of that; either way the top
-    // 5 is where a brand's attention actually goes, and a taller bar chart
-    // just for the tail wouldn't change the picture.
-    .slice(0, 5);
 
   return (
     <div className="mb-4 px-1 py-2 sm:px-2">
@@ -1068,74 +1149,7 @@ function AudienceInsights({ creators }) {
             </div>
           )}
 
-          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-line/60">
-            <AudienceCard tint={PASTEL[2]} Icon={MapPin} label="Location">
-              {locData.length ? (
-                <>
-                  <ResponsiveContainer width="100%" height={190}>
-                    <BarChart data={locData} margin={{ top: 8, right: 4, left: -22, bottom: 4 }}>
-                      <CartesianGrid stroke={P.border} vertical={false}/>
-                      <XAxis dataKey="name" tick={{ fontSize: 9.5, fill: P.mute, fontFamily: "Sora, sans-serif" }}
-                        axisLine={false} tickLine={false} interval={0} angle={-32} textAnchor="end" height={46}/>
-                      <YAxis hide domain={[0, "dataMax"]}/>
-                      <Tooltip {...tooltipStyle}
-                        formatter={(v, n, p) => [`${pctFmt(v)}${p?.payload?.est != null ? ` · ≈${fmtNum(p.payload.est)} followers` : ""}`, "Share"]}/>
-                      <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={34}
-                        isAnimationActive animationDuration={450} animationEasing="ease-out">
-                        {locData.map((d, i) => <Cell key={i} fill={d.color}/>)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <div className="mt-1.5 flex flex-col gap-1">
-                    {locData.map((d, i) => (
-                      <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
-                        <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
-                        <span className="flex-1 truncate">{d.name}</span>
-                        <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
-                        {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : <NoAudienceData label="location"/>}
-            </AudienceCard>
-
-            <AudienceCard tint={PASTEL[4]} Icon={Users} label="Gender">
-              {genderData.length ? (
-                <>
-                  <AudiencePie data={genderData} P={P} tooltipStyle={tooltipStyle}/>
-                  <div className="mt-1 flex flex-col gap-1">
-                    {genderData.map((d, i) => (
-                      <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
-                        <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
-                        <span className="flex-1 truncate">{d.name}</span>
-                        <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
-                        {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : <NoAudienceData label="gender"/>}
-            </AudienceCard>
-
-            <AudienceCard tint={PASTEL[3]} Icon={Cake} label="Age">
-              {ageData.length ? (
-                <>
-                  <AudiencePie data={ageData} donut P={P} tooltipStyle={tooltipStyle}/>
-                  <div className="mt-1 flex flex-col gap-1">
-                    {ageData.map((d, i) => (
-                      <div key={i} className="flex items-center gap-1.5 text-[10px] text-mute">
-                        <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }}/>
-                        <span className="flex-1 truncate">{d.name}</span>
-                        <span className="tnum font-medium text-ink">{pctFmt(d.value)}</span>
-                        {d.est != null && <span className="tnum">≈{fmtNum(d.est)}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : <NoAudienceData label="age"/>}
-            </AudienceCard>
-          </div>
+          <AudienceCharts creators={selectedCreators}/>
         </>
       )}
     </div>
@@ -1238,7 +1252,7 @@ function BrandDecision({ cr, onDecide }) {
 }
 
 /* ═══ CREATOR ROW — the brand's call, their assets, and the live post ═══ */
-function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments }) {
+function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn }) {
   const P = useP();
   const st = STATUS_MAP[cr.status] || STATUS_MAP.yet_to_pick;
   // Independent of `st` above — a finished reel can be "Pending Creator" /
@@ -1344,6 +1358,22 @@ function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments }) {
               <span>State: <b className="text-ink">{cr.region}</b></span>
               <span>Language: <b className="text-ink">{cr.language}</b></span>
             </div>
+            {/* This creator's own audience breakdown — the same three charts
+                as the combined Audience Insights screen above, scoped to
+                just them (AudienceCharts takes any set of creators; a
+                single-item array is just this one's own numbers). Behind the
+                same Advance Stats gate as that screen: the toggle controls
+                whether audience demographics are visible at all, and a row's
+                own dropdown isn't a back door around it. */}
+            {advanceOn && hasAudienceData(cr.audience) && (
+              <div className="mt-1 border-t border-line pt-2">
+                <div className="mb-1 flex items-center gap-1.5">
+                  <Sparkles size={11} strokeWidth={2.2} className="text-accent"/>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-accent">Audience</span>
+                </div>
+                <AudienceCharts creators={[cr]}/>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -1634,7 +1664,8 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                       next. */}
                   {creators.length > 0 ? creators.map((cr, i) => (
                     <CreatorRow key={i} cr={cr} idx={i} campaignId={c.id}
-                      onDecide={decideCreator} onAssetComments={setAssetComments}/>
+                      onDecide={decideCreator} onAssetComments={setAssetComments}
+                      advanceOn={advanceOn && c.advanceStatsAvailable}/>
                   )) : (
                     <div className="px-5 py-[34px] text-center">
                       <Users size={24} strokeWidth={1.5} className="mx-auto mb-2 text-mute opacity-40" />
