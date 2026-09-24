@@ -1,6 +1,7 @@
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { WORLD_LAND } from "../lib/marketing/data/world-land";
+import { useTheme } from "../context/ThemeContext";
 
 /* ── Orthographic globe projection ────────────────────────────────────────
    Ported from the already-shipping, already-correct globe on the
@@ -160,6 +161,13 @@ function useGlobeMarkers(stateActivity) {
  */
 export default function HeroOrbit({ size = 320, className = "", stateActivity = null, onClick }) {
   const reduce = useReducedMotion();
+  const { theme } = useTheme();
+  // Light mode's cream face makes any tinted glow read as a haze, so it's
+  // off entirely there; dark mode keeps the subtle globe-face lift. Markers
+  // are brand blue on the light cream ground, gold on the dark ground —
+  // gold is what reads against a dark sphere, blue disappears into it.
+  const faceOpacity = theme === "dark" ? 0.07 : 0;
+  const markerColor = theme === "dark" ? "var(--color-gold)" : "var(--color-accent)";
   const wrapRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -335,10 +343,14 @@ export default function HeroOrbit({ size = 320, className = "", stateActivity = 
       >
         <svg viewBox={`0 0 ${VB} ${VB}`} width={size} height={size} className="block">
           <defs>
+            {/* --globe (not --color-accent) — same subdued face tint as the
+                proven InternationalPage globe; --color-accent here read as a
+                bright blue haze washing over the sphere. Off entirely in
+                light mode — see faceOpacity above. */}
             <radialGradient id="hero-globe-face" cx="46%" cy="40%" r="62%">
-              <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.16" />
-              <stop offset="60%" stopColor="var(--color-accent)" stopOpacity="0.05" />
-              <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--globe)" stopOpacity={faceOpacity} />
+              <stop offset="60%" stopColor="var(--globe)" stopOpacity={faceOpacity * 0.36} />
+              <stop offset="100%" stopColor="var(--globe)" stopOpacity="0" />
             </radialGradient>
             <clipPath id="hero-globe-clip"><circle cx={CX} cy={CY} r={R} /></clipPath>
           </defs>
@@ -347,9 +359,11 @@ export default function HeroOrbit({ size = 320, className = "", stateActivity = 
             <circle cx={CX} cy={CY} r={R} fill="url(#hero-globe-face)" />
             <path ref={gridRef} d="" fill="none" stroke="var(--color-accent)" strokeWidth={0.8} opacity={0.16} />
             <path ref={contRef} d="" fill="none" stroke="var(--color-accent)" strokeWidth={1.1} strokeLinejoin="round" strokeLinecap="round" opacity={0.55} />
-            <path ref={arcRef} d="" fill="none" stroke="var(--color-gold)" strokeWidth={1.4} opacity={0.7} strokeLinecap="round" strokeDasharray="2.5 6" />
-            <path ref={haloRef} d="" fill="var(--color-gold)" opacity={0.28} />
-            <path ref={pinRef} d="" fill="var(--color-gold)" style={{ animation: reduce ? "none" : "hero-globe-pulse 2.4s ease-in-out infinite" }} />
+            {/* Markers in brand blue on the light ground, gold on the dark
+                ground — see markerColor above. */}
+            <path ref={arcRef} d="" fill="none" stroke={markerColor} strokeWidth={1.4} opacity={0.7} strokeLinecap="round" strokeDasharray="2.5 6" />
+            <path ref={haloRef} d="" fill={markerColor} opacity={0.28} />
+            <path ref={pinRef} d="" fill={markerColor} style={{ animation: reduce ? "none" : "hero-globe-pulse 2.4s ease-in-out infinite" }} />
           </g>
 
           <circle cx={CX} cy={CY} r={R} fill="none" stroke="var(--color-accent)" strokeWidth={1.3} opacity={0.4} />
@@ -358,8 +372,10 @@ export default function HeroOrbit({ size = 320, className = "", stateActivity = 
 
       {activeCount > 0 && (
         <div
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-wide text-accent"
+          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-wide text-accent"
           style={{
+            // Clear of the sphere's own edge rather than sitting flush against it.
+            bottom: -size * 0.09,
             background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
             border: "1px solid color-mix(in srgb, var(--color-accent) 24%, transparent)",
           }}
