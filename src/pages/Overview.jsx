@@ -131,7 +131,7 @@ function HeroMetrics({ items, size = 168, stroke = 13, gap = 7 }) {
   const [hovered, setHovered] = useState(null);
 
   return (
-    <div className="mt-6 flex flex-wrap items-center gap-x-14 gap-y-8">
+    <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-6 sm:gap-x-14 sm:gap-y-8">
       <svg viewBox="0 0 200 200" style={{ width: size, height: size, transform: "rotate(-90deg)" }} className="shrink-0">
         {items.map((it, i) => {
           const radius = 84 - i * (stroke + gap);
@@ -169,13 +169,13 @@ function HeroMetrics({ items, size = 168, stroke = 13, gap = 7 }) {
         })}
       </svg>
 
-      <div className="flex min-w-[280px] flex-1 flex-wrap items-center">
+      <div className="flex min-w-[220px] flex-1 items-center">
         {items.map((it, i) => {
           const isHovered = hovered === it.key;
           const dimmed = hovered && !isHovered;
           return (
-            <div key={it.key} className="flex min-w-[170px] flex-1 items-stretch">
-              {i > 0 && <div className="mr-6 hidden self-stretch border-l border-line sm:block" />}
+            <div key={it.key} className="flex flex-1 items-stretch">
+              {i > 0 && <div className="mr-4 hidden self-stretch border-l border-line sm:mr-6 sm:block" />}
               <button
                 type="button"
                 onMouseEnter={() => setHovered(it.key)}
@@ -1044,7 +1044,7 @@ export default function OverviewDashboard() {
 
       <AmbientBackground variant="a" />
 
-      <div className="relative z-10 mx-auto w-full max-w-[1600px] px-5 pb-16 sm:px-9">
+      <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 pb-16 sm:px-6 lg:px-9">
         {/* ── HERO ─────────────────────────────────────────────────────── */}
         <motion.header
           key={`hero-${introDone}`}
@@ -1057,7 +1057,7 @@ export default function OverviewDashboard() {
           // summary and activity rings and nothing else; every section below
           // (Section id="numbers" onward) is reached by scrolling, in normal
           // document flow — nothing here is pinned or fixed.
-          className="flex min-h-[calc(100dvh-84px)] flex-col py-10"
+          className="flex min-h-[calc(100dvh-84px)] flex-col py-6 sm:py-10"
         >
           <div className="flex flex-1 flex-col justify-center">
           <div className="grid items-center gap-x-16 gap-y-12 lg:grid-cols-[1.15fr_0.85fr] xl:gap-x-20">
