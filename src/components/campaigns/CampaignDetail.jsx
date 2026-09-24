@@ -763,16 +763,19 @@ const pctFmt = (v) => `${typeof v === "number" && v % 1 ? v.toFixed(1) : Math.ro
 // chart.
 const PASTEL = ["#6FA8E8", "#E8935F", "#4FBE96", "#DCA430", "#E890B8", "#6FB85C", "#9880DE", "#E87873"];
 
-// Gender and Age draw from the app's own brand palette instead of PASTEL —
-// the same accent → green → pink → amber → purple order Overview's
-// spend-by-service donut already uses (see serviceColor in
-// PerformanceSection), so a slice's identity reads the same hue there and
-// here. Stored as a paletteIndex (identity), not a literal color, because
-// P itself only exists inside the component (it's theme-dependent); a
-// bucket nobody filled in dropping out of combineCounts's filtered result
-// must never reshuffle the colors of the buckets that stayed, which a
-// position-based index into the palette would do.
-const CATEGORY_PALETTE = (P) => [P.accent, P.green, P.pink, P.amber, P.purple];
+// Gender and Age's own fixed hex set — mint → teal → navy → periwinkle →
+// lavender, matching the brand reference the client team supplied, kept
+// apart from the app's general P-token chart palette the same way PASTEL
+// above is apart from BCOLORS: this screen has its own look. Stored as a
+// paletteIndex (identity), not a literal color, so a bucket nobody filled
+// in dropping out of combineCounts's filtered result never reshuffles the
+// colors of the buckets that stayed, which a position-based index into the
+// palette would do.
+// The last two steps (periwinkle/lavender) sit close together for
+// full-color vision (ΔE 9.3 — the usual floor is 15); acceptable here only
+// because every slice already carries a name + % label below the chart,
+// not color alone.
+const CATEGORY_PALETTE = () => ["#A5E4C5", "#309AAF", "#1F628F", "#969CEA", "#B4BAEA"];
 
 const GENDER_META = [
   { key: "female", name: "Female", paletteIndex: 0 },
@@ -960,7 +963,7 @@ function AudiencePie({ data, donut, P, tooltipStyle }) {
 function AudienceCharts({ creators }) {
   const P = useP();
   const { tooltipStyle } = chartTheme(P);
-  const palette = CATEGORY_PALETTE(P);
+  const palette = CATEGORY_PALETTE();
   const genderData = combineCounts(creators, GENDER_META, (cr, key) => cr.audience?.gender?.[key])
     .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
   const ageData = combineCounts(creators, AGE_META, (cr, key) => cr.audience?.age?.[key])
