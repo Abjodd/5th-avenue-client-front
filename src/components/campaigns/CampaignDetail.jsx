@@ -752,25 +752,18 @@ function AudienceCard({ tint, Icon, label, children }) {
 
 const pctFmt = (v) => `${typeof v === "number" && v % 1 ? v.toFixed(1) : Math.round(v)}%`;
 
-// A soft pastel set, kept apart from the app's own saturated chart palette
-// (BCOLORS) on purpose — this is the one screen meant to look airy and
-// approachable rather than corporate. Still run through the six-check
-// method (dataviz skill: lightness band, chroma floor, CVD adjacency,
-// normal-vision floor, contrast-or-relief, documented palette) against both
-// the skill's default surface and this app's own white one — the sub-3:1
-// contrast on a couple of slots is why every chart here also carries a
-// direct-label legend underneath it. Fixed slots, never cycled within one
-// chart.
-const PASTEL = ["#6FA8E8", "#E8935F", "#4FBE96", "#DCA430", "#E890B8", "#6FB85C", "#9880DE", "#E87873"];
-
 // Gender and Age's own fixed hex set — mint → teal → navy → periwinkle →
 // lavender, matching the brand reference the client team supplied, kept
-// apart from the app's general P-token chart palette the same way PASTEL
-// above is apart from BCOLORS: this screen has its own look. Stored as a
-// paletteIndex (identity), not a literal color, so a bucket nobody filled
-// in dropping out of combineCounts's filtered result never reshuffles the
-// colors of the buckets that stayed, which a position-based index into the
-// palette would do.
+// apart from the app's general P-token chart palette (BCOLORS) on purpose:
+// this screen has its own look, the way an airy pastel set once did before
+// this replaced it. Still run through the six-check method (dataviz skill)
+// against both the skill's default surface and this app's own — the
+// contrast warning on a couple of slots is why every chart here also
+// carries a direct-label legend underneath it. Stored as a paletteIndex
+// (identity), not a literal color, so a bucket nobody filled in dropping
+// out of combineCounts's filtered result never reshuffles the colors of
+// the buckets that stayed, which a position-based index into the palette
+// would do.
 // The last two steps (periwinkle/lavender) sit close together for
 // full-color vision (ΔE 9.3 — the usual floor is 15); acceptable here only
 // because every slice already carries a name + % label below the chart,
@@ -970,9 +963,10 @@ function AudienceCharts({ creators }) {
     .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
   const locNames = new Set();
   creators.forEach((cr) => (cr.audience?.locations || []).forEach((l) => l?.name && locNames.add(l.name)));
-  // One series, one hue — every bar is the brand's own accent blue rather
-  // than PASTEL's rotating set, since these bars encode one location each
-  // by position (the x-axis label), not by color.
+  // One series, one hue, matching this card's own icon (P.accent) above it —
+  // every bar is the brand's accent blue rather than a rotating set, since
+  // these bars encode one location each by position (the x-axis label),
+  // not by color.
   const locData = [...locNames]
     .map((name) => ({
       name, color: P.accent,
@@ -989,7 +983,7 @@ function AudienceCharts({ creators }) {
 
   return (
     <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-line/60">
-      <AudienceCard tint={PASTEL[2]} Icon={MapPin} label="Location">
+      <AudienceCard tint={P.accent} Icon={MapPin} label="Location">
         {locData.length ? (
           <>
             <ResponsiveContainer width="100%" height={190}>
@@ -1020,7 +1014,7 @@ function AudienceCharts({ creators }) {
         ) : <NoAudienceData label="location"/>}
       </AudienceCard>
 
-      <AudienceCard tint={PASTEL[4]} Icon={Users} label="Gender">
+      <AudienceCard tint={palette[1]} Icon={Users} label="Gender">
         {genderData.length ? (
           <>
             <AudiencePie data={genderData} P={P} tooltipStyle={tooltipStyle}/>
@@ -1038,7 +1032,7 @@ function AudienceCharts({ creators }) {
         ) : <NoAudienceData label="gender"/>}
       </AudienceCard>
 
-      <AudienceCard tint={PASTEL[3]} Icon={Cake} label="Age">
+      <AudienceCard tint={palette[2]} Icon={Cake} label="Age">
         {ageData.length ? (
           <>
             <AudiencePie data={ageData} donut P={P} tooltipStyle={tooltipStyle}/>
