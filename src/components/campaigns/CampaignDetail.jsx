@@ -763,17 +763,28 @@ const pctFmt = (v) => `${typeof v === "number" && v % 1 ? v.toFixed(1) : Math.ro
 // chart.
 const PASTEL = ["#6FA8E8", "#E8935F", "#4FBE96", "#DCA430", "#E890B8", "#6FB85C", "#9880DE", "#E87873"];
 
+// Gender and Age draw from the app's own brand palette instead of PASTEL —
+// the same accent → green → pink → amber → purple order Overview's
+// spend-by-service donut already uses (see serviceColor in
+// PerformanceSection), so a slice's identity reads the same hue there and
+// here. Stored as a paletteIndex (identity), not a literal color, because
+// P itself only exists inside the component (it's theme-dependent); a
+// bucket nobody filled in dropping out of combineCounts's filtered result
+// must never reshuffle the colors of the buckets that stayed, which a
+// position-based index into the palette would do.
+const CATEGORY_PALETTE = (P) => [P.accent, P.green, P.pink, P.amber, P.purple];
+
 const GENDER_META = [
-  { key: "female", name: "Female", color: PASTEL[4] },
-  { key: "male", name: "Male", color: PASTEL[0] },
-  { key: "other", name: "Other", color: PASTEL[3] },
+  { key: "female", name: "Female", paletteIndex: 0 },
+  { key: "male", name: "Male", paletteIndex: 1 },
+  { key: "other", name: "Other", paletteIndex: 2 },
 ];
 const AGE_META = [
-  { key: "13-17", name: "13–17", color: PASTEL[0] },
-  { key: "18-24", name: "18–24", color: PASTEL[1] },
-  { key: "25-34", name: "25–34", color: PASTEL[2] },
-  { key: "35-44", name: "35–44", color: PASTEL[3] },
-  { key: "45-64", name: "45–64", color: PASTEL[4] },
+  { key: "13-17", name: "13–17", paletteIndex: 0 },
+  { key: "18-24", name: "18–24", paletteIndex: 1 },
+  { key: "25-34", name: "25–34", paletteIndex: 2 },
+  { key: "35-44", name: "35–44", paletteIndex: 3 },
+  { key: "45-64", name: "45–64", paletteIndex: 4 },
 ];
 
 /* Combine one Location's share across a set of selected creators,
@@ -969,21 +980,29 @@ function AudienceInsights({ creators }) {
   const selectedCreators = withData.filter((cr) => selected.has(cr._key));
   const combinedFollowers = selectedCreators.reduce((s, cr) => s + (cr.followersNum || 0), 0);
 
-  const genderData = combineCounts(selectedCreators, GENDER_META, (cr, key) => cr.audience?.gender?.[key]);
-  const ageData = combineCounts(selectedCreators, AGE_META, (cr, key) => cr.audience?.age?.[key]);
+  const palette = CATEGORY_PALETTE(P);
+  const genderData = combineCounts(selectedCreators, GENDER_META, (cr, key) => cr.audience?.gender?.[key])
+    .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
+  const ageData = combineCounts(selectedCreators, AGE_META, (cr, key) => cr.audience?.age?.[key])
+    .map((d) => ({ ...d, color: palette[d.paletteIndex] }));
   const locNames = new Set();
   selectedCreators.forEach((cr) => (cr.audience?.locations || []).forEach((l) => l?.name && locNames.add(l.name)));
+  // One series, one hue — every bar is the brand's own accent blue rather
+  // than PASTEL's rotating set, since these bars encode one location each
+  // by position (the x-axis label), not by color.
   const locData = [...locNames]
-    .map((name, i) => ({
-      name, color: PASTEL[i % PASTEL.length],
+    .map((name) => ({
+      name, color: P.accent,
       ...combineField(selectedCreators, (cr) => (cr.audience?.locations || []).find((l) => l?.name === name)?.pct),
     }))
     .filter((d) => d.value != null)
     .sort((x, y) => y.value - x.value)
-    // Capped — a combined view across many creators can union into a long
-    // tail of one-off cities that would crowd a bar chart without changing
-    // the picture; the top 10 is where a brand's attention actually goes.
-    .slice(0, 10);
+    // Capped — a single creator can already have more than a handful of
+    // locations on file, and a combined view across many creators can union
+    // into a long tail of one-off cities on top of that; either way the top
+    // 5 is where a brand's attention actually goes, and a taller bar chart
+    // just for the tail wouldn't change the picture.
+    .slice(0, 5);
 
   return (
     <div className="mb-4 px-1 py-2 sm:px-2">

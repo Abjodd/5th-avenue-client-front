@@ -63,22 +63,62 @@ function NavAvatar({ user, completion }) {
         </svg>
       )}
       <div className="relative flex size-7 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-accent to-purple text-[12px] font-semibold text-white shadow-[0_2px_8px_rgba(44,62,126,0.35)]">
-        {/* A logo is contained on white so a wordmark isn't cropped to a circle;
-            a portrait fills the frame. */}
+        {/* Own photo or brand-logo fallback, either way cropped to fill the
+            circle — no padding, no white backing square peeking out around
+            a logo that isn't already round. */}
         {show
           ? <img src={url} alt="" onError={() => setBroken(true)}
-              className={`absolute inset-0 size-full ${own ? "object-cover" : "bg-white object-contain p-0.5"}`} />
+              className="absolute inset-0 size-full object-cover" />
           : user?.avatar}
       </div>
     </div>
   );
 }
 
+// The brand's logo next to its name in the navbar's client-identity block —
+// shown only when the brand actually has one and it loads; a brand with no
+// logo (or one whose URL 404s) shows its name alone rather than a broken
+// image or a placeholder standing in for a photo that doesn't exist. Same
+// URL builder and null-safe contract as NavAvatar's brand-logo fallback
+// above, just rendered on its own instead of as a fallback for a person's
+// own photo.
+function ClientBrandLogo({ user }) {
+  const [broken, setBroken] = useState(false);
+  const url = AccountAPI.brandLogoUrl(user);
+  if (!url || broken) return null;
+  return (
+    <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full">
+      <img src={url} alt="" onError={() => setBroken(true)} className="size-full object-cover" />
+    </span>
+  );
+}
+
 export default function AppShell({ children }) {
   const { page, setPage } = useApp();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+
+  // Re-checks this session's own brand once per mount — name, hasAvatar,
+  // avatarUpdatedAt — since the login payload only snapshots those at
+  // sign-in. Without this, a logo (or a rename) an internal admin makes
+  // after the member's last login never shows up here until they sign out
+  // and back in. Best-effort: a failed refresh just leaves the session's
+  // existing (possibly stale) data in place rather than breaking the shell.
+  useEffect(() => {
+    if (!user?.brandId) return;
+    AccountAPI.brand(user.brandId)
+      .then(fresh => updateUser({
+        clientName: fresh.name,
+        brandHasLogo: fresh.hasAvatar,
+        brandLogoUpdatedAt: fresh.avatarUpdatedAt,
+      }))
+      .catch(() => {});
+    // Only the brandId identifies which brand to re-check; re-running this
+    // every time `user` itself changes (e.g. right after the merge above)
+    // would refetch in a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.brandId]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -116,6 +156,7 @@ export default function AppShell({ children }) {
 
           {/* Client identity — scoped to the logged-in brand */}
           <div className="hidden shrink-0 items-center gap-2.5 border-r border-line px-5 sm:flex">
+            <ClientBrandLogo user={user} />
             <span className="whitespace-nowrap text-[19px] font-bold text-ink">{user?.clientName}</span>
           </div>
 

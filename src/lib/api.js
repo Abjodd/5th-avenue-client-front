@@ -274,6 +274,13 @@ export const AccountAPI = {
     const v = user.brandLogoUpdatedAt ? `?v=${encodeURIComponent(user.brandLogoUpdatedAt)}` : "";
     return `${BASE}/api/clients/${encodeURIComponent(user.brandId)}/avatar${v}`;
   },
+
+  // A fresh read of the session's own brand — name, hasAvatar, avatarUpdatedAt
+  // — straight from the Client document. Pairs with AuthContext's
+  // refreshBrand(): the login payload only snapshots these at sign-in, so
+  // without this a logo (or name) an internal admin sets afterward would
+  // never show up here until the member signed out and back in.
+  brand: (brandId) => request(`/api/clients/${encodeURIComponent(brandId)}`),
 };
 
 // Pitch approval — the one page in this whole app that isn't behind a

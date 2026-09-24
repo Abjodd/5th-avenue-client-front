@@ -21,7 +21,7 @@
  * category coding (pipeline phase dots/bars, activity-kind icons) is left
  * alone, since those distinguish groups rather than report a value.
  */
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
   UserCheck, Clapperboard, Rocket, MapPin, Sparkles, ArrowRight,
@@ -41,11 +41,12 @@ import {
   GROUP_METRICS, flagOutliers, serviceGroups, rankCampaigns,
   platformPerformance, livePosts, POST_SORTS, activityFeed, needsYou,
   greeting, heroSummary, growthAcross, countsInMetrics, cpvOf, actionableCount,
-  savedVsIndustryOf, viewsPerRupeeOf,
+  savedVsIndustryOf, viewsPerRupeeOf, regionalRollup,
 } from "../lib/portalMetrics";
 
 import { Dot } from "../components/Dot";
 import AnimatedNumber from "../components/AnimatedNumber";
+import HeroOrbit from "../components/HeroOrbit";
 import { StatusPill } from "../components/StatusPill";
 import { PageSkeleton, ErrorState, EmptyState } from "../components/PageStates";
 import PerformanceSection from "../components/PerformanceSection";
@@ -199,6 +200,28 @@ function HeroMetrics({ items, size = 168, stroke = 13, gap = 7 }) {
   );
 }
 
+/**
+ * ScrollCue — anchors the very bottom of the hero with real content instead
+ * of leaving it empty: a small "there's more below" affordance that also
+ * gives the eye something to land on once the greeting and rings above it
+ * have settled. Fades in only after the intro cascade finishes, and drops
+ * its bounce for reduced motion (staying put as a plain static hint).
+ */
+function ScrollCue({ show }) {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: show ? 1 : 0 }}
+      transition={{ duration: 0.6, delay: 0.5 }}
+      className="mt-10 flex items-center justify-center gap-2.5 lg:mt-6"
+    >
+      <span className="microlabel text-mute">Scroll to explore</span>
+      <ChevronDown className={`size-3.5 text-mute ${reduce ? "" : "animate-bounce"}`} strokeWidth={2.25} />
+    </motion.div>
+  );
+}
+
 /* ── Activity digest (Recent activity + Needs you, merged) ──────────────── */
 
 /**
@@ -299,8 +322,7 @@ function RecentActivity({ activity, queues, setPage, P }) {
   if (!activity.length && !inProgress) return null;
 
   return (
-    <div className="mt-8 border-t border-line pt-6">
-      <div className="microlabel mb-3">Recently</div>
+    <>
       {activity.length > 0 && (
         <div className="flex flex-col">
           {activity.slice(0, 6).map((a) => {
@@ -330,7 +352,7 @@ function RecentActivity({ activity, queues, setPage, P }) {
           {inProgress} more creator{inProgress === 1 ? "" : "s"} {inProgress === 1 ? "is" : "are"} still in progress — waiting on our team or the creator, not you.
         </p>
       )}
-    </div>
+    </>
   );
 }
 
@@ -416,14 +438,21 @@ function SignalNote({ signal, onGo }) {
 
 function CreatorFilters({ options, filters, setFilters, shown, total }) {
   const [open, setOpen] = useState(null);
-  const activeCount = Object.values(filters).reduce((s, a) => s + a.length, 0);
+  // Defensive: `filters` should always be fully-shaped (see the normalizing
+  // wrapper around usePersistentState in OverviewDashboard below), but a
+  // second layer here costs nothing and means a stale/partial persisted
+  // shape degrades to "no filter" instead of crashing the page.
+  const activeCount = Object.values(filters).reduce((s, a) => s + (a?.length || 0), 0);
   const groups = FILTER_GROUPS.filter((g) => options[g.id]?.length > 1);
 
   const toggle = (group, value) =>
-    setFilters((f) => ({
-      ...f,
-      [group]: f[group].includes(value) ? f[group].filter((v) => v !== value) : [...f[group], value],
-    }));
+    setFilters((f) => {
+      const current = f[group] || [];
+      return {
+        ...f,
+        [group]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
+      };
+    });
   const clear = () => setFilters(Object.fromEntries(FILTER_GROUPS.map((g) => [g.id, []])));
 
   if (!groups.length) return null;
@@ -440,12 +469,12 @@ function CreatorFilters({ options, filters, setFilters, shown, total }) {
             onClick={() => setOpen(open === g.id ? null : g.id)}
             aria-expanded={open === g.id}
             className={`rounded-full border px-3.5 py-[7px] text-[11.5px] font-semibold transition-all duration-200 ease-out ${
-              filters[g.id].length
+              filters[g.id]?.length
                 ? "border-accent/20 bg-accent/[0.08] text-accent shadow-sm"
                 : "border-line bg-well/70 text-sub hover:text-ink"
             }`}
           >
-            {g.label}{filters[g.id].length ? ` · ${filters[g.id].length}` : ""} {open === g.id ? "▴" : "▾"}
+            {g.label}{filters[g.id]?.length ? ` · ${filters[g.id].length}` : ""} {open === g.id ? "▴" : "▾"}
           </button>
         ))}
         {activeCount > 0 && (
@@ -470,7 +499,7 @@ function CreatorFilters({ options, filters, setFilters, shown, total }) {
           >
             <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
               {options[open].map((opt) => {
-                const on = filters[open].includes(opt.value);
+                const on = (filters[open] || []).includes(opt.value);
                 return (
                   <button
                     key={String(opt.value)}
@@ -853,7 +882,22 @@ export default function OverviewDashboard() {
   const { data: campaigns, error, retry } = usePortalCampaigns(); // null = loading
   // Persisted: a filter holds until it is cleared, not until you look at
   // another page. "Clear all" in the filter bar is the way out.
-  const [filters, setFilters] = usePersistentState("overview.filters", EMPTY_FILTERS);
+  //
+  // Raw storage can predate a FILTER_GROUPS change (e.g. the day "Campaign"
+  // was added, every browser with an already-persisted value was missing
+  // that key) — so `filters` is always backfilled against EMPTY_FILTERS
+  // before anything reads it, and `setFilters` backfills before an updater
+  // function runs too, so `f[group]` inside a toggle is never undefined.
+  const [rawFilters, setRawFilters] = usePersistentState("overview.filters", EMPTY_FILTERS);
+  const filters = useMemo(() => ({ ...EMPTY_FILTERS, ...rawFilters }), [rawFilters]);
+  const setFilters = useCallback(
+    (updater) =>
+      setRawFilters((f) => {
+        const shaped = { ...EMPTY_FILTERS, ...f };
+        return typeof updater === "function" ? updater(shaped) : updater;
+      }),
+    [],
+  );
   // Which cut of the roster the creators panel is showing. Persisted for the
   // same reason the filters are: it is a reading preference, not page state.
   const [creatorViewId, setCreatorViewId] = usePersistentState("overview.creatorView", "niche");
@@ -879,15 +923,43 @@ export default function OverviewDashboard() {
      move a number the brand is asked to trust (portalMetrics countsInMetrics). */
   const list = useMemo(() => (campaigns ?? []).filter(countsInMetrics), [campaigns]);
   const allCreators = useMemo(() => flattenCreators(list), [list]);
+  // Real per-state activity for the hero globe — reuses the exact call
+  // RegionalMap already makes off the same two values, so this is free: no
+  // extra fetch, just another view of data Overview already has in hand.
+  const heroStateActivity = useMemo(
+    () => regionalRollup(list, allCreators).stateData,
+    [list, allCreators],
+  );
   const options = useMemo(() => filterOptions(allCreators), [allCreators]);
   const creators = useMemo(() => applyFilters(allCreators, filters), [allCreators, filters]);
 
   const kpis = useMemo(() => summarise(list, creators), [list, creators]);
+  // The "Where the account stands" strip sits right under the Campaign
+  // filter, so unlike `kpis` above (deliberately account-wide — see the
+  // signals/activity/goals comments below) its own campaign-derived figures
+  // (active/total campaigns, budget) narrow to the selected campaign(s) too,
+  // not just the creator-derived ones. No campaign selected ⇒ `filteredList`
+  // is `list` and this is identical to the unfiltered account totals.
+  const filteredList = useMemo(
+    () => (filters.campaignName?.length ? list.filter((c) => filters.campaignName.includes(c.name)) : list),
+    [list, filters.campaignName],
+  );
+  const filteredKpis = useMemo(() => summarise(filteredList, creators), [filteredList, creators]);
   // Shared by the CPV tile and the "You saved with 5th Avenue" tile below —
   // computed once here rather than separately inline in each tile's JSX.
-  const cpv = cpvOf(kpis.budget, kpis.views);
-  const viewsPerRupee = viewsPerRupeeOf(kpis.budget, kpis.views);
-  const savedVsIndustry = savedVsIndustryOf(kpis.budget, kpis.views);
+  // Uses `filteredKpis` so a CPV shown beside a single selected campaign is
+  // that campaign's budget over that campaign's views, not the whole
+  // account's budget over one campaign's views.
+  const cpv = cpvOf(filteredKpis.budget, filteredKpis.views);
+  const viewsPerRupee = viewsPerRupeeOf(filteredKpis.budget, filteredKpis.views);
+  const savedVsIndustryRaw = savedVsIndustryOf(filteredKpis.budget, filteredKpis.views);
+  // A blended CPV that comes in ABOVE the assumed industry rate makes this
+  // negative — shown as ₹0 rather than a negative "saved" figure, since
+  // there's nothing to tell the brand they saved when the account actually
+  // cost more per view than the benchmark. Still null (not 0) when there's
+  // no rate to compare at all, so the tile's "no rate to compare yet" state
+  // is unaffected.
+  const savedVsIndustry = savedVsIndustryRaw == null ? null : Math.max(0, savedVsIndustryRaw);
   const health = useMemo(() => healthScore(list), [list]);
   const phases = useMemo(() => pipeline(list), [list]);
   const busiestPhase = useMemo(
@@ -979,76 +1051,162 @@ export default function OverviewDashboard() {
           variants={fadeUp}
           initial="hidden"
           animate={introDone ? "show" : "hidden"}
-          className="pt-12"
+          // 84px = the sticky topbar's own h-[72px] + its pt-3 (constant across
+          // breakpoints — see layout/AppShell.jsx), so this fills exactly the
+          // rest of the first viewport: on load the reader sees the greeting,
+          // summary and activity rings and nothing else; every section below
+          // (Section id="numbers" onward) is reached by scrolling, in normal
+          // document flow — nothing here is pinned or fixed.
+          className="flex min-h-[calc(100dvh-84px)] flex-col py-10"
         >
-          {/* Identity line. Hairline slashes rather than middots, so the row
-              reads as one dateline instead of three separate chips. */}
-          <div className="microlabel mb-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 tracking-[0.2em]">
-            <span className="text-ink">Overview</span>
-            <span aria-hidden className="text-line-strong">/</span>
-            <span>{clientName}</span>
-            <span aria-hidden className="text-line-strong">/</span>
-            <span className="tnum">{kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}</span>
+          <div className="flex flex-1 flex-col justify-center">
+          <div className="grid items-center gap-x-16 gap-y-12 lg:grid-cols-[1.15fr_0.85fr] xl:gap-x-20">
+            <div>
+              {/* Identity line. Hairline slashes rather than middots, so the row
+                  reads as one dateline instead of three separate chips. */}
+              <div className="microlabel mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 tracking-[0.2em]">
+                <span className="text-ink">Overview</span>
+                <span aria-hidden className="text-line-strong">/</span>
+                <span>{clientName}</span>
+                <span aria-hidden className="text-line-strong">/</span>
+                <span className="tnum">{kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}</span>
+              </div>
+
+              <h1 className="font-serif text-[clamp(42px,6.4vw,88px)] font-bold italic leading-[1.02] tracking-[-0.02em] text-ink">
+                {greeting()},{" "}
+                <span className="relative inline-block whitespace-nowrap text-accent">
+                  {firstName}
+                  <UnderStroke show={introDone} />
+                </span>
+                .
+              </h1>
+
+              <p className="mt-4 max-w-[56ch] text-[15px] leading-relaxed text-sub sm:text-[16.5px]">{summary}</p>
+
+              {/* Masthead rule — closes the greeting off from the panels below it,
+                  the way a brief's header is ruled off from its body. */}
+              <div className="rule mt-8" />
+
+              {/* Three metrics, one graphic: the Apple Activity-rings pattern —
+                  outer to inner, Campaign progress / Active campaigns / Creators
+                  live — instead of a lonely boxed ring or a row of flat stats.
+                  Still no card of its own: the rings and their legend sit right
+                  on the page, the same treatment the greeting above them gets.
+                  Hovering either a ring or its legend row highlights both —
+                  see HeroMetrics. Sized up a touch (was the 168 default) to
+                  match the taller hero around it. */}
+              <HeroMetrics size={186} items={[
+                {
+                  key: "progress", color: "var(--color-accent)", label: "Campaign progress",
+                  pct: health ? health.value : null,
+                  value: health && (
+                    <div className="tnum flex items-baseline gap-0.5 text-[33px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
+                      <AnimatedNumber value={health.value} format={(v) => Math.round(v)} />
+                      <span className="text-[16px] font-semibold" style={{ color: P.text, opacity: 0.4 }}>%</span>
+                    </div>
+                  ),
+                  sub: health
+                    ? <div className="text-[11px] text-mute">avg across {health.of} active campaign{health.of === 1 ? "" : "s"}</div>
+                    : <div className="text-[13px] font-semibold text-mute">Nothing in flight — every campaign is complete.</div>,
+                },
+                {
+                  key: "active", color: "var(--color-teal)", label: "Active campaigns",
+                  pct: kpis.campaigns > 0 ? (kpis.active / kpis.campaigns) * 100 : null,
+                  value: (
+                    <div className="tnum flex items-baseline gap-1 text-[33px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
+                      <AnimatedNumber value={kpis.active} format={(v) => Math.round(v)} /><span className="text-[16px] font-semibold text-mute">/{kpis.campaigns}</span>
+                    </div>
+                  ),
+                  sub: <div className="text-[11px] text-mute">{kpis.completed} completed</div>,
+                },
+                {
+                  key: "live", color: "var(--color-green)", label: "Creators live",
+                  pct: kpis.creators > 0 ? (kpis.live / kpis.creators) * 100 : null,
+                  value: (
+                    <div className="tnum flex items-baseline gap-1 text-[33px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
+                      <AnimatedNumber value={kpis.live} format={(v) => Math.round(v)} /><span className="text-[16px] font-semibold text-mute">/{kpis.creators}</span>
+                    </div>
+                  ),
+                  sub: <div className="text-[11px] text-mute">on the roster</div>,
+                },
+              ]} />
+            </div>
+
+            {/* The hero's right side — a slowly turning 3D piece rather than
+                empty space. Hidden below lg: a narrow viewport has nowhere
+                to put a second column without crowding the greeting, and
+                the text side alone already fills the viewport on its own. */}
+            <div className="hidden lg:block">
+              <HeroOrbit size={440} stateActivity={heroStateActivity} onClick={() => setPage("regional")} />
+            </div>
+          </div>
           </div>
 
-          <h1 className="font-serif text-[clamp(34px,4.6vw,52px)] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">
-            {greeting()},{" "}
-            <span className="relative inline-block whitespace-nowrap text-accent">
-              {firstName}
-              <UnderStroke show={introDone} />
-            </span>
-            .
-          </h1>
-
-          <p className="mt-3 max-w-[62ch] text-[14px] leading-relaxed text-sub">{summary}</p>
-
-          {/* Masthead rule — closes the greeting off from the panels below it,
-              the way a brief's header is ruled off from its body. */}
-          <div className="rule mt-7" />
-
-          {/* Three metrics, one graphic: the Apple Activity-rings pattern —
-              outer to inner, Campaign progress / Active campaigns / Creators
-              live — instead of a lonely boxed ring or a row of flat stats.
-              Still no card of its own: the rings and their legend sit right
-              on the page, the same treatment the greeting above them gets.
-              Hovering either a ring or its legend row highlights both —
-              see HeroMetrics. */}
-          <HeroMetrics items={[
-            {
-              key: "progress", color: "var(--color-accent)", label: "Campaign progress",
-              pct: health ? health.value : null,
-              value: health && (
-                <div className="tnum flex items-baseline gap-0.5 text-[30px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
-                  <AnimatedNumber value={health.value} format={(v) => Math.round(v)} />
-                  <span className="text-[15px] font-semibold" style={{ color: P.text, opacity: 0.4 }}>%</span>
-                </div>
-              ),
-              sub: health
-                ? <div className="text-[11px] text-mute">avg across {health.of} active campaign{health.of === 1 ? "" : "s"}</div>
-                : <div className="text-[13px] font-semibold text-mute">Nothing in flight — every campaign is complete.</div>,
-            },
-            {
-              key: "active", color: "var(--color-teal)", label: "Active campaigns",
-              pct: kpis.campaigns > 0 ? (kpis.active / kpis.campaigns) * 100 : null,
-              value: (
-                <div className="tnum flex items-baseline gap-1 text-[30px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
-                  <AnimatedNumber value={kpis.active} format={(v) => Math.round(v)} /><span className="text-[15px] font-semibold text-mute">/{kpis.campaigns}</span>
-                </div>
-              ),
-              sub: <div className="text-[11px] text-mute">{kpis.completed} completed</div>,
-            },
-            {
-              key: "live", color: "var(--color-green)", label: "Creators live",
-              pct: kpis.creators > 0 ? (kpis.live / kpis.creators) * 100 : null,
-              value: (
-                <div className="tnum flex items-baseline gap-1 text-[30px] font-bold leading-tight tracking-tight" style={{ color: P.text }}>
-                  <AnimatedNumber value={kpis.live} format={(v) => Math.round(v)} /><span className="text-[15px] font-semibold text-mute">/{kpis.creators}</span>
-                </div>
-              ),
-              sub: <div className="text-[11px] text-mute">on the roster</div>,
-            },
-          ]} />
+          <ScrollCue show={introDone} />
         </motion.header>
+
+        {/* ── SIGNALS ──────────────────────────────────────────────────── */}
+        {/* Closes the page rather than opening it: by the time the reader
+            reaches here they've seen the account's whole shape, so "what
+            needs a decision today" lands as a to-do list off the back of
+            that context instead of the very first thing before any of it. */}
+        <Section
+          id="signals"
+          eyebrow="Over to you"
+          title="Your call"
+          hint={signalHint}
+        >
+          {/* Decisions first, ranked, in one panel. */}
+          {actionSignals.length > 0 && (
+            <Panel reveal className="divide-y divide-line overflow-hidden">
+              {actionSignals.map((s, i) => (
+                <SignalRow
+                  key={s.id} signal={s} onGo={() => go(s)} P={P}
+                  /* The wash means "start here", so it needs somewhere else to
+                     start: on a lone row it is a tint saying nothing. */
+                  first={i === 0 && actionSignals.length > 1}
+                />
+              ))}
+            </Panel>
+          )}
+
+          {/* Nothing to decide — across BOTH sources (actionSignals and the
+              needsYou queue below), or this could say "nothing blocking you"
+              directly above a creator NeedsYouExtra then lists as needing
+              exactly that. The full empty-state panel would be a large box
+              announcing an absence directly above real content, so it
+              shrinks to one line whenever there are notes to follow it. */}
+          {totalActionable === 0 && (noteSignals.length > 0 ? (
+            <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+              <Radio size={15} className="text-green" />
+              You&rsquo;re all caught up — nothing is waiting on your call.
+            </p>
+          ) : (
+            <Panel reveal className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+              <Radio size={22} className="text-green" />
+              <div className="text-[13.5px] font-semibold text-ink">All clear</div>
+              <p className="max-w-xs text-[12px] text-mute">
+                Nothing is waiting on your call. We&rsquo;ll surface approvals and uploads here the moment they land.
+              </p>
+            </Panel>
+          ))}
+
+          {/* Per-creator detail behind the count above — same section, same
+              story, instead of a second heading making its own claim. */}
+          <NeedsYouExtra queues={queues} setPage={setPage} P={P} />
+
+          {noteSignals.length > 0 && (
+            <div className={totalActionable > 0 ? "mt-6" : "mt-4"}>
+              <div className="microlabel mb-3">Also worth knowing</div>
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                {noteSignals.map((s) => (
+                  <SignalNote key={s.id} signal={s} onGo={() => go(s)} />
+                ))}
+              </div>
+            </div>
+          )}
+
+        </Section>
 
         {/* ── ACCOUNT ──────────────────────────────────────────────────────
             Every other section here is titled as a sentence about what the
@@ -1060,7 +1218,7 @@ export default function OverviewDashboard() {
           id="numbers"
           eyebrow="Account"
           title="Where the account stands"
-          hint="Campaign counts and committed budget cover the whole account; audience figures follow the creator filter."
+          hint="Every figure here follows the filters above — clear them to see the whole account."
         >
           <CreatorFilters
             options={options}
@@ -1085,12 +1243,15 @@ export default function OverviewDashboard() {
               stagger={0.07}
               className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 xl:grid-cols-7"
             >
-              <KPI flush index={0} label="Active campaigns" value={kpis.active} format={Math.round} sublabel={`of ${kpis.campaigns} total`} color={P.neutral}
-                back={<FlipSummary padding="px-5 py-[18px]" title="Active campaigns" hint={`${kpis.active} of ${kpis.campaigns} active now.`} />} />
+              <KPI flush index={0} label="Active campaigns" value={filteredKpis.active} format={Math.round} sublabel={`of ${filteredKpis.campaigns} total`} color={P.neutral}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Active campaigns" hint={`${filteredKpis.active} of ${filteredKpis.campaigns} active now.`} />} />
               <KPI flush index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Creators" hint={`${kpis.creators} on the roster, ${kpis.live} live.`} />} />
-              <KPI flush index={2} label="Combined audience" value={kpis.followers} format={fmtNum} sublabel="across creators" color={P.neutral}
-                back={<FlipSummary padding="px-5 py-[18px]" title="Combined audience" hint="Combined following — not unique reach, audiences overlap." />} />
+              {/* Same views figure PerformanceSection's own tile reports —
+                  summed from tracked post metrics, 0 for a creator not yet
+                  measured, not a follower-based estimate. */}
+              <KPI flush index={2} label="Views" value={kpis.views} format={fmtNum} sublabel="across creators" color={P.neutral}
+                back={<FlipSummary padding="px-5 py-[18px]" title="Views" hint="Summed from tracked post metrics across the roster; a creator with nothing measured yet contributes 0, not an estimate." />} />
               {/* Measured on live posts only — see summarise() in portalMetrics.js
                   for why the stored profile rate no longer feeds this tile. */}
               <KPI flush index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`}
@@ -1105,20 +1266,21 @@ export default function OverviewDashboard() {
                   before a budget was agreed contribute nothing to this total, so
                   without saying so it reads as the account's whole commitment
                   when it is only the agreed part of it. */}
-              <KPI flush index={4} label="Campaign budget" value={kpis.budget || null} format={fmtINR}
-                sublabel={kpis.budgetPending ? `committed · ${kpis.budgetPending} to be confirmed` : "committed"}
+              <KPI flush index={4} label="Campaign budget" value={filteredKpis.budget || null} format={fmtINR}
+                sublabel={filteredKpis.budgetPending ? `committed · ${filteredKpis.budgetPending} to be confirmed` : "committed"}
                 color={P.neutral}
-                back={<FlipSummary padding="px-5 py-[18px]" title="Campaign budget" hint={kpis.budgetPending
-                  ? `${kpis.budgetPending} campaign${kpis.budgetPending === 1 ? "" : "s"} still unconfirmed.`
+                back={<FlipSummary padding="px-5 py-[18px]" title="Campaign budget" hint={filteredKpis.budgetPending
+                  ? `${filteredKpis.budgetPending} campaign${filteredKpis.budgetPending === 1 ? "" : "s"} still unconfirmed.`
                   : "Committed across every priced campaign."} />} />
-              {/* Same cpvOf() used by PerformanceSection's own CPV tile, over the
-                  account's full committed budget and measured views rather than
-                  one filtered period — the portfolio rate, not a period rate. */}
+              {/* Same cpvOf() used by PerformanceSection's own CPV tile, but over
+                  `filteredKpis` — the selected campaign's committed budget and
+                  measured views when one is picked, the whole portfolio's
+                  otherwise — not a time-period rate either way. */}
               <KPI flush index={5} label="CPV" value={cpv} format={fmtCPV}
                 sublabel="external, on measured views" color={P.green}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Cost per view" hint={viewsPerRupee != null
-                  ? `₹1 = ${fmtNum(viewsPerRupee)} views, account-wide.`
-                  : "Committed budget ÷ measured views, account-wide."} />} />
+                  ? `₹1 = ${fmtNum(viewsPerRupee)} views.`
+                  : "Committed budget ÷ measured views."} />} />
               {/* Same guard as cpvOf(): no rate to compare without both a
                   committed budget and measured views. INDUSTRY_CPV (₹0.30) is
                   an assumption, not a sourced benchmark — the back face says
@@ -1453,70 +1615,14 @@ export default function OverviewDashboard() {
           </div>
         </Section>
 
-        {/* ── SIGNALS ──────────────────────────────────────────────────── */}
-        {/* Closes the page rather than opening it: by the time the reader
-            reaches here they've seen the account's whole shape, so "what
-            needs a decision today" lands as a to-do list off the back of
-            that context instead of the very first thing before any of it. */}
-        <Section
-          id="signals"
-          eyebrow="Over to you"
-          title="Your call"
-          hint={signalHint}
-        >
-          {/* Decisions first, ranked, in one panel. */}
-          {actionSignals.length > 0 && (
-            <Panel reveal className="divide-y divide-line overflow-hidden">
-              {actionSignals.map((s, i) => (
-                <SignalRow
-                  key={s.id} signal={s} onGo={() => go(s)} P={P}
-                  /* The wash means "start here", so it needs somewhere else to
-                     start: on a lone row it is a tint saying nothing. */
-                  first={i === 0 && actionSignals.length > 1}
-                />
-              ))}
-            </Panel>
-          )}
-
-          {/* Nothing to decide — across BOTH sources (actionSignals and the
-              needsYou queue below), or this could say "nothing blocking you"
-              directly above a creator NeedsYouExtra then lists as needing
-              exactly that. The full empty-state panel would be a large box
-              announcing an absence directly above real content, so it
-              shrinks to one line whenever there are notes to follow it. */}
-          {totalActionable === 0 && (noteSignals.length > 0 ? (
-            <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-              <Radio size={15} className="text-green" />
-              You&rsquo;re all caught up — nothing is waiting on your call.
-            </p>
-          ) : (
-            <Panel reveal className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-6 py-10 text-center">
-              <Radio size={22} className="text-green" />
-              <div className="text-[13.5px] font-semibold text-ink">All clear</div>
-              <p className="max-w-xs text-[12px] text-mute">
-                Nothing is waiting on your call. We&rsquo;ll surface approvals and uploads here the moment they land.
-              </p>
-            </Panel>
-          ))}
-
-          {/* Per-creator detail behind the count above — same section, same
-              story, instead of a second heading making its own claim. */}
-          <NeedsYouExtra queues={queues} setPage={setPage} P={P} />
-
-          {noteSignals.length > 0 && (
-            <div className={totalActionable > 0 ? "mt-6" : "mt-4"}>
-              <div className="microlabel mb-3">Also worth knowing</div>
-              <div className="grid gap-3.5 sm:grid-cols-2">
-                {noteSignals.map((s) => (
-                  <SignalNote key={s.id} signal={s} onGo={() => go(s)} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* History, last and lightest — what happened, not what to do. */}
+        {/* ── RECENTLY ─────────────────────────────────────────────────── */}
+        {/* Last on the page, not first — history is the least urgent thing
+            here, after everything the account needed the reader to see and
+            decide on. */}
+        <Section id="recent" eyebrow="Activity" title="Recently">
           <RecentActivity activity={activity} queues={queues} setPage={setPage} P={P} />
         </Section>
+
       </div>
     </div>
   );

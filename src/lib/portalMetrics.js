@@ -233,12 +233,13 @@ export function flattenCreators(campaigns = []) {
 /** The filter groups offered on Overview. Age and gender are deliberately
     absent: the DB doesn't store them, and an empty dropdown is worse than none. */
 export const FILTER_GROUPS = [
-  { id: "niche",    label: "Niche"    },
-  { id: "size",     label: "Size"     },
-  { id: "platform", label: "Platform" },
-  { id: "language", label: "Language" },
-  { id: "region",   label: "Region"   },
-  { id: "status",   label: "Status"   },
+  { id: "campaignName", label: "Campaign"  },
+  { id: "niche",        label: "Niche"     },
+  { id: "size",         label: "Size"      },
+  { id: "platform",     label: "Platform"  },
+  { id: "language",     label: "Language"  },
+  { id: "region",       label: "Region"    },
+  { id: "status",       label: "Status"    },
 ];
 
 /** Options for each filter = the values that actually occur in this client's
