@@ -1,56 +1,59 @@
-// src/components/campaigns/CampaignCard.jsx — rich, data-first campaign card
-// shared by the board and grid views. Everything shown is real data from the
-// view model (mapping.js); missing values render "—" or hide the row entirely.
+// src/components/campaigns/CampaignCard.jsx — the board/grid card. One
+// glance's worth of information: a small progress ring plus the three
+// figures a brand actually asks about — creators, budget, views. Everything
+// shown is real data from the view model (mapping.js); missing values render
+// "—" rather than being invented.
 
 import { motion } from "motion/react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Users, Wallet, Eye } from "lucide-react";
 import { useApp } from "../../context";
-import { prettyDate } from "../../lib/format";
 import { phaseColors as phaseColorsFor } from "../../lib/phases";
 
-/* Progress ring — phase-colored */
-export function Donut({ value, size = 40, stroke = 4.5, color }) {
+/* Progress ring — phase-coloured, kept small: this is a supporting glance,
+   not the card's whole reason for being. */
+function ProgressRing({ value, color, size = 46, stroke = 4.5 }) {
   const { P } = useApp();
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const col = value === 100 ? P.doneTxt : (color || P.accent);
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block -rotate-90">
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={P.barBg} strokeWidth={stroke}/>
-        <motion.circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth={stroke}
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={P.barBg} strokeWidth={stroke} />
+        <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
           strokeDasharray={c} strokeLinecap="round"
           initial={{ strokeDashoffset: c }}
-          animate={{ strokeDashoffset: c - (value/100)*c }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}/>
+          animate={{ strokeDashoffset: c - (Math.min(100, Math.max(0, value)) / 100) * c }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}>
+          <title>Progress: {value}%</title>
+        </motion.circle>
       </svg>
-      <span className={`absolute inset-0 flex items-center justify-center text-[11px] font-semibold leading-none ${value===100?"text-donetxt":"text-ink"}`}>{value}%</span>
+      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold leading-none text-ink">{value}%</span>
     </div>
   );
 }
 
-/* Timeline mini-bar: start→end with a "today" marker. Renders nothing when the
-   dates don't parse — never invents a timeline. */
+/* One figure of the icon · value trio — Creators, Budget, Views. Renders
+   "—" rather than hiding, so the row of three never reflows unevenly. */
+function StatChip({ icon: Icon, label, value, tone }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-1" title={label}>
+      <Icon size={13} strokeWidth={2} className="text-mute" />
+      <span className={`tnum max-w-full truncate text-[11.5px] font-semibold ${tone || "text-ink"}`}>{value}</span>
+    </div>
+  );
+}
+
+/* A hairline of where "today" sits between start and end — the flight, not
+   the dates either side of it. Renders nothing when the dates don't parse. */
 function TimelineBar({ start, end, color }) {
   const s = Date.parse(start), e = Date.parse(end);
   if (isNaN(s) || isNaN(e) || e <= s) return null;
-  const now = Date.now();
-  const pct = Math.max(0, Math.min(1, (now - s) / (e - s)));
+  const pct = Math.max(0, Math.min(1, (Date.now() - s) / (e - s)));
   return (
-    <div className="mt-2.5">
-      <div className="relative h-[4px] rounded-full bg-well">
-        <motion.div className="h-full rounded-full" style={{ background: color, opacity: 0.75 }}
-          initial={{ width: 0 }} animate={{ width: `${pct * 100}%` }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}/>
-        {pct > 0 && pct < 1 && (
-          <div className="absolute -top-[2.5px] h-[9px] w-[2px] rounded-full bg-ink/60" style={{ left: `${pct * 100}%` }} title="Today"/>
-        )}
-      </div>
-      {/* Dates are stored ISO ("2026-04-20"); print them the way the rest of
-          the portal does rather than leaking the storage format onto the card. */}
-      <div className="mt-1 flex justify-between text-[9.5px] text-mute">
-        <span>{prettyDate(start)}</span><span>{prettyDate(end)}</span>
-      </div>
+    <div className="relative mt-3 h-[3px] rounded-full bg-well">
+      <motion.div className="h-full rounded-full" style={{ background: color, opacity: 0.7 }}
+        initial={{ width: 0 }} animate={{ width: `${pct * 100}%` }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }} />
     </div>
   );
 }
@@ -62,11 +65,8 @@ export default function CampaignCard({ campaign: c, onClick }) {
   const done = c.phase === "completed";
   const pending = c.status === "pending";
 
-  /* stat microrow — only rows with real values are rendered */
-  const stats = [];
-  if (c.creators.length) stats.push(["Creators", c.numReq ? `${c.lockedCount}/${c.numReq}` : `${c.creators.length}`]);
-  if (c.engRate !== "—") stats.push(["Avg ER", c.engRate]);
-  if (c.views !== "—") stats.push(["Views", c.views]);
+  const creatorsLabel = c.creators.length ? (c.numReq ? `${c.lockedCount}/${c.numReq}` : `${c.creators.length}`) : "—";
+  const meta = [c.service, c.region !== "—" ? c.region : null].filter(Boolean).join(" · ");
 
   return (
     <motion.div
@@ -75,54 +75,36 @@ export default function CampaignCard({ campaign: c, onClick }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ type: "spring", stiffness: 340, damping: 30 }}
-      whileHover={done ? undefined : { y: -4, scale: 1.01 }}
+      whileHover={done ? undefined : { y: -3 }}
       onClick={onClick}
-      className={`group cursor-pointer rounded-[16px] border-[1.5px] px-4 py-3.5 shadow-sm backdrop-blur-md transition-colors duration-200 ${
-        done ? "bg-well/40 opacity-60" : "bg-glass hover:bg-glass-strong hover:shadow-[0_14px_32px_rgba(25,22,17,0.09)]"
+      className={`group cursor-pointer rounded-[16px] border border-line bg-glass px-4 py-3.5 shadow-[0_1px_10px_rgba(25,22,17,0.04)] backdrop-blur-md transition-all duration-200 ${
+        done ? "opacity-60" : "hover:border-line-strong hover:bg-glass-strong hover:shadow-[0_12px_28px_rgba(25,22,17,0.08)]"
       }`}
-      style={{ borderColor: pending ? P.amber + "55" : "var(--color-line)" }}
+      style={pending ? { borderColor: P.amber + "55" } : undefined}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[13.5px] font-semibold leading-[1.3] text-ink">{c.name}</h3>
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            <span className="rounded-full bg-well px-2 py-0.5 text-[9.5px] font-medium text-sub">{c.service}</span>
-            {c.region !== "—" && <span className="rounded-full bg-well px-2 py-0.5 text-[9.5px] font-medium text-sub">{c.region}</span>}
-          </div>
+          {meta && <div className="mt-0.5 truncate text-[11px] text-mute">{meta}</div>}
         </div>
-        <Donut value={c.progress} size={38} stroke={4} color={color}/>
+        <ProgressRing value={c.progress} color={done ? P.doneTxt : color} />
       </div>
 
       {(pending || c.waiting > 0) && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {pending && <span className="rounded-full bg-amber/[0.1] px-2 py-0.5 text-[10px] font-semibold uppercase text-amber shadow-sm">Pending</span>}
-          {c.waiting > 0 && (
-            <span className="flex items-center gap-1 rounded-full border border-amber/25 bg-amber/[0.08] px-2 py-0.5 text-[10px] font-semibold text-amber shadow-sm">
-              <AlertTriangle size={11} strokeWidth={2.2} /> {c.waiting} waiting on you
-            </span>
-          )}
+        <div className="mt-2 flex items-center gap-1 text-[10.5px] font-medium text-amber">
+          {pending
+            ? <span>Pending</span>
+            : <><AlertTriangle size={11} strokeWidth={2.2}/> {c.waiting} waiting on you</>}
         </div>
       )}
 
-      {stats.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
-          {stats.map(([l, v]) => (
-            <div key={l}>
-              <div className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-mute">{l}</div>
-              <div className={`mt-px text-[13px] font-semibold ${done ? "text-donetxt" : "text-ink"}`}>{v}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      <TimelineBar start={c.start} end={c.end} color={color}/>
-
-      {/* budget strip reveals on hover */}
-      <div className="flex gap-1 overflow-hidden transition-all duration-250 max-h-0 opacity-0 group-hover:mt-2 group-hover:max-h-[22px] group-hover:opacity-100">
-        <span className={c.budgetPending
-          ? "rounded-full bg-amber/[0.10] px-2 py-0.5 text-[10.5px] text-amber"
-          : "rounded-full bg-well px-2 py-0.5 text-[10.5px] text-sub"}>Budget {c.budget}</span>
-        {c.liveCount > 0 && <span className="rounded-full bg-green/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-green">{c.liveCount} live</span>}
+      <div className="mt-3 flex items-start gap-2 rounded-[10px] bg-well/60 px-2 py-2.5">
+        <StatChip icon={Users} label="Creators" value={creatorsLabel} />
+        <StatChip icon={Wallet} label="Budget" value={c.budget} tone={c.budgetPending ? "text-amber" : "text-ink"} />
+        <StatChip icon={Eye} label="Views" value={c.views} />
       </div>
+
+      <TimelineBar start={c.start} end={c.end} color={color}/>
     </motion.div>
   );
 }

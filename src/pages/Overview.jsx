@@ -1243,18 +1243,18 @@ export default function OverviewDashboard() {
               stagger={0.07}
               className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 xl:grid-cols-7"
             >
-              <KPI flush index={0} label="Active campaigns" value={filteredKpis.active} format={Math.round} sublabel={`of ${filteredKpis.campaigns} total`} color={P.neutral}
+              <KPI flush showTick={false} index={0} label="Active campaigns" value={filteredKpis.active} format={Math.round} sublabel={`of ${filteredKpis.campaigns} total`} color={P.neutral}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Active campaigns" hint={`${filteredKpis.active} of ${filteredKpis.campaigns} active now.`} />} />
-              <KPI flush index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral}
+              <KPI flush showTick={false} index={1} label="Creators" value={kpis.creators} format={Math.round} sublabel={`${kpis.live} live`} color={P.neutral}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Creators" hint={`${kpis.creators} on the roster, ${kpis.live} live.`} />} />
               {/* Same views figure PerformanceSection's own tile reports —
                   summed from tracked post metrics, 0 for a creator not yet
                   measured, not a follower-based estimate. */}
-              <KPI flush index={2} label="Views" value={kpis.views} format={fmtNum} sublabel="across creators" color={P.neutral}
+              <KPI flush showTick={false} index={2} label="Views" value={kpis.views} format={fmtNum} sublabel="across creators" color={P.neutral}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Views" hint="Summed from tracked post metrics across the roster; a creator with nothing measured yet contributes 0, not an estimate." />} />
               {/* Measured on live posts only — see summarise() in portalMetrics.js
                   for why the stored profile rate no longer feeds this tile. */}
-              <KPI flush index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`}
+              <KPI flush showTick={false} index={3} label="Avg engagement" value={kpis.avgER} format={(v) => `${v.toFixed(1)}%`}
                 sublabel={kpis.erMeasured
                   ? `measured on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}`
                   : "nothing live to measure yet"}
@@ -1266,7 +1266,7 @@ export default function OverviewDashboard() {
                   before a budget was agreed contribute nothing to this total, so
                   without saying so it reads as the account's whole commitment
                   when it is only the agreed part of it. */}
-              <KPI flush index={4} label="Campaign budget" value={filteredKpis.budget || null} format={fmtINR}
+              <KPI flush showTick={false} index={4} label="Campaign budget" value={filteredKpis.budget || null} format={fmtINR}
                 sublabel={filteredKpis.budgetPending ? `committed · ${filteredKpis.budgetPending} to be confirmed` : "committed"}
                 color={P.neutral}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Campaign budget" hint={filteredKpis.budgetPending
@@ -1276,7 +1276,7 @@ export default function OverviewDashboard() {
                   `filteredKpis` — the selected campaign's committed budget and
                   measured views when one is picked, the whole portfolio's
                   otherwise — not a time-period rate either way. */}
-              <KPI flush index={5} label="CPV" value={cpv} format={fmtCPV}
+              <KPI flush showTick={false} index={5} label="CPV" value={cpv} format={fmtCPV}
                 sublabel="external, on measured views" color={P.green}
                 back={<FlipSummary padding="px-5 py-[18px]" title="Cost per view" hint={viewsPerRupee != null
                   ? `₹1 = ${fmtNum(viewsPerRupee)} views.`
@@ -1285,7 +1285,7 @@ export default function OverviewDashboard() {
                   committed budget and measured views. INDUSTRY_CPV (₹0.30) is
                   an assumption, not a sourced benchmark — the back face says
                   so, so the figure is never read as an audited fact. */}
-              <KPI flush index={6} label="You saved " value={savedVsIndustry} format={fmtINR}
+              <KPI flush showTick={false} index={6} label="You saved " value={savedVsIndustry} format={fmtINR}
                 sublabel={savedVsIndustry != null ? "with Fifth-Avenue " : "no rate to compare yet"}
                 color={P.green}
                 back={<FlipSummary padding="px-5 py-[18px]" title="You saved with Fifth-Avenue" hint="Assuming ₹0.30 per view as the industry-standard CPV: what your account's measured views would have cost at that rate, minus what was actually committed." />} />

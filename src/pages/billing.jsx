@@ -99,6 +99,10 @@ const TONE = {
   mute: "bg-well text-sub",
 };
 
+// Owed, not "not yet invoiced": a campaign with no bill raised yet has
+// nothing to chase. Settled is excluded for the opposite reason — it's paid.
+const DUE_STATUSES = new Set(["Invoiced", "Advance received"]);
+
 /* A proportion bar that grows in on mount. CSS width driven by an effect, NOT
    motion's `animate`: rAF is paused in a background tab, so `initial={{width:0}}`
    would leave a bar of money reading "nothing allocated" until the tab is
@@ -158,6 +162,33 @@ function AllocationBar({ creatorTotal, fee, base, listed, pending }) {
         {fee > 0 && <Key color={FEE_COLOR} label="Agency fee" value={fee} />}
         {!pending && listed < base && <Key label="Not yet allocated" value={base - listed} outline />}
         {over && <Key color="var(--color-red)" label={`Over budget by ${fmtINRExact(listed - base)}`} />}
+      </div>
+    </div>
+  );
+}
+
+/* Account-wide read: of what's been billed, how much is settled versus still
+   owed. Same bar-and-legend construction as AllocationBar, minus the budget
+   marker — there's no "over" here, only paid or not yet. */
+function SettlementBar({ settled, due }) {
+  const total = settled + due;
+  if (total <= 0) return null;
+  const segs = [
+    { k: "settled", v: settled, c: "var(--color-green)" },
+    { k: "due", v: due, c: "var(--color-amber)" },
+  ].filter((s) => s.v > 0);
+
+  return (
+    <div className="border-t border-line px-5 pb-5 pt-4 sm:px-6">
+      <div className="relative flex h-1.5 gap-px overflow-hidden rounded-full bg-well">
+        {segs.map((s, i) => (
+          <Bar key={s.k} pct={(s.v / total) * 100} color={s.c} delay={i * 60}
+            className="h-full first:rounded-l-full last:rounded-r-full" />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10.5px] text-mute">
+        {settled > 0 && <Key color="var(--color-green)" label="Settled" value={settled} />}
+        {due > 0 && <Key color="var(--color-amber)" label="Yet to pay" value={due} />}
       </div>
     </div>
   );
@@ -225,6 +256,70 @@ function BlockHead({ label, note, className }) {
     <div className={cx("flex items-baseline justify-between gap-3", className)}>
       <span className="microlabel tracking-[0.12em]">{label}</span>
       {note && <span className="text-[11px] text-mute">{note}</span>}
+    </div>
+  );
+}
+
+/* One row of a KPI flip's micro-ledger — a leaner cut of LedgerRow, sized for
+   a ~90px tile rather than a statement panel. `strong` marks the row the
+   other two build to (Payable, or a campaign's own amount). */
+function FlipRow({ label, value, strong, meter }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cx("min-w-0 flex-1 truncate", strong ? "text-[11px] font-semibold text-ink" : "text-[10.5px] text-mute")}>
+        {label}
+      </span>
+      {meter != null && (
+        <span aria-hidden className="hidden h-[3px] w-7 shrink-0 overflow-hidden rounded-full bg-well sm:block">
+          <Bar pct={meter.pct} color={meter.color} opacity={meter.opacity} delay={meter.delay} />
+        </span>
+      )}
+      <span className={cx("tnum shrink-0", strong ? "text-[13.5px] font-bold text-ink" : "text-[11.5px] font-semibold text-sub")}>
+        {fmtINRExact(value)}
+      </span>
+    </div>
+  );
+}
+
+/* Flip face for the Paid / Yet to pay KPIs — same ex-tax → GST → payable
+   read as each statement's "To pay" band, compressed to fit the tile's own
+   height instead of the statement's roomier one. */
+function MoneyFlip({ title, base, gst, total }) {
+  return (
+    <div className="flex h-full flex-col justify-center gap-1.5 px-5 py-[18px] sm:px-6">
+      <div className="microlabel mb-0.5 text-[11px] tracking-[0.09em]">{title}</div>
+      <FlipRow label="Ex-tax" value={base} />
+      <FlipRow label={`GST @ ${GST_RATE * 100}%`} value={gst} />
+      <FlipRow label="Payable" value={total} strong />
+    </div>
+  );
+}
+
+/* Flip face for the Campaigns and Total KPIs — every campaign split out by
+   `amountOf`, metered by share of that total the way creator rows are on
+   each statement. Shared rather than duplicated: the two cards read the same
+   roster, just ex-tax budget on one and the GST-inclusive bill on the other.
+   A pending campaign has no figure to tax yet, so it prints the same
+   "To be confirmed" the statement itself shows instead of a bare ₹0. Scrolls
+   internally past a handful of campaigns rather than growing the tile. */
+function CampaignSplitFlip({ campaigns, note, amountOf }) {
+  const rows = campaigns.map((c) => ({ id: c.id, name: c.name, pending: c.pending, value: amountOf(c) }));
+  const total = rows.reduce((s, r) => s + (r.pending ? 0 : r.value), 0);
+  return (
+    <div className="flex h-full flex-col px-5 py-[14px] sm:px-6">
+      <div className="microlabel mb-1.5 flex items-baseline justify-between gap-3 text-[11px] tracking-[0.09em]">
+        <span>Campaigns</span>
+        <span className="normal-case tracking-normal text-mute">{note}</span>
+      </div>
+      <div className="flex-1 space-y-1.5 overflow-y-auto">
+        {rows.map((r, i) => r.pending
+          ? <div key={r.id} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-[10.5px] text-mute">{r.name}</span>
+              <span className="shrink-0 text-[11px] font-semibold text-amber">To be confirmed</span>
+            </div>
+          : <FlipRow key={r.id} label={r.name} value={r.value}
+              meter={{ pct: total > 0 ? (r.value / total) * 100 : 0, color: CREATOR_COLOR, opacity: creatorTint(i), delay: i * 45 }} />)}
+      </div>
     </div>
   );
 }
@@ -338,13 +433,23 @@ export default function BillingPage() {
 
   const totals = useMemo(() => {
     const list = campaigns || [];
-    // Budgets only from campaigns that HAVE one, so a campaign still being
-    // priced can't quietly add the sum of its own lines to "total billed".
-    const billed = list.reduce((s, c) => s + (c.pending ? 0 : c.base), 0);
-    // Summed per campaign, not 18% of the total, so the rounding agrees with the
-    // cards below — this page gets checked against an invoice.
-    const gst = list.reduce((s, c) => s + c.gst, 0);
-    return { billed, payable: billed + gst };
+    // "Yet to pay": billed campaigns (Invoiced or an advance already taken)
+    // that haven't been marked Settled. A campaign still being priced, or one
+    // with no invoice raised yet, owes nothing to total against.
+    let dueBase = 0, dueGst = 0, settledBase = 0, settledGst = 0, allBase = 0, allGst = 0;
+    for (const c of list) {
+      if (c.pending) continue;
+      allBase += c.base; allGst += c.gst;
+      if (c.status.label === "Settled") { settledBase += c.base; settledGst += c.gst; }
+      else if (DUE_STATUSES.has(c.status.label)) { dueBase += c.base; dueGst += c.gst; }
+    }
+    return {
+      due: dueBase + dueGst, dueBase, dueGst,
+      settled: settledBase + settledGst, settledBase, settledGst,
+      // Every priced campaign, not just Settled + due — the one figure on
+      // this page that isn't scoped to a settlement status.
+      all: allBase + allGst,
+    };
   }, [campaigns]);
 
   if (error) return <ErrorState message={error} onRetry={retry} />;
@@ -391,16 +496,24 @@ export default function BillingPage() {
                   counts (not auto-fit) keep that predictable. */}
               {/* The creator/fee/GST split lives on each statement below —
                   repeating it here was the same numbers twice. This band only
-                  answers "what's the account-wide total and how much of it". */}
+                  answers "how much is settled, how much is owed, and against
+                  which campaigns". */}
               <Panel reveal className="mt-6 overflow-hidden">
-                <Stagger animate="show" stagger={0.07} className="grid grid-cols-3 gap-px bg-line">
-                  <KPI flush index={0} color={INK} label="Total billed"
-                    value={totals.billed} format={fmtINRExact} sublabel="agreed budgets, ex-tax" />
-                  <KPI flush index={1} color={INK} label="Total payable"
-                    value={totals.payable} format={fmtINRExact} sublabel="inclusive of GST" />
-                  <KPI flush index={2} color={INK} label="Campaigns"
-                    value={n} format={Math.round} sublabel="with costs to show" />
+                <Stagger animate="show" stagger={0.07} className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+                  <KPI flush index={0} color={INK} label="Total"
+                    value={totals.all} format={fmtINRExact} sublabel="every campaign, incl. GST"
+                    back={<CampaignSplitFlip campaigns={campaigns} note="incl. GST" amountOf={(c) => c.payable} />} />
+                  <KPI flush index={1} color={INK} label="Paid"
+                    value={totals.settled} format={fmtINRExact} sublabel="already settled"
+                    back={<MoneyFlip title="Paid" base={totals.settledBase} gst={totals.settledGst} total={totals.settled} />} />
+                  <KPI flush index={2} color={INK} label="Yet to pay"
+                    value={totals.due} format={fmtINRExact} sublabel="invoiced, not yet settled"
+                    back={<MoneyFlip title="Yet to pay" base={totals.dueBase} gst={totals.dueGst} total={totals.due} />} />
+                  <KPI flush index={3} color={INK} label="Campaigns"
+                    value={n} format={Math.round} sublabel="with costs to show"
+                    back={<CampaignSplitFlip campaigns={campaigns} note="ex-tax" amountOf={(c) => c.base} />} />
                 </Stagger>
+                <SettlementBar settled={totals.settled} due={totals.due} />
               </Panel>
 
               {/* Two up from xl: a bill is read against one invoice at a time,

@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { cx } from "../lib/cx";
 import { useApp } from "../context";
 import { usePortalCampaigns } from "../lib/usePortalData";
 import { usePersistentState } from "../lib/usePersistentState";
@@ -163,34 +164,39 @@ export default function CampaignsPage() {
 
         {campaigns.length > 0 && view === "board" && <div className="mb-2 text-[11px] text-mute md:hidden">Swipe sideways to see all stages →</div>}
         {campaigns.length > 0 && view === "board" && (
-          <div className="flex min-h-[52vh] gap-3 overflow-x-auto pb-9">
+          // No enclosing panel — five stages as five plain, evenly-aligned
+          // columns directly on the page, each named by a hairline under its
+          // own header rather than a shared box around all of them. What
+          // still reads as "one board" is the alignment (equal columns, one
+          // baseline for every header), not a shared background.
+          <div className="flex items-start gap-6 overflow-x-auto pb-9">
             {PHASES.map((phase, pi) => {
               const items = filtered.filter(c => c.phase === phase.id);
               const colBudget = items.reduce((s, c) => s + (c.budgetNum || 0), 0);
               const color = phaseColors[phase.id];
               return (
                 <motion.div key={phase.id}
-                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: pi * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex min-w-[220px] flex-col rounded-[18px] p-1.5"
-                  style={{ flex: `1 1 ${100 / PHASES.length}%`, background: `${color}06` }}>
-                  {/* Phase-tinted column header: icon · label · count · budget sum */}
-                  <div className="mb-2 rounded-[14px] border bg-glass px-3 py-2 backdrop-blur-sm" style={{ borderColor: `${color}25` }}>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ color }}>
-                        <PhaseIcon phase={phase.id} />{phase.label}
-                      </span>
-                      <span className="flex size-[18px] items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: items.length ? color : P.doneTxt }}>{items.length}</span>
-                    </div>
-                    {colBudget > 0 && <div className="mt-0.5 text-[10px] font-medium text-sub">{fmtINR(colBudget)} committed</div>}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  transition={{ delay: pi * 0.05, duration: 0.4 }}
+                  className="min-w-[280px] flex-1">
+                  <div className="mb-4 flex items-center justify-between border-b border-line pb-2.5">
+                    <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em]" style={{ color }}>
+                      <PhaseIcon phase={phase.id} />{phase.label}
+                    </span>
+                    <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold tabular-nums"
+                      style={items.length ? { background: `${color}16`, color } : { color: "var(--color-mute)" }}>
+                      {items.length}
+                    </span>
                   </div>
-                  <div className="flex flex-1 flex-col gap-2">
+                  {colBudget > 0 && <div className="-mt-2.5 mb-4 text-[10.5px] text-mute">{fmtINR(colBudget)} committed</div>}
+                  {/* Past three cards a column scrolls internally rather than
+                      stretching the whole board to its height — Live with
+                      eight campaigns shouldn't dictate how tall Brief's empty
+                      column looks beside it. */}
+                  <div className={cx("flex flex-col gap-3.5", items.length > 3 && "max-h-[480px] overflow-y-auto pr-1")}>
                     <AnimatePresence mode="popLayout">
                       {items.map(c => <CampaignCard key={c.id} campaign={c} onClick={() => setSelected(c)}/>)}
                     </AnimatePresence>
-                    {items.length === 0 && (
-                      <div className="flex min-h-[45px] flex-1 items-center justify-center rounded-[16px] border border-dashed border-line-mid px-1.5 py-4 text-center text-[11px] text-mute">—</div>
-                    )}
                   </div>
                 </motion.div>
               );
@@ -199,7 +205,7 @@ export default function CampaignsPage() {
         )}
 
         {campaigns.length > 0 && view === "grid" && (
-          <motion.div layout className="grid gap-2.5 pb-9" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))" }}>
+          <motion.div layout className="grid gap-3.5 pb-9" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))" }}>
             <AnimatePresence mode="popLayout">
               {filtered.map(c => <CampaignCard key={c.id} campaign={c} onClick={() => setSelected(c)}/>)}
             </AnimatePresence>

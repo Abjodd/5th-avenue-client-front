@@ -195,7 +195,7 @@ export function PanelTitle({ title, hint, info, action, className }) {
    wider than a count. */
 export function KPI({
   label, value, format, sublabel, color, index = 0, back, flush = false,
-  tick = color, size = "lg",
+  tick = color, showTick = true, size = "lg",
 }) {
   const missing = value == null;
   // Padding held apart from the chrome so the back can take the chrome
@@ -205,7 +205,10 @@ export function KPI({
   const chromeBase = flush
     // No lift and no shadow: a cell that rises out of a band it is ruled into
     // reads as broken rather than interactive, so the hover is a wash instead.
-    ? "group relative flex flex-col justify-center overflow-hidden bg-glass-strong transition-colors duration-300 ease-out hover:bg-hover"
+    // Top-aligned, not centered: a row's cells share one height (the grid's
+    // own stretch), and a shorter sublabel in one cell must not re-centre
+    // that cell's tick/label/value a few px off the next cell's.
+    ? "group relative flex flex-col overflow-hidden bg-glass-strong transition-colors duration-300 ease-out hover:bg-hover"
     : "group relative overflow-hidden rounded-[20px] border border-line bg-glass shadow-card backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(25,22,17,0.08)]";
   const chrome = cx(chromeBase, pad);
 
@@ -213,20 +216,20 @@ export function KPI({
     <>
       {/* A corner wash is a card affordance; six inside one band is noise, so
           a flush cell wears a column rule — the mark a ruled table puts at the
-          head of a column. */}
-      {flush ? (
+          head of a column. `showTick` opts a band out of it entirely. */}
+      {flush && showTick ? (
         <div
           aria-hidden
           className="kpi-tick mb-2.5 h-[2px] w-5 rounded-full transition-all duration-300 group-hover:w-8"
           style={{ background: tick, opacity: missing ? 0.25 : 0.55 }}
         />
-      ) : (
+      ) : !flush ? (
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 rounded-[20px] opacity-[0.05]"
           style={{ background: `radial-gradient(120% 90% at 100% 0%, ${color}, transparent 60%)` }}
         />
-      )}
+      ) : null}
       <div className="microlabel mb-2 text-[11px] tracking-[0.09em]">{label}</div>
       <div
         className={cx(
