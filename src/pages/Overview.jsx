@@ -1072,7 +1072,7 @@ export default function OverviewDashboard() {
                 <span className="tnum">{kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}</span>
               </div>
 
-              <h1 className="font-serif text-[clamp(42px,6.4vw,88px)] font-bold italic leading-[1.02] tracking-[-0.02em] text-ink">
+              <h1 className="font-serif text-[clamp(42px,6.4vw,88px)] font-bold italic leading-[1.3] tracking-[-0.02em] text-ink">
                 {greeting()},{" "}
                 <span className="relative inline-block whitespace-nowrap text-accent">
                   {firstName}
