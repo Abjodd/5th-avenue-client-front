@@ -13,7 +13,7 @@ import {
 import {
   Target, Users, MessageSquareQuote, Package, IndianRupee, CalendarRange,
   FileText, Eye, Heart, MessageCircle, Share2, Check, X, Sparkles,
-  CheckCircle2, XCircle, Wrench, MapPin, Cake, Lock, ChevronDown,
+  CheckCircle2, XCircle, Wrench, MapPin, Cake, Lock, ChevronDown, HelpCircle,
 } from "lucide-react";
 import { useApp } from "../../context";
 import { useAuth } from "../../context/AuthContext";
@@ -1213,7 +1213,11 @@ function BrandDecision({ cr, onDecide }) {
             transition={{ duration: 0.18 }} className="flex items-center gap-1.5 text-[11.5px]">
             {!answered ? (
               <>
-                <Sparkles size={13} strokeWidth={1.9} className="text-amber"/>
+                {/* A plain question mark, not Sparkles — this is an open
+                    question waiting on a human answer, not something the
+                    model generated, and a sparkle/magic-wand icon here reads
+                    as "AI did this" when nothing here is. */}
+                <HelpCircle size={13} strokeWidth={1.9} className="text-amber"/>
                 <span className="font-medium text-ink">We&rsquo;ve suggested them &mdash; are they a yes?</span>
               </>
             ) : (
@@ -1474,6 +1478,135 @@ function BriefPage({ lockedBrief, pendingBrief }) {
   );
 }
 
+/* ═══ CASTING STAGES — the Creators tab's own filter, not the global tier
+   set ═══
+   StatusLegend's four generic tiers (Needs you / In progress / Done /
+   Dropped) are shared with Execution, Billing, Overview — everywhere a
+   StatusPill shows up — and "Done" genuinely applies there (Video OK,
+   Posted…). On THIS tab, though, every creator is still pre-lock, so
+   "Done" can never actually fire: the moment one is, they move to
+   Execution (see executingCreators in CampaignDetail). A dead legend entry
+   is worse than no entry, so this tab gets its own four, mapped straight
+   onto the statuses that are actually possible here — and, unlike
+   StatusLegend, these are buttons: click one to filter the roster down to
+   it, click it again to clear. */
+const CASTING_STAGES = [
+  // We've put them forward; the brand hasn't answered yet. The generic
+  // "Needs you" (a legend-wide label covering several unrelated things
+  // elsewhere) is just "Pitched" here, because that's literally what
+  // happened to them.
+  { id: "pitched",    label: "Pitched",     cls: "bg-amber/10 text-amber",   statuses: ["suggested"] },
+  // Shortlisted, reached out, mid-negotiation — moving, not stalled.
+  { id: "inprogress", label: "In progress", cls: "bg-accent/10 text-accent", statuses: ["shortlisted", "reached_out", "in_negotiation"] },
+  // WE (or the creator) stepped back — not a brand decision. Kept apart
+  // from "Dropped" below on purpose: a brand reading "Dropped" next to a
+  // creator they never even weighed in on would reasonably wonder who
+  // dropped them and why.
+  { id: "backedoff",  label: "Backed off",  cls: "bg-well text-sub",         statuses: ["dropped"] },
+  // The brand said no. Their call, their word for it.
+  { id: "dropped",    label: "Dropped",     cls: "bg-red/10 text-red",       statuses: ["brand_reject"] },
+];
+
+function CastingStageFilter({ items, active, onChange }) {
+  const countOf = (stage) => items.filter(({ cr }) => stage.statuses.includes(cr.status)).length;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {CASTING_STAGES.map((stage) => {
+        const count = countOf(stage);
+        const on = active === stage.id;
+        return (
+          <button key={stage.id} type="button" disabled={!count && !on}
+            onClick={() => onChange(on ? null : stage.id)}
+            title={on ? `Showing ${stage.label.toLowerCase()} only — click to clear` : `Show ${stage.label.toLowerCase()} only`}
+            className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold transition-all duration-150 disabled:cursor-default disabled:opacity-35 ${stage.cls} ${on ? "ring-2 ring-offset-1 ring-current" : count ? "cursor-pointer hover:brightness-95" : ""}`}>
+            <span className="size-1.5 rounded-full bg-current" />
+            {stage.label}
+            {count > 0 && <span className="opacity-70">{count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ═══ CREATORS PANEL — the roster list + its Advance Stats screen, shared
+   by the Creators tab (still deciding / not yet locked) and the Execution
+   tab (locked in, now being produced). Same row, same toggle, same audience
+   view either way — only WHICH creators are handed in differs, so this is
+   one component rather than two copies that quietly drift apart. */
+function CreatorsPanel({
+  items, campaignId, onDecide, onAssetComments,
+  advanceOn, onToggleAdvance, advanceAvailable, userRole,
+  emptyTitle, emptyBody,
+  // Present only on the Creators (casting) tab.
+  stages, activeStage, onStageChange,
+  // Execution turns this off: every creator there is already locked, so a
+  // legend distinguishing "needs you" from "done" from "dropped" has
+  // nothing left to say — it's just the roster.
+  legend = true,
+}) {
+  const filtered = stages && activeStage
+    ? items.filter(({ cr }) => CASTING_STAGES.find((s) => s.id === activeStage)?.statuses.includes(cr.status))
+    : items;
+  const plainCreators = filtered.map(({ cr }) => cr);
+  return (
+    <div>
+      <div className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-full border border-accent/[0.06] bg-accent/[0.02] px-3 py-1.5">
+        <span className="text-[10.5px] text-sub">Viewing as</span><span className="rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">{userRole === "management" ? "Mgmt" : "Exec"}</span>
+        <div className="ml-auto flex items-center gap-2.5">
+          <AdvanceStatsToggle enabled={advanceOn} available={advanceAvailable} onToggle={onToggleAdvance}/>
+          {stages
+            ? <CastingStageFilter items={items} active={activeStage} onChange={onStageChange}/>
+            : legend ? <StatusLegend/> : null}
+        </div>
+      </div>
+      <AnimatePresence initial={false}>
+        {advanceOn && advanceAvailable && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
+            <AudienceInsights creators={plainCreators}/>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Empty roster: was three bouncing 👤 emoji. A campaign that hasn't
+          been cast yet — or, on this tab, hasn't locked anyone in yet — is a
+          normal state, not a moment that wants a jiggling animation, and it
+          left the reader without the one thing worth saying, which is what
+          happens next. A FILTERED-to-empty roster is a different state again
+          (there are creators, just none in this stage), so it gets its own
+          message plus a way back rather than reusing the "nothing at all"
+          copy the caller passed in. */}
+      {/* Capped to roughly 7-8 rows' worth of height, then scrolls — a
+          56-creator roster used to push the whole page into one long
+          scroll, burying the "Viewing as" bar, the filter and (on
+          Creators) the stage buttons above every time the list grew. The
+          cap travels with the panel, not the page, so those stay in view
+          while the roster itself scrolls underneath them. */}
+      {filtered.length > 0 ? (
+        <div className="max-h-[600px] overflow-y-auto pr-1">
+          {filtered.map(({ cr, i }) => (
+            <CreatorRow key={i} cr={cr} idx={i} campaignId={campaignId}
+              onDecide={onDecide} onAssetComments={onAssetComments}
+              advanceOn={advanceOn && advanceAvailable}/>
+          ))}
+        </div>
+      ) : items.length > 0 ? (
+        <div className="px-5 py-[34px] text-center">
+          <Users size={24} strokeWidth={1.5} className="mx-auto mb-2 text-mute opacity-40" />
+          <div className="text-[12.5px] font-medium text-ink">No one in &ldquo;{CASTING_STAGES.find((s) => s.id === activeStage)?.label}&rdquo; right now</div>
+          <button type="button" onClick={() => onStageChange(null)} className="mt-1.5 text-[11.5px] font-medium text-accent hover:underline">Clear filter</button>
+        </div>
+      ) : (
+        <div className="px-5 py-[34px] text-center">
+          <Users size={24} strokeWidth={1.5} className="mx-auto mb-2 text-mute opacity-40" />
+          <div className="text-[12.5px] font-medium text-ink">{emptyTitle}</div>
+          <div className="mt-1 text-[11.5px] text-mute">{emptyBody}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══ CAMPAIGN DETAIL ═══ */
 export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const P = useP();
@@ -1484,6 +1617,10 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   // available — the roster is still the thing most brands open this tab for,
   // and the toggle is right there at the top if they want the extra screen.
   const [advanceOn, setAdvanceOn] = useState(false);
+  // Which CASTING_STAGES bucket the Creators tab is filtered to, or null for
+  // all of them. Lives here, not in CreatorsPanel, only because CreatorsPanel
+  // is reused by Execution too, which doesn't have this filter at all.
+  const [castingStage, setCastingStage] = useState(null);
 
   /* The brand's yes/no on a suggested creator. Writes through to the roster
      row's status — the internal app's own vocabulary — then folds the server's
@@ -1510,6 +1647,16 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   };
 
   const isAEO = c.service === "AEO"; const numCr = creators.length;
+  // Every creator paired with its real index into `creators` — decideCreator/
+  // setAssetComments both key off that index, so a filtered subset has to
+  // carry the ORIGINAL position with it rather than renumbering from 0.
+  const indexedCreators = creators.map((cr, i) => ({ cr, i }));
+  // Locked is the one stable signal for "past the decide/negotiate stage and
+  // now a commitment" — unlike the display status, which keeps moving
+  // (Concept In, Video OK, Posted…) as production proceeds. See isLocked in
+  // lib/delivery.js.
+  const executingCreators = indexedCreators.filter(({ cr }) => cr.locked);
+  const castingCreators = indexedCreators.filter(({ cr }) => !cr.locked);
   /* Deliverables come off the campaign view-model (mapping.js → portalMetrics
      totalDeliverables), not off a per-creator display string. This used to
      regex the digits out of `cr.deliverables`, which mapping.js hardcoded to
@@ -1517,6 +1664,12 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const numDel = c.deliverablesTotal ?? 0;
   const numDelPosted = c.deliverablesPosted ?? 0;
   const needsAction = creators.filter(cr => ACTIONABLE_STATUSES.includes(cr.status));
+  // Which tab "Review →" below should actually open — whichever one holds
+  // the outstanding item(s). A decision on a candidate (suggested/
+  // shortlisted/rework…) is still in Creators; anything needing input on a
+  // creator already locked in (concept/video review) has moved to Execution
+  // along with them.
+  const needsActionTab = needsAction.some(cr => !cr.locked) ? "creators" : "execution";
 
   const engByCreator = creators.filter(c2 => c2.engRate !== "—").map(c2 => ({ label: c2.name.split(" ")[0], value: parseFloat(c2.engRate) }));
   const engByNiche = (() => { const g = {}, c2 = {}; creators.forEach(cr => { if (cr.engRate !== "—") { const n = cr.niche; g[n] = (g[n] || 0) + parseFloat(cr.engRate); c2[n] = (c2[n] || 0) + 1; } }); return Object.entries(g).map(([k, v]) => ({ label: k, value: Math.round((v / c2[k]) * 10) / 10 })); })();
@@ -1529,7 +1682,14 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "brief", label: "Brief" },
-    ...(!isAEO ? [{ id: "creators", label: "Creators", count: numCr || null }] : []),
+    ...(!isAEO ? [
+      { id: "creators", label: "Creators", count: castingCreators.length || null },
+      // Right after Creators: once a creator is locked, the roster question
+      // ("are they a yes?") is answered, and what's left to track is
+      // production — concept, demo, post. Its own tab keeps a 56-long
+      // Creators list from burying the handful actually mid-shoot.
+      { id: "execution", label: "Execution", count: executingCreators.length || null },
+    ] : []),
     ...(growth.length ? [{ id: "growth", label: "Growth" }] : []),
     ...(c.queries ? [{ id: "queries", label: "Queries" }] : []),
   ];
@@ -1550,7 +1710,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
           {needsAction.length > 0 && (
             <div className="mb-2 flex items-center gap-1.5 rounded-[12px] border border-amber/[0.12] bg-amber/[0.04] px-3 py-2 backdrop-blur-sm">
               <Dot color={P.amber}/><span className="flex-1 text-[12px] text-amber">{needsAction.length} need{needsAction.length === 1 ? "s" : ""} input</span>
-              <button onClick={() => setTab("creators")} className="text-[11px] font-medium text-accent hover:underline">Review →</button>
+              <button onClick={() => setTab(needsActionTab)} className="text-[11px] font-medium text-accent hover:underline">Review →</button>
             </div>
           )}
           <div className="flex">
@@ -1638,39 +1798,25 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
               {tab === "brief" && <BriefPage lockedBrief={c.lockedBrief} pendingBrief={c.pendingBrief}/>}
 
               {tab === "creators" && (
-                <div>
-                  <div className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-full border border-accent/[0.06] bg-accent/[0.02] px-3 py-1.5">
-                    <span className="text-[10.5px] text-sub">Viewing as</span><span className="rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">{userRole === "management" ? "Mgmt" : "Exec"}</span>
-                    <div className="ml-auto flex items-center gap-2.5">
-                      <AdvanceStatsToggle enabled={advanceOn} available={!!c.advanceStatsAvailable} onToggle={() => setAdvanceOn((o) => !o)}/>
-                      <StatusLegend/>
-                    </div>
-                  </div>
-                  <AnimatePresence initial={false}>
-                    {advanceOn && c.advanceStatsAvailable && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
-                        <AudienceInsights creators={creators}/>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  {/* Empty roster: was three bouncing 👤 emoji. A campaign that
-                      hasn't been cast yet is a normal state, not a moment that
-                      wants a jiggling animation — and it left the reader
-                      without the one thing worth saying, which is what happens
-                      next. */}
-                  {creators.length > 0 ? creators.map((cr, i) => (
-                    <CreatorRow key={i} cr={cr} idx={i} campaignId={c.id}
-                      onDecide={decideCreator} onAssetComments={setAssetComments}
-                      advanceOn={advanceOn && c.advanceStatsAvailable}/>
-                  )) : (
-                    <div className="px-5 py-[34px] text-center">
-                      <Users size={24} strokeWidth={1.5} className="mx-auto mb-2 text-mute opacity-40" />
-                      <div className="text-[12.5px] font-medium text-ink">No creators yet</div>
-                      <div className="mt-1 text-[11.5px] text-mute">We're building the shortlist — they'll appear here as each one is confirmed.</div>
-                    </div>
-                  )}
-                </div>
+                <CreatorsPanel items={castingCreators} campaignId={c.id}
+                  onDecide={decideCreator} onAssetComments={setAssetComments}
+                  advanceOn={advanceOn} onToggleAdvance={() => setAdvanceOn((o) => !o)}
+                  advanceAvailable={!!c.advanceStatsAvailable} userRole={userRole}
+                  stages={CASTING_STAGES} activeStage={castingStage} onStageChange={setCastingStage}
+                  emptyTitle={creators.length ? "Nobody left to decide on" : "No creators yet"}
+                  emptyBody={creators.length
+                    ? "Everyone we've put forward is locked in — see them on the Execution tab."
+                    : "We're building the shortlist — they'll appear here as each one is confirmed."}/>
+              )}
+
+              {tab === "execution" && (
+                <CreatorsPanel items={executingCreators} campaignId={c.id}
+                  onDecide={decideCreator} onAssetComments={setAssetComments}
+                  advanceOn={advanceOn} onToggleAdvance={() => setAdvanceOn((o) => !o)}
+                  advanceAvailable={!!c.advanceStatsAvailable} userRole={userRole}
+                  legend={false}
+                  emptyTitle="Nobody locked in yet"
+                  emptyBody="Once a creator is locked, their concept, demo and live post tracking move here."/>
               )}
 
               {tab === "growth" && (

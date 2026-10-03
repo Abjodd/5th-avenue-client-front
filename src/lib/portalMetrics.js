@@ -34,7 +34,10 @@ export const STATUS_MAP = {
   // Where a generated roster starts: we've put the name forward and the brand
   // hasn't answered yet. Their answer is what moves it to shortlisted or
   // brand_reject — see BrandDecision in components/campaigns/CampaignDetail.
-  suggested:        { label: "Your call",     t: "action"   },
+  // Labelled to match the Creators tab's own "Pitched" filter stage
+  // (CASTING_STAGES in CampaignDetail.jsx) — the row pill and the filter
+  // button it's grouped under used to say two different things.
+  suggested:        { label: "Pitched",       t: "action"   },
   shortlisted:      { label: "Shortlisted",   t: "progress" },
   reached_out:      { label: "Reached Out",   t: "progress" },
   in_negotiation:   { label: "Negotiating",   t: "action"   },
