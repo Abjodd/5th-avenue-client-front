@@ -44,6 +44,12 @@ export const STATUS_MAP = {
   locked:           { label: "Locked",        t: "done"     },
   dropped:          { label: "Dropped",       t: "dropped"  },
   brand_reject:     { label: "Rejected",      t: "dropped"  },
+  // A locked creator the brand later decided to drop mid-campaign — set by
+  // the founder on the internal side (overrideLockedStatus in frontend2's
+  // rbac.js). Kept on the Execution tab rather than falling back to Creators
+  // once it's no longer "locked" — see executingCreators in CampaignDetail —
+  // because the brand already saw this creator as part of their roster.
+  brand_dropped:    { label: "Brand Dropped", t: "dropped"  },
   finalized:        { label: "Finalised",     t: "progress" },
   briefed:          { label: "Briefed",       t: "progress" },
   concept_received: { label: "Concept In",    t: "action"   },
@@ -93,6 +99,10 @@ export const DECIDABLE_STATUSES = ["suggested", "shortlisted", "brand_reject"];
 
 /** A creator's display status: the furthest workflow signal we actually have. */
 export function creatorStatus(cr) {
+  // Takes priority over the live/demo/concept checks below — once the
+  // founder marks a creator Brand Dropped, that's the determining fact for
+  // the client regardless of whatever posts or assets were already in.
+  if (cr.status === "brand_dropped") return "brand_dropped";
   if (cr.live?.postUrl) return "posted";
   if (cr.demo?.status === "approved") return "video_approved";
   if (cr.demo?.status === "rework") return "rework";
