@@ -21,7 +21,7 @@ import { PortalAPI } from "../../lib/api";
 import { PHASES } from "../../lib/phases";
 import { PHASE_ICONS } from "../../lib/phaseIcons";
 import { chartTheme } from "../../lib/chartTheme";
-import { fmtNum, fmtINR, fmtCPV, fmtShare, prettyDate, dayLabel } from "../../lib/format";
+import { fmtNum, fmtINR, fmtINRExact, fmtCPV, fmtShare, prettyDate, dayLabel } from "../../lib/format";
 import { Dot } from "../Dot";
 import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
@@ -1317,6 +1317,24 @@ function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn 
             )}
             <span className="font-medium text-accent">ER: {cr.engRate}</span>
             {cr.avgLikes != null && <span>♥ {fmtNum(cr.avgLikes)} avg</span>}
+            {/* What this creator costs on this campaign — same exact-rupee
+                figure (fmtINRExact, not the abbreviated fmtINR) the Billing
+                page's per-creator line items use, since this is a line item
+                too, just read from the roster instead of a statement.
+                Styled as a pill (matching the Collab pill above) rather than
+                bare text, so the label and figure get their own padding and
+                don't run into the neighbouring stats when the row wraps.
+                Absent, not "₹0", for a creator not yet priced — see `cost`
+                in mapping.js toViewCreator. */}
+            {cr.cost != null && (
+              <span
+                title="What this creator costs on this campaign"
+                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-well/70 px-2 py-px"
+              >
+                <span className="text-sub">Creator cost</span>
+                <span className="font-medium text-ink">{fmtINRExact(cr.cost)}</span>
+              </span>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
