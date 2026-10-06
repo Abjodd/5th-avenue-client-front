@@ -1673,8 +1673,15 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   // now a commitment" — unlike the display status, which keeps moving
   // (Concept In, Video OK, Posted…) as production proceeds. See isLocked in
   // lib/delivery.js.
-  const executingCreators = indexedCreators.filter(({ cr }) => cr.locked);
-  const castingCreators = indexedCreators.filter(({ cr }) => !cr.locked);
+  // Brand Dropped is the one exception: the founder sets it on a creator who
+  // was locked and has since been dropped by the brand (frontend2's
+  // overrideLockedStatus), so `cr.locked` turns false the moment it happens.
+  // Without this they'd silently fall back to Creators, as if they'd never
+  // been confirmed — wrong, since the brand already saw them on the roster.
+  // They stay on Execution, now reading Brand Dropped (see STATUS_MAP).
+  const inExecution = (cr) => cr.locked || cr.rawStatus === "brand_dropped";
+  const executingCreators = indexedCreators.filter(({ cr }) => inExecution(cr));
+  const castingCreators = indexedCreators.filter(({ cr }) => !inExecution(cr));
   /* Deliverables come off the campaign view-model (mapping.js → portalMetrics
      totalDeliverables), not off a per-creator display string. This used to
      regex the digits out of `cr.deliverables`, which mapping.js hardcoded to
@@ -1687,7 +1694,7 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   // shortlisted/rework…) is still in Creators; anything needing input on a
   // creator already locked in (concept/video review) has moved to Execution
   // along with them.
-  const needsActionTab = needsAction.some(cr => !cr.locked) ? "creators" : "execution";
+  const needsActionTab = needsAction.some(cr => !inExecution(cr)) ? "creators" : "execution";
 
   const engByCreator = creators.filter(c2 => c2.engRate !== "—").map(c2 => ({ label: c2.name.split(" ")[0], value: parseFloat(c2.engRate) }));
   const engByNiche = (() => { const g = {}, c2 = {}; creators.forEach(cr => { if (cr.engRate !== "—") { const n = cr.niche; g[n] = (g[n] || 0) + parseFloat(cr.engRate); c2[n] = (c2[n] || 0) + 1; } }); return Object.entries(g).map(([k, v]) => ({ label: k, value: Math.round((v / c2[k]) * 10) / 10 })); })();
