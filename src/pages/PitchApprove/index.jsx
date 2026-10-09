@@ -18,10 +18,12 @@
  * an access code rather than a login: this is a lightweight, single-purpose
  * share link, not a second front door into the real portal.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { Target, Users, MessageSquareQuote, Package, IndianRupee, CalendarRange } from "lucide-react";
 import { PitchAPI } from "../../lib/api";
 import { FALogo } from "../../components/primitives/FALogo";
+import { campaignBriefView } from "../../components/campaigns/mapping";
 
 export default function PitchApprove() {
   const { brandId } = useParams();
@@ -32,6 +34,13 @@ export default function PitchApprove() {
   const [errorMsg, setErrorMsg] = useState(null);
   const [client, setClient] = useState(null);
   const [profiles, setProfiles] = useState([]);
+  // Keyed by campaign id — each existing campaign's raw brief fields, as
+  // GET /api/pitch/:brandId now sends them (routes/pitch.js's
+  // campaignBriefsFor). Shaped into the six-field view on render via
+  // campaignBriefView(), the same function the real campaign detail page's
+  // Brief tab runs, so a brief can't read differently here than it does
+  // internally.
+  const [campaignBriefs, setCampaignBriefs] = useState({});
   // Draft decisions keyed by pitch id — only entries that differ from what's
   // persisted (p.status) live here; picking a card back to its saved state
   // removes its entry. Nothing here has reached the server yet.
@@ -45,9 +54,10 @@ export default function PitchApprove() {
   const load = useCallback(() => {
     setState("loading");
     PitchAPI.get(brandId, code)
-      .then(({ client: c, profiles: list }) => {
+      .then(({ client: c, profiles: list, campaigns: briefs }) => {
         setClient(c);
         setProfiles(list);
+        setCampaignBriefs(briefs || {});
         setDraft({});
         setState("ready");
       })
@@ -59,9 +69,35 @@ export default function PitchApprove() {
 
   useEffect(() => { load(); }, [load]);
 
-  // How many distinct campaigns are represented — only worth labelling each
-  // card with its campaign when there's more than one to tell apart.
-  const multiCampaign = new Set(profiles.map((p) => p.campaignName).filter(Boolean)).size > 1;
+  // One group per campaign, in first-pitched order — each gets its own
+  // brief (campaignBriefs[campaignId], if that campaign has one yet) above
+  // its own row of candidates, same Brief → Creators order PitchDraftView
+  // uses for a prospect that has no campaign yet.
+  const groups = useMemo(() => {
+    const order = [];
+    const byKey = new Map();
+    for (const p of profiles) {
+      const key = p.campaignId || p.campaignName || "_";
+      if (!byKey.has(key)) { byKey.set(key, []); order.push(key); }
+      byKey.get(key).push(p);
+    }
+    return order.map((key) => {
+      const rows = byKey.get(key);
+      const campaignId = rows[0]?.campaignId || null;
+      return {
+        key,
+        campaignId,
+        campaignName: rows[0]?.campaignName || null,
+        profiles: rows,
+        ...campaignBriefView(campaignBriefs[campaignId] || null),
+      };
+    });
+  }, [profiles, campaignBriefs]);
+
+  // Only worth a heading (and the brief under it) per group when there's more
+  // than one campaign to tell apart — the common case is one client, one
+  // campaign, and that case should look exactly like it did before this.
+  const multiCampaign = groups.length > 1;
 
   const pick = (pitchId, status) => {
     const p = profiles.find((x) => x.id === pitchId);
@@ -151,16 +187,28 @@ export default function PitchApprove() {
         {profiles.length === 0 ? (
           <p className="text-center text-body text-ink-2">Nothing's been pitched here yet — check back soon.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-            {profiles.map((p) => (
-              <PitchCard
-                key={p.id}
-                p={p}
-                status={displayStatus(p)}
-                dirty={draft[p.id] !== undefined}
-                showCampaign={multiCampaign}
-                onPick={(status) => pick(p.id, status)}
-              />
+          <div className="flex flex-col gap-14 sm:gap-20">
+            {groups.map((g) => (
+              <section key={g.key}>
+                {/* Only a heading when there's more than one campaign to tell
+                    apart — a single-campaign link looks exactly as it did
+                    before brief sections existed. */}
+                {multiCampaign && g.campaignName && (
+                  <h2 className="mb-6 text-center font-serif text-title text-ink sm:mb-8">{g.campaignName}</h2>
+                )}
+                <BriefSection briefView={g.briefView} briefLocked={g.briefLocked} />
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+                  {g.profiles.map((p) => (
+                    <PitchCard
+                      key={p.id}
+                      p={p}
+                      status={displayStatus(p)}
+                      dirty={draft[p.id] !== undefined}
+                      onPick={(status) => pick(p.id, status)}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
@@ -191,7 +239,7 @@ export default function PitchApprove() {
   );
 }
 
-function PitchCard({ p, status, dirty, showCampaign, onPick }) {
+function PitchCard({ p, status, dirty, onPick }) {
   const locked = p.shipped; // already moved on — the call here is final
   // A view-count of exactly 0 is the stale HikerAPI artefact from before the
   // media-type fix (photo/carousel posts reported play_count: 0 rather than
@@ -257,12 +305,6 @@ function PitchCard({ p, status, dirty, showCampaign, onPick }) {
           the same height on every card in a row, whether or not this one
           has a campaign tag above it. */}
       <div className="mt-auto flex w-full flex-col items-center pt-4">
-        {showCampaign && p.campaignName && (
-          <div className="mb-4 rounded-full bg-well px-3 py-1 text-[11px] text-ink-3">
-            For <span className="text-ink-2">{p.campaignName}</span>
-          </div>
-        )}
-
         {locked ? (
           <div className="flex items-center gap-1.5 py-2.5 text-caption font-medium text-ink-3">
             <svg viewBox="0 0 24 24" className="size-3.5 fill-ink-3" aria-hidden>
@@ -293,6 +335,54 @@ function PitchCard({ p, status, dirty, showCampaign, onPick }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── BRIEF SECTION ───────────────────────────────────────────────────────
+   An existing campaign's brief, shown above the creators pitched for it —
+   same six fields and icons as the real campaign detail page's own Brief
+   tab (BriefPage in components/campaigns/CampaignDetail.jsx), restyled for
+   this page's editorial palette (bg-card/border-line/text-ink-*, same as
+   PitchDraftView's own brief section) rather than the portal's working-
+   dashboard one. Renders nothing for a campaign with no brief yet, same as
+   that tab does — a client shouldn't be told "Awaiting input" six times
+   over before anyone on the team has written a word of it. */
+const BRIEF_FIELDS = [
+  ["Objective", "objective", Target],
+  ["Target Audience", "targetAudience", Users],
+  ["Key Messages", "keyMessages", MessageSquareQuote],
+  ["Deliverables", "deliverables", Package],
+  ["Budget", "budget", IndianRupee],
+  ["Timeline", "timeline", CalendarRange],
+];
+
+function BriefSection({ briefView, briefLocked }) {
+  if (!briefView) return null;
+  return (
+    <div className="mx-auto mb-10 max-w-3xl sm:mb-14">
+      <p className="mb-4 text-center font-mono text-eyebrow uppercase tracking-[0.18em] text-ink-3">The brief</p>
+      <div className="overflow-hidden rounded-2xl border border-line bg-card px-5 shadow-card sm:px-7">
+        {BRIEF_FIELDS.map(([label, key, Icon]) => {
+          const val = briefView[key];
+          return (
+            <div key={key} className="flex items-start gap-3 border-b border-line py-4 last:border-b-0 sm:gap-4">
+              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[9px] bg-accent-muted text-accent">
+                <Icon size={14} strokeWidth={1.9} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</div>
+                <div className={`mt-0.5 whitespace-pre-wrap text-body leading-relaxed ${val ? "text-ink-2" : "italic text-ink-3"}`}>
+                  {val || "Awaiting input"}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-center text-[11px] italic text-ink-3">
+        {briefLocked ? "Signed off by Fifth Avenue." : "Still under review by Fifth Avenue — may change before it's locked."}
+      </p>
     </div>
   );
 }

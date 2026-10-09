@@ -32,6 +32,7 @@ import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { usePortalCampaigns } from "../lib/usePortalData";
 import { usePersistentState } from "../lib/usePersistentState";
+import { useIsMobile } from "../lib/useIsMobile";
 import { fmtNum, fmtINR, fmtINRExact, fmtCPV, fmtShare, prettyDate, initials, dayLabel } from "../lib/format";
 import { INTRO_KEY } from "../lib/session";
 import { EASE, fadeUp } from "../lib/motion";
@@ -872,6 +873,162 @@ function AccountGrowth({ growth, palette }) {
 
 const EMPTY_FILTERS = Object.fromEntries(FILTER_GROUPS.map((g) => [g.id, []]));
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE DASHBOARD — a separate, purpose-built render for a phone-width
+   viewport rather than the desktop tree squeezed into one column.
+
+   Reuses the exact same derived data OverviewDashboard already computed
+   (kpis, health, signals, activity, growth, …) and several of its smaller,
+   already-flex-row components (NeedsYouExtra, RecentActivity, SignalRow/Note,
+   AccountGrowth) verbatim — those are plain stacked rows with no grid or
+   hover-only affordance, so they carry over with nothing to adapt. What's
+   genuinely rebuilt is everything that WAS desktop-shaped: the cinematic
+   hero/3D orbit is dropped for a one-line greeting, the flip-to-reveal KPI
+   ledger becomes plain tap-free stat cards, and the filterable, grouped
+   creator table becomes a flat "top creators" list.
+
+   Pipeline/goals, the Performance section and the Content grid are not here
+   yet — this is the pilot pass the client asked to see first; "View all
+   campaigns" below is the way to the fuller breakdown until those get their
+   own mobile cut.
+
+   Deliberately computed off the UNFILTERED roster (allCreators/list), not
+   `creators`/`kpis`/`filteredKpis` above: those follow the Overview filter
+   bar's persisted state (same localStorage key on every device), and mobile
+   has no filter UI to show or clear it from — so a filter left set on a
+   desktop session must not silently narrow what the client sees here. */
+function MobileStat({ label, value, sub, wide, tone }) {
+  return (
+    <div className={`rounded-[14px] border border-line bg-glass-soft px-3.5 py-3 ${wide ? "col-span-2" : ""}`}>
+      <div className="microlabel mb-1 text-[9.5px] leading-none">{label}</div>
+      <div
+        className={`tnum font-bold leading-tight ${wide ? "text-[28px]" : "text-[17px]"}`}
+        style={{ color: tone || "var(--ink)" }}
+      >
+        {value}
+      </div>
+      {sub && <div className="mt-0.5 truncate text-[10px] text-mute">{sub}</div>}
+    </div>
+  );
+}
+
+function MobileTopCreators({ creators, setPage }) {
+  const top = useMemo(
+    () => [...creators].filter((c) => c.er != null).sort((a, b) => b.er - a.er).slice(0, 6),
+    [creators],
+  );
+  if (!top.length) return null;
+  return (
+    <div className="mt-7">
+      <div className="microlabel mb-2.5">Who&rsquo;s moving the needle</div>
+      <Panel reveal className="divide-y divide-line overflow-hidden">
+        {top.map((cr) => (
+          <button
+            key={cr.key}
+            onClick={() => setPage("campaigns", { campaignId: cr.campaignId })}
+            className="flex w-full items-center gap-3 px-4 py-3 text-left"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12.5px] font-semibold text-ink">{cr.name}</span>
+              <span className="block truncate text-[10.5px] text-mute">{cr.campaignName}</span>
+            </span>
+            <span className="tnum shrink-0 text-[13px] font-bold text-accent">{cr.er.toFixed(1)}%</span>
+          </button>
+        ))}
+      </Panel>
+    </div>
+  );
+}
+
+function OverviewMobile({
+  firstName, clientName, kpis, health, cpv, savedVsIndustry,
+  signalHint, actionSignals, noteSignals, totalActionable, queues, go,
+  activity, growth, allCreators, setPage, P,
+}) {
+  return (
+    <div className="relative min-h-screen px-4 pb-12 pt-5">
+      {/* Greeting — no cinematic intro, no orbit: those are the desktop
+          hero's own flourish and just extra weight here. */}
+      <div className="mb-5">
+        <div className="microlabel mb-1.5 text-[10px] tracking-[0.16em]">
+          {clientName} · {kpis.campaigns} campaign{kpis.campaigns === 1 ? "" : "s"}
+        </div>
+        <h1 className="font-serif text-[26px] font-bold italic leading-tight text-ink">
+          {greeting()}, <span className="text-accent">{firstName}</span>.
+        </h1>
+      </div>
+
+      {/* Where you stand — views first, since that's the number a client
+          opens this for; plain cards, not the desktop ledger's flip-on-hover
+          back face, which has no equivalent gesture on a first mobile tap. */}
+      <div>
+        <div className="microlabel mb-2.5">Where you stand</div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <MobileStat wide label="Views" value={fmtNum(kpis.views)} sub="across creators" />
+          <MobileStat label="Campaign progress" value={health ? `${Math.round(health.value)}%` : "—"} sub={health ? `avg across ${health.of} active` : "nothing in flight"} />
+          <MobileStat label="Active campaigns" value={`${kpis.active}/${kpis.campaigns}`} sub={`${kpis.completed} completed`} />
+          <MobileStat label="Creators live" value={`${kpis.live}/${kpis.creators}`} sub="on the roster" />
+          <MobileStat label="Avg engagement" value={`${kpis.avgER.toFixed(1)}%`} sub={kpis.erMeasured ? `on ${kpis.erMeasured} live post${kpis.erMeasured === 1 ? "" : "s"}` : "nothing live yet"} />
+          <MobileStat label="Campaign budget" value={fmtINR(kpis.budget || null)} sub="committed" />
+          <MobileStat label="CPV" value={fmtCPV(cpv)} sub="external, on measured views" tone="var(--green)" />
+          <MobileStat label="You saved" value={fmtINR(savedVsIndustry)} sub={savedVsIndustry != null ? "with Fifth-Avenue" : "no rate to compare yet"} tone="var(--green)" />
+        </div>
+      </div>
+
+      {/* Your call */}
+      <div className="mt-7">
+        <div className="microlabel mb-1">Over to you</div>
+        <div className="mb-2.5 text-[13px] font-semibold leading-snug text-ink">{signalHint}</div>
+        {actionSignals.length > 0 && (
+          <Panel reveal className="divide-y divide-line overflow-hidden">
+            {actionSignals.map((s, i) => (
+              <SignalRow key={s.id} signal={s} onGo={() => go(s)} P={P} first={i === 0 && actionSignals.length > 1} />
+            ))}
+          </Panel>
+        )}
+        {totalActionable === 0 && (
+          <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+            <Radio size={15} className="text-green" />
+            You&rsquo;re all caught up — nothing is waiting on your call.
+          </p>
+        )}
+        <NeedsYouExtra queues={queues} setPage={setPage} P={P} />
+        {noteSignals.length > 0 && (
+          <div className={totalActionable > 0 ? "mt-5 flex flex-col gap-3" : "mt-3 flex flex-col gap-3"}>
+            {noteSignals.map((s) => (
+              <SignalNote key={s.id} signal={s} onGo={() => go(s)} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Growth — AccountGrowth already reflows to one column below `lg`,
+          so it carries over unchanged. */}
+      <div className="mt-7">
+        <div className="microlabel mb-2.5">What the work did once it was live.</div>
+        <AccountGrowth growth={growth} palette={P} />
+      </div>
+
+      <MobileTopCreators creators={allCreators} setPage={setPage} />
+
+      {/* Recent activity */}
+      <div className="mt-7">
+        <div className="microlabel mb-2.5">Recently</div>
+        <RecentActivity activity={activity} queues={queues} setPage={setPage} P={P} />
+      </div>
+
+      {/* Pipeline, goals-by-service, Performance and Content aren't in this
+          pilot pass yet — the full breakdown stays one tap away. */}
+      <button
+        onClick={() => setPage("campaigns")}
+        className="mt-8 flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-3 text-[13px] font-semibold text-accent"
+      >
+        View all campaigns <ArrowRight size={14} />
+      </button>
+    </div>
+  );
+}
+
 export default function OverviewDashboard() {
   const { P, setPage } = useApp();
   const { user } = useAuth();
@@ -880,6 +1037,7 @@ export default function OverviewDashboard() {
   const firstName = user?.name?.split(/\s+/)[0] || clientName;
 
   const { data: campaigns, error, retry } = usePortalCampaigns(); // null = loading
+  const isMobile = useIsMobile();
   // Persisted: a filter holds until it is cleared, not until you look at
   // another page. "Clear all" in the filter bar is the way out.
   //
@@ -960,6 +1118,15 @@ export default function OverviewDashboard() {
   // no rate to compare at all, so the tile's "no rate to compare yet" state
   // is unaffected.
   const savedVsIndustry = savedVsIndustryRaw == null ? null : Math.max(0, savedVsIndustryRaw);
+  // Mobile has no filter UI (OverviewMobile) and `creators` above follows
+  // the Overview filter bar's persisted state, so its own KPIs are computed
+  // fresh off the unfiltered roster rather than reusing kpis/cpv/
+  // savedVsIndustry above — those would quietly narrow to whatever filter
+  // this browser last left set, with no control here to see or clear it.
+  const mobileKpis = useMemo(() => summarise(list, allCreators), [list, allCreators]);
+  const mobileCpv = cpvOf(mobileKpis.budget, mobileKpis.views);
+  const mobileSavedRaw = savedVsIndustryOf(mobileKpis.budget, mobileKpis.views);
+  const mobileSaved = mobileSavedRaw == null ? null : Math.max(0, mobileSavedRaw);
   const health = useMemo(() => healthScore(list), [list]);
   const phases = useMemo(() => pipeline(list), [list]);
   const busiestPhase = useMemo(
@@ -1032,6 +1199,30 @@ export default function OverviewDashboard() {
 
   if (error) return <ErrorState message={error} onRetry={retry} />;
   if (!campaigns) return <PageSkeleton />;
+
+  if (isMobile) {
+    return (
+      <OverviewMobile
+        firstName={firstName}
+        clientName={clientName}
+        kpis={mobileKpis}
+        health={health}
+        cpv={mobileCpv}
+        savedVsIndustry={mobileSaved}
+        signalHint={signalHint}
+        actionSignals={actionSignals}
+        noteSignals={noteSignals}
+        totalActionable={totalActionable}
+        queues={queues}
+        go={go}
+        activity={activity}
+        growth={growth}
+        allCreators={allCreators}
+        setPage={setPage}
+        P={P}
+      />
+    );
+  }
 
   return (
     <div className="relative min-h-screen">

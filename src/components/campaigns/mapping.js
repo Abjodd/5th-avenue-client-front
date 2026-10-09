@@ -139,7 +139,7 @@ const reviewView = (a) => ({ ...assetView(a), comments: toAssetComments(a?.comme
    Null while nobody has decided yet, and the row renders nothing rather than a
    dash — same rule as the rest of this module, an unanswered question is not a
    value. Labels mirror COLLAB_TYPES in 5th-internal-front Campaigns/index.jsx. */
-const COLLAB_LABELS = { collab: "Collab", non_collab: "Non-Collab" };
+const COLLAB_LABELS = { collab: "Collab", non_collab: "Non-Collab", ugc: "UGC" };
 
 /* The brand's answer, read off the roster status rather than off the audit
    record beside it — a status the TEAM set by hand has to read here exactly
@@ -281,10 +281,15 @@ const briefText = (v) =>
     ? v.filter((x) => x != null).map((x) => String(x).trim()).filter(Boolean).join(" · ")
     : (v || "");
 
-export function toViewCampaign(c) {
-  const phase = campaignPhaseOf(c);
-  const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
-  const brief = c.brief && typeof c.brief === "object" ? c.brief : null;
+/* Shapes a campaign's raw `brief` (plus whatever decides locked vs. pending —
+   see briefLockedOf) into the six-field view every "show this campaign's
+   brief" surface uses: the detail page's own Brief tab (toViewCampaign,
+   below) and the public pitch link's per-campaign brief (PitchApprove),
+   which shows the same six fields for an existing campaign alongside
+   whatever's been pitched for it — one shaping function so the two can't
+   drift into reading a brief differently. */
+export function campaignBriefView(c) {
+  const brief = c?.brief && typeof c.brief === "object" ? c.brief : null;
   const briefLocked = briefLockedOf(c);
   const briefView = brief ? {
     objective: briefText(brief.objective), targetAudience: briefText(brief.audience),
@@ -294,7 +299,7 @@ export function toViewCampaign(c) {
     // hasBudget), and this is the brand's OWN brief — an em dash reads as a
     // figure we're withholding, when the truth is that it hasn't been set yet
     // and they are the ones who set it.
-    budget: brief.budget || (Number(c.budget) > 0 ? fmtINR(Number(c.budget)) : "To be confirmed"),
+    budget: brief.budget || (Number(c?.budget) > 0 ? fmtINR(Number(c.budget)) : "To be confirmed"),
     timeline: briefText(brief.timeline),
     // No per-field status here. It used to carry a `vars` map, but every entry
     // was the same value derived from `briefLocked` — so the detail view painted six
@@ -303,6 +308,13 @@ export function toViewCampaign(c) {
     // real, it has to come from the backend rather than be fanned out from one
     // boolean.
   } : null;
+  return { briefView, briefLocked };
+}
+
+export function toViewCampaign(c) {
+  const phase = campaignPhaseOf(c);
+  const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
+  const { briefView, briefLocked } = campaignBriefView(c);
 
   /* Real aggregates over creators that actually have tracking data.
 
@@ -408,10 +420,11 @@ export function toViewCampaign(c) {
     growthPerCreator,
     avgPositivity,
     lastFetched,
-    // Same list-or-string guard as briefView: this is the card's one-line
-    // summary of the objective, and an array here would concatenate exactly
-    // the way `deliverables` did on the brief tab.
-    brief: briefText(brief?.objective),
+    // Same value briefView.objective already is (both run the same
+    // briefText(brief.objective) — see campaignBriefView above); reused
+    // rather than recomputed since the raw `brief` object is no longer in
+    // scope here.
+    brief: briefView?.objective || '',
     lockedBrief: briefLocked ? briefView : null,
     pendingBrief: !briefLocked ? briefView : null,
     status: phase === "completed" ? "done" : "active",
