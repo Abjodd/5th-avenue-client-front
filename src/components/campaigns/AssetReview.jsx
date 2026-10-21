@@ -34,6 +34,10 @@ export const ASSETS = {
    — anything else is offered as a button rather than guessed into an iframe
    that would render as a Google error page. */
 const DRIVE_ID = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([A-Za-z0-9_-]{10,})/;
+// A concept is often dropped in as a live Docs/Sheets/Slides link rather than
+// an exported file — docs.google.com/<kind>/d/<id>/edit... — which has the
+// same /preview embeddable form, keyed off the same id and kind.
+const GOOGLE_DOC = /docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([A-Za-z0-9_-]+)/;
 const VIDEO_FILE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 const IMAGE_FILE = /\.(png|jpe?g|webp|gif)(\?|#|$)/i;
 
@@ -41,10 +45,55 @@ export function assetEmbed(url) {
   if (!url) return null;
   const drive = DRIVE_ID.exec(url);
   if (drive) return { kind: "frame", src: `https://drive.google.com/file/d/${drive[1]}/preview` };
+  const doc = GOOGLE_DOC.exec(url);
+  if (doc) return { kind: "frame", src: `https://docs.google.com/${doc[1]}/d/${doc[2]}/preview` };
   if (VIDEO_FILE.test(url)) return { kind: "video", src: url };
   // A concept often arrives as a board or a still rather than a cut.
   if (IMAGE_FILE.test(url)) return { kind: "image", src: url };
   return null;
+}
+
+/* The black preview pane itself, pulled out of the modal below so a second
+   surface (CampaignDetail's "Concept & Demo" tab) can show the same embed —
+   iframe, video, image or the "can't preview, here's the link" fallback —
+   without copying this branch a second time and the two quietly drifting
+   apart on which links embed and which don't.
+
+   `size`/`fallbackSize` are Tailwind height classes so each caller can fit it
+   to its own layout (the modal's responsive md:58% column vs. a fixed half-
+   width panel); everything else about the pane — what embeds, what falls
+   back, the "Open the file" link — stays identical everywhere it's used. */
+export function AssetPreviewPane({
+  url, label, noun, Icon,
+  size = "h-[46vh] md:h-[62vh]",
+  fallbackSize = "h-[30vh] md:h-[62vh]",
+}) {
+  const embed = assetEmbed(url);
+  return (
+    <div className="flex w-full shrink-0 items-center justify-center bg-black">
+      {embed?.kind === "frame" ? (
+        <iframe src={embed.src} title={label} allow="autoplay" allowFullScreen className={`w-full border-0 ${size}`}/>
+      ) : embed?.kind === "video" ? (
+        <video src={embed.src} controls playsInline className={`w-full object-contain ${size}`}/>
+      ) : embed?.kind === "image" ? (
+        <img src={embed.src} alt={label} className={`w-full object-contain ${size}`}/>
+      ) : (
+        /* No link, or one we can't embed. */
+        <div className={`flex w-full flex-col items-center justify-center gap-3 px-6 text-center ${fallbackSize}`}>
+          <Icon size={26} strokeWidth={1.6} className="text-white/40"/>
+          <p className="text-[12px] leading-relaxed text-white/70">
+            {url ? "This file can't be previewed here." : `No ${noun} has been attached to this one yet.`}
+          </p>
+          {url && (
+            <a href={url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3 py-1.5 text-[11.5px] font-semibold text-white no-underline transition-colors hover:bg-white/10">
+              Open the file <ExternalLink size={12}/>
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* One note. The brand's own sit right and tinted, the team's left and plain —
@@ -80,7 +129,6 @@ export default function AssetReview({ creator, asset, campaignId, onClose, onPos
   // (a payload predating `ref`, say) leaves the panel readable but read-only,
   // rather than offering a box whose Send can only fail.
   const canPost = !!(campaignId && creator.ref && (user?.brandId || user?.clientName));
-  const embed = assetEmbed(file.url);
 
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
@@ -139,34 +187,8 @@ export default function AssetReview({ creator, asset, campaignId, onClose, onPos
             thread costs no height, so the work gets the window. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
 
-          <div className="flex shrink-0 items-center justify-center bg-black md:w-[58%]">
-            {embed?.kind === "frame" ? (
-              <iframe src={embed.src} title={`${meta.label} — ${creator.name}`} allow="autoplay"
-                allowFullScreen className="h-[46vh] w-full border-0 md:h-[62vh]"/>
-            ) : embed?.kind === "video" ? (
-              <video src={embed.src} controls playsInline className="h-[46vh] w-full object-contain md:h-[62vh]"/>
-            ) : embed?.kind === "image" ? (
-              <img src={embed.src} alt={`${meta.label} — ${creator.name}`}
-                className="h-[46vh] w-full object-contain md:h-[62vh]"/>
-            ) : (
-              /* No link, or one we can't embed. The status already reads in
-                 the header, so this says the other half — whether there is
-                 anything to look at at all. */
-              <div className="flex h-[30vh] w-full flex-col items-center justify-center gap-3 px-6 text-center md:h-[62vh]">
-                <meta.Icon size={26} strokeWidth={1.6} className="text-white/40"/>
-                <p className="text-[12px] leading-relaxed text-white/70">
-                  {file.url
-                    ? "This file can't be previewed here."
-                    : `No ${meta.noun} has been attached to this one yet.`}
-                </p>
-                {file.url && (
-                  <a href={file.url} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3 py-1.5 text-[11.5px] font-semibold text-white no-underline transition-colors hover:bg-white/10">
-                    Open the file <ExternalLink size={12}/>
-                  </a>
-                )}
-              </div>
-            )}
+          <div className="shrink-0 md:w-[58%]">
+            <AssetPreviewPane url={file.url} label={`${meta.label} — ${creator.name}`} noun={meta.noun} Icon={meta.Icon}/>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">

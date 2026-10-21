@@ -256,7 +256,15 @@ function NeedsYouExtra({ queues, setPage, P }) {
             <div key={q.campaignId} className="px-5 py-3.5">
               <div className="flex w-full items-center gap-1">
                 <button
-                  onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                  onClick={() => setPage("campaigns", {
+                    campaignId: q.campaignId,
+                    // Locked creators' decisions live on Execution (a live post
+                    // held on "Waiting on You", say); everyone else is still on
+                    // the Creators tab. focusKey scrolls straight to their row
+                    // instead of landing on the roster with no clue who.
+                    tab: lead.locked ? "execution" : "creators",
+                    focusKey: lead.key,
+                  })}
                   className="group flex min-w-0 flex-1 items-center gap-3 text-left"
                 >
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-[12px]" style={{ background: `${P.accent}14`, color: P.accent }}>
@@ -292,7 +300,11 @@ function NeedsYouExtra({ queues, setPage, P }) {
                     {q.rows.map((cr, j) => (
                       <button
                         key={j}
-                        onClick={() => setPage("campaigns", { campaignId: q.campaignId })}
+                        onClick={() => setPage("campaigns", {
+                          campaignId: q.campaignId,
+                          tab: cr.locked ? "execution" : "creators",
+                          focusKey: cr.key,
+                        })}
                         className="flex w-full items-center gap-2 py-1.5 text-left hover:bg-accent/[0.03]"
                       >
                         <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink">{cr.name}</span>

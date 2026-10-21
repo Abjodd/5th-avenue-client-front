@@ -103,7 +103,8 @@ export default function CampaignsPage() {
             doesn't rebuild as you open and close a campaign. */}
         {selected ? (
           <div className="pt-9">
-            <CampaignDetail campaign={selected} onClose={() => setSelected(null)} userRole={userRole}/>
+            <CampaignDetail campaign={selected} onClose={() => setSelected(null)} userRole={userRole}
+              initialTab={navParams?.tab} focusCreatorKey={navParams?.focusKey}/>
           </div>
         ) : (
         <>

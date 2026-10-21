@@ -220,6 +220,11 @@ export function flattenCreators(campaigns = []) {
         statusLabel: STATUS_MAP[statusId].label,
         statusTier: STATUS_MAP[statusId].t,
         waiting: ACTIONABLE_STATUSES.includes(statusId),
+        // Raw lock state — which of the two roster tabs this creator's row
+        // actually lives on (CampaignDetail splits Creators/Execution on this
+        // same check). Needed so a "needs a decision" row here can send the
+        // brand to the tab that will actually show them, not always Creators.
+        locked: cr.status === "locked",
         // Raw, independent of the statusId above — see LIVE_WAIT_LABELS.
         liveStatus: cr.live?.status || null,
         // Profile ER is the fallback only until something is live — that is the

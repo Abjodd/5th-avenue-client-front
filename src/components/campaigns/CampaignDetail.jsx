@@ -14,6 +14,7 @@ import {
   Target, Users, MessageSquareQuote, Package, IndianRupee, CalendarRange,
   FileText, Eye, Heart, MessageCircle, Share2, Check, X, Sparkles,
   CheckCircle2, XCircle, Wrench, MapPin, Cake, Lock, ChevronDown, HelpCircle,
+  Table2, LayoutGrid, FileSignature, Clapperboard, Rows3,
 } from "lucide-react";
 import { useApp } from "../../context";
 import { useAuth } from "../../context/AuthContext";
@@ -27,7 +28,7 @@ import { StatusPill, StatusLegend } from "../StatusPill";
 import AnimatedNumber from "../AnimatedNumber";
 import { STATUS_MAP, ACTIONABLE_STATUSES, LIVE_WAIT_LABELS, LIVE_WAIT_TIER, BCOLORS, chipOn, toAssetComments, hasAudienceData } from "./mapping";
 import { budgetLines } from "../../lib/portalMetrics";
-import AssetReview, { ASSETS } from "./AssetReview";
+import AssetReview, { ASSETS, AssetPreviewPane } from "./AssetReview";
 
 const useP = () => useApp().P;
 
@@ -1253,7 +1254,7 @@ function BrandDecision({ cr, onDecide }) {
 }
 
 /* ═══ CREATOR ROW — the brand's call, their assets, and the live post ═══ */
-function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn }) {
+function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn, focusKey, expandedOn }) {
   const P = useP();
   const st = STATUS_MAP[cr.status] || STATUS_MAP.yet_to_pick;
   // Independent of `st` above — a finished reel can be "Pending Creator" /
@@ -1270,13 +1271,20 @@ function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn 
   // A creator the brand hasn't taken on yet has no concept or cut to review, so
   // the two buttons would read "Not received" on the one row asking a question.
   const showAssets = !(pending || cr.decision === "reject");
+  // Arrived here off a specific "needs a decision" row — scroll to it and
+  // give it a moment's highlight (focusKey self-clears in CampaignDetail).
+  const rowRef = useRef(null);
+  const isFocused = !!focusKey && cr.key === focusKey;
+  useEffect(() => {
+    if (isFocused) rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [isFocused]);
 
   return (
-    <motion.div
+    <motion.div ref={rowRef}
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(idx * 0.035, 0.4), duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="mb-2 rounded-[16px] border bg-glass px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md"
-      style={{ borderColor: pending ? P.amber + "40" : cr.decision === "reject" ? P.red + "20" : "var(--color-line)" }}>
+      className={`mb-2 rounded-[16px] border bg-glass px-4 py-3.5 shadow-sm backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md ${isFocused ? "ring-2 ring-accent/50" : ""}`}
+      style={{ borderColor: isFocused ? P.accent : pending ? P.amber + "40" : cr.decision === "reject" ? P.red + "20" : "var(--color-line)" }}>
       <div className="flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[12.5px] font-semibold text-accent shadow-sm">{cr.avatar || cr.name[0]}</div>
         <div className="min-w-0 flex-1">
@@ -1367,6 +1375,15 @@ function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn 
         </button>
       </div>
 
+      {/* Expanded view — on for the whole panel (see ExpandedViewToggle),
+          same pane the table rows grow, just under the card instead of a
+          colspan row. */}
+      {expandedOn && showAssets && (
+        <div className="mt-2.5 border-t border-line pt-2.5">
+          <CreatorAssetsExpanded cr={cr} idx={idx} campaignId={campaignId} onAssetComments={onAssetComments}/>
+        </div>
+      )}
+
       <AnimatePresence initial={false}>
         {expanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
@@ -1426,6 +1443,337 @@ function Metric({ Icon, value, label }) {
       <Icon size={13} strokeWidth={1.9} className="text-mute" />
       <b className="text-ink">{fmtNum(value)}</b> {label}
     </span>
+  );
+}
+
+/* ═══ VIEW TOGGLE — Cards vs Table ═══
+   Global, not per-tab: one choice in state (CampaignDetail), handed to both
+   the Creators and the Execution panel, so switching on one holds on the
+   other. Built for brands who ran this off a spreadsheet for years and would
+   rather keep reading one than learn a new shape — the table isn't a lesser
+   view, just a denser one, so this is a segmented choice rather than a
+   feature switch like Advance Stats below it. */
+function ViewToggle({ table, onToggle }) {
+  return (
+    <div className="inline-flex items-center rounded-full border border-line bg-glass p-0.5">
+      <button type="button" onClick={() => table && onToggle()}
+        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${!table ? "bg-accent/[0.1] text-accent shadow-sm" : "text-sub hover:text-ink"}`}>
+        <LayoutGrid size={12} strokeWidth={2.2}/> Cards
+      </button>
+      <button type="button" onClick={() => table || onToggle()}
+        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${table ? "bg-accent/[0.1] text-accent shadow-sm" : "text-sub hover:text-ink"}`}>
+        <Table2 size={12} strokeWidth={2.2}/> Table
+      </button>
+    </div>
+  );
+}
+
+/* ═══ EXPANDED VIEW TOGGLE ═══
+   Replaces the old standalone "Concept & Demo" tab. One switch, shared by
+   Creators and Execution the same way Cards/Table is (see ViewToggle above)
+   — on, every row with something to review grows its own concept/demo pane
+   in place; off, the roster is just the roster. */
+function ExpandedViewToggle({ enabled, onToggle }) {
+  return (
+    <button type="button" onClick={onToggle} title="Show each creator's concept and demo under their own row"
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-all duration-200 ${
+        enabled
+          ? "border-accent/30 bg-accent/[0.1] text-accent shadow-sm"
+          : "border-line bg-glass text-sub hover:border-accent/30 hover:text-accent"
+      }`}>
+      <Rows3 size={12} strokeWidth={2.2}/> Expanded view
+    </button>
+  );
+}
+
+/* One reviewable asset, compressed for a table cell: the same open-the-review
+   button and status word AssetButton shows on a card, just without the pill
+   border — a table row already has its own row border doing that job, so a
+   second one per cell reads as a grid within a grid. */
+function TableAssetCell({ asset, onOpen }) {
+  const notes = asset.comments.length;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <button onClick={onOpen}
+        className="inline-flex items-center gap-1 rounded-full border border-line bg-glass px-2 py-0.5 text-[10.5px] font-semibold text-accent transition-colors hover:border-accent/30">
+        View
+        {notes > 0 && <span className="rounded-full bg-accent/[0.12] px-1 text-[9.5px] font-bold leading-[13px]">{notes}</span>}
+      </button>
+      <span className={`text-[10.5px] font-medium ${ASSET_TIER_CLS[asset.t] || "text-mute"}`}>{asset.label}</span>
+    </span>
+  );
+}
+
+/* BrandDecision, compressed into two icon buttons for a Decision column —
+   same approve/reject write as the card's version (same onDecide call, same
+   roster status underneath), just without the "are they a yes?" sentence,
+   which a column header ("Decision") already says once for the whole table. */
+function TableDecision({ onDecide }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const choose = async (decision) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try { await onDecide(decision); }
+    catch (e) { setError(e.body?.error || "Couldn't save — try again."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" disabled={busy} onClick={() => choose("approve")} title="Approve"
+        className="inline-flex size-6 items-center justify-center rounded-full border border-line bg-glass text-sub transition-colors hover:border-green/50 hover:text-green disabled:opacity-50">
+        <Check size={12} strokeWidth={2.6}/>
+      </button>
+      <button type="button" disabled={busy} onClick={() => choose("reject")} title="Pass"
+        className="inline-flex size-6 items-center justify-center rounded-full border border-line bg-glass text-sub transition-colors hover:border-red/50 hover:text-red disabled:opacity-50">
+        <X size={12} strokeWidth={2.6}/>
+      </button>
+      {error && <span className="size-1.5 shrink-0 rounded-full bg-red" title={error}/>}
+    </div>
+  );
+}
+
+/* The roster, as rows instead of cards. Every figure a CreatorRow card shows
+   is still here, just a column instead of a line — nothing in Execution or
+   Creators is Cards-only. The one thing that stays behind a disclosure here
+   too is this creator's own audience breakdown: still gated on Advance
+   Stats, and its arrow only appears on a row where there's actually
+   something to expand (hasAudienceData), same rule the card's own "Profile"
+   disclosure follows. */
+const TABLE_COLS = 16;
+
+function CreatorTableRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn, focusKey, expandedOn }) {
+  const [expanded, setExpanded] = useState(false);
+  const [reviewing, setReviewing] = useState(null);
+  const st = STATUS_MAP[cr.status] || STATUS_MAP.yet_to_pick;
+  const liveLabel = LIVE_WAIT_LABELS[cr.liveStatus];
+  const pending = cr.decidable && !cr.decision;
+  const showAssets = !(pending || cr.decision === "reject");
+  const canExpand = advanceOn && hasAudienceData(cr.audience);
+  // cr.tracking, NOT cr.live.tracking — tracking is its own sibling field
+  // (see toViewCreator in mapping.js), same source LivePost's card view reads.
+  const t = cr.tracking;
+  const rowRef = useRef(null);
+  const isFocused = !!focusKey && cr.key === focusKey;
+  useEffect(() => {
+    if (isFocused) rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [isFocused]);
+
+  // Every cell shares these: centered both ways, generous enough padding that
+  // neighbouring columns don't visually run together, and a vertical divider
+  // so a dense row of numbers (Views/Likes/Comments/Shares, say) reads as
+  // separate cells rather than one long one — the actual complaint this
+  // revision answers.
+  const cellCls = "border-r border-line/70 px-4 py-3 align-middle text-center last:border-r-0";
+
+  return (
+    <>
+      <tr ref={rowRef} className={`border-t border-line transition-colors even:bg-well/30 hover:bg-accent/[0.04] ${isFocused ? "bg-accent/[0.08] ring-1 ring-inset ring-accent/40" : ""}`}>
+        <td className={`${cellCls} !text-left`}>
+          <div className="flex items-center gap-2">
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[10px] font-semibold text-accent">{cr.avatar || cr.name[0]}</div>
+            <div className="min-w-0">
+              {cr.url
+                ? <a href={cr.url} target="_blank" rel="noopener noreferrer" className="block truncate text-[11.5px] font-semibold text-accent no-underline hover:underline">{cr.handle}</a>
+                : <span className="block truncate text-[11.5px] font-semibold text-ink">{cr.handle}</span>}
+              <div className="truncate text-[10px] text-mute" title={`${cr.name} · ${cr.platform} · ${cr.followers}`}>{cr.name} · {cr.platform} · {cr.followers}</div>
+            </div>
+          </div>
+        </td>
+        <td className={`${cellCls} whitespace-nowrap text-sub`}>{cr.niche || "—"}</td>
+        <td className={`${cellCls} whitespace-nowrap`}>
+          {cr.collab
+            ? <span className="rounded-full border border-line bg-well/70 px-2 py-px text-[10.5px] font-medium text-sub">{cr.collab}</span>
+            : <span className="text-mute">—</span>}
+        </td>
+        <td className={`${cellCls} whitespace-nowrap`}>
+          <div className="flex flex-col items-center gap-1.5">
+            <StatusPill tier={st.t}>{st.label}</StatusPill>
+            {liveLabel && <StatusPill tier={LIVE_WAIT_TIER[cr.liveStatus]}>{liveLabel}</StatusPill>}
+            {cr.locked && (
+              <span className={`text-[10px] ${cr.deliverablesPosted >= cr.deliverableTarget ? "font-medium text-green" : "text-mute"}`}>
+                {cr.deliverables} posted
+              </span>
+            )}
+          </div>
+        </td>
+        <td className={`${cellCls} font-medium text-accent`}>{cr.engRate}</td>
+        <td className={cellCls}>{cr.avgLikes != null ? fmtNum(cr.avgLikes) : "—"}</td>
+        <td className={`${cellCls} whitespace-nowrap`}>{cr.cost != null ? fmtINRExact(cr.cost) : "—"}</td>
+        <td className={`${cellCls} whitespace-nowrap`}>
+          {showAssets ? <TableAssetCell asset={cr.conceptAsset} onOpen={() => setReviewing("concept")}/> : <span className="text-mute">—</span>}
+        </td>
+        <td className={`${cellCls} whitespace-nowrap`}>
+          {showAssets ? <TableAssetCell asset={cr.demoAsset} onOpen={() => setReviewing("demo")}/> : <span className="text-mute">—</span>}
+        </td>
+        <td className={`${cellCls} whitespace-nowrap`}>
+          {cr.live ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <a href={cr.live.postUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent no-underline hover:underline">View post ↗</a>
+              {cr.live.postedDate && <span className="text-[10px] text-mute">{prettyDate(cr.live.postedDate)}</span>}
+            </div>
+          ) : <span className="text-mute">—</span>}
+        </td>
+        <td className={cellCls}>{t?.views != null ? fmtNum(t.views) : "—"}</td>
+        <td className={cellCls}>{t?.likes != null ? fmtNum(t.likes) : "—"}</td>
+        <td className={cellCls}>{t?.comments != null ? fmtNum(t.comments) : "—"}</td>
+        <td className={cellCls}>{t?.forwards != null ? fmtNum(t.forwards) : "—"}</td>
+        <td className={`${cellCls} whitespace-nowrap`}>
+          {pending
+            ? <div className="flex justify-center"><TableDecision onDecide={(d) => onDecide(idx, d)}/></div>
+            : cr.decidable
+              ? <span className={cr.decision === "approve" ? "font-medium text-green" : "font-medium text-red"}>{cr.decision === "approve" ? "Approved" : "Passed"}</span>
+              : <span className="text-mute">—</span>}
+        </td>
+        <td className="px-2 py-3 text-center align-middle">
+          {canExpand && (
+            <button type="button" onClick={() => setExpanded((e) => !e)} aria-label={`${expanded ? "Hide" : "Show"} audience breakdown for ${cr.name}`}
+              className="rounded-full p-1 text-mute transition-colors hover:bg-well hover:text-accent">
+              <ChevronDown size={14} strokeWidth={2.2} className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}/>
+            </button>
+          )}
+        </td>
+      </tr>
+      {expanded && canExpand && (
+        <tr className="border-t border-line bg-accent/[0.02]">
+          <td colSpan={TABLE_COLS} className="px-5 py-3">
+            <div className="mb-1.5 flex items-center justify-center gap-1.5">
+              <Sparkles size={11} strokeWidth={2.2} className="text-accent"/>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-accent">Audience — {cr.name}</span>
+            </div>
+            <AudienceCharts creators={[cr]}/>
+          </td>
+        </tr>
+      )}
+      {/* Expanded view — on for the whole panel at once (see
+          ExpandedViewToggle), not a per-row disclosure, so this grows under
+          every row that has something to review rather than needing a click
+          each. */}
+      {expandedOn && showAssets && (
+        <tr className="border-t border-line bg-accent/[0.015]">
+          <td colSpan={TABLE_COLS} className="px-4 py-3">
+            <CreatorAssetsExpanded cr={cr} idx={idx} campaignId={campaignId} onAssetComments={onAssetComments}/>
+          </td>
+        </tr>
+      )}
+      <AnimatePresence>
+        {reviewing && (
+          <AssetReview key={reviewing} creator={cr} asset={reviewing} campaignId={campaignId}
+            onClose={() => setReviewing(null)}
+            onPosted={(asset, comments) => onAssetComments(idx, asset, comments)} />
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+function CreatorTable({ items, campaignId, onDecide, onAssetComments, advanceOn, focusKey, expandedOn }) {
+  // Column headers share the same divider/padding/centering the body cells
+  // use, so the grid lines run unbroken from header straight through to the
+  // last row — an actual spreadsheet grid, not just centered text floating
+  // in undifferentiated rows.
+  const headCls = "whitespace-nowrap border-r border-line/70 px-4 py-2.5 text-center last:border-r-0";
+  return (
+    <div className="max-h-[600px] overflow-auto rounded-[14px] border border-line">
+      <table className="w-full min-w-[1320px] border-collapse text-[11.5px]">
+        <thead className="sticky top-0 z-10 bg-well text-[10px] font-semibold uppercase tracking-[0.06em] text-mute shadow-sm">
+          <tr>
+            <th className={headCls}>Creator</th>
+            <th className={headCls}>Niche</th>
+            <th className={headCls}>Collab</th>
+            <th className={headCls}>Status</th>
+            <th className={headCls}>ER</th>
+            <th className={headCls}>Avg likes</th>
+            <th className={headCls}>Cost</th>
+            <th className={headCls}>Concept</th>
+            <th className={headCls}>Demo</th>
+            <th className={headCls}>Live post</th>
+            <th className={headCls}>Views</th>
+            <th className={headCls}>Likes</th>
+            <th className={headCls}>Comments</th>
+            <th className={headCls}>Shares</th>
+            <th className={headCls}>Decision</th>
+            <th className="w-9 px-2 py-2.5"/>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(({ cr, i }) => (
+            <CreatorTableRow key={i} cr={cr} idx={i} campaignId={campaignId}
+              onDecide={onDecide} onAssetComments={onAssetComments} advanceOn={advanceOn} focusKey={focusKey} expandedOn={expandedOn}/>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ═══ EXPANDED VIEW — concept/demo folded under the creator's own line ═══
+   Used to be its own "Concept & Demo" tab, one creator at a time,
+   theatre-style. The brand didn't want it off on its own — they review a
+   creator's work in the context of that creator's row, not in a separate
+   carousel they have to go find. "Expanded view" (the toggle in the Creators
+   and Execution toolbars) turns this on for every row at once instead: each
+   one opens its own pane, right under its own line item.
+
+   The shape carries over unchanged from the old tab: concept and demo sit
+   side by side while there's still a decision to make on them; once a post
+   is actually live, the pane collapses to the one thing that matters now —
+   the reel that went up, full width, with its own live numbers beneath it
+   (the same LivePost strip the roster rows already show). Same ratio, just
+   inline instead of behind a click. */
+function CreatorAssetsExpanded({ cr, idx, campaignId, onAssetComments }) {
+  const [reviewing, setReviewing] = useState(null); // "concept" | "demo" | null
+  const isLive = !!cr.live;
+
+  return (
+    <div className="rounded-[14px] border border-line/70 bg-well/20 p-2.5">
+      {isLive ? (
+        <div className="overflow-hidden rounded-[12px] border border-line shadow-sm">
+          <div className="flex items-center justify-between border-b border-line bg-glass px-3.5 py-2">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+              <Clapperboard size={13} strokeWidth={1.9} className="text-accent"/> Live reel
+            </span>
+            <button onClick={() => setReviewing("demo")} className="text-[10.5px] font-medium text-accent hover:underline">Open review</button>
+          </div>
+          <AssetPreviewPane url={cr.demoAsset?.url} label={`Live reel — ${cr.name}`} noun="cut" Icon={Clapperboard} size="h-[420px]" fallbackSize="h-[260px]"/>
+          <div className="border-t border-line px-3.5 py-2">
+            <LivePost cr={cr}/>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+          <div className="overflow-hidden rounded-[12px] border border-line shadow-sm">
+            <div className="flex items-center justify-between border-b border-line bg-glass px-3.5 py-2">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+                <FileSignature size={13} strokeWidth={1.9} className="text-accent"/> Concept
+              </span>
+              <span className={`text-[10.5px] font-medium ${ASSET_TIER_CLS[cr.conceptAsset?.t] || "text-mute"}`}>{cr.conceptAsset?.label}</span>
+            </div>
+            <AssetPreviewPane url={cr.conceptAsset?.url} label={`Concept — ${cr.name}`} noun="concept" Icon={FileSignature} size="h-[380px]" fallbackSize="h-[240px]"/>
+            <button onClick={() => setReviewing("concept")} className="block w-full border-t border-line px-3.5 py-1.5 text-center text-[10.5px] font-medium text-accent hover:underline">Open review</button>
+          </div>
+          <div className="overflow-hidden rounded-[12px] border border-line shadow-sm">
+            <div className="flex items-center justify-between border-b border-line bg-glass px-3.5 py-2">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+                <Clapperboard size={13} strokeWidth={1.9} className="text-accent"/> Demo video
+              </span>
+              <span className={`text-[10.5px] font-medium ${ASSET_TIER_CLS[cr.demoAsset?.t] || "text-mute"}`}>{cr.demoAsset?.label}</span>
+            </div>
+            <AssetPreviewPane url={cr.demoAsset?.url} label={`Demo video — ${cr.name}`} noun="cut" Icon={Clapperboard} size="h-[380px]" fallbackSize="h-[240px]"/>
+            <button onClick={() => setReviewing("demo")} className="block w-full border-t border-line px-3.5 py-1.5 text-center text-[10.5px] font-medium text-accent hover:underline">Open review</button>
+          </div>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {reviewing && (
+          <AssetReview key={reviewing} creator={cr} asset={reviewing} campaignId={campaignId}
+            onClose={() => setReviewing(null)}
+            onPosted={(asset, comments) => onAssetComments(idx, asset, comments)} />
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -1555,6 +1903,15 @@ function CastingStageFilter({ items, active, onChange }) {
 function CreatorsPanel({
   items, campaignId, onDecide, onAssetComments,
   advanceOn, onToggleAdvance, advanceAvailable, userRole,
+  // Cards vs Table — global across Creators and Execution (lifted to
+  // CampaignDetail), not a per-tab setting.
+  tableView, onToggleTableView,
+  // Expanded view — same lift-to-CampaignDetail, same-toggle-flips-both
+  // rule, now standing in for the old standalone "Concept & Demo" tab.
+  expandedOn, onToggleExpanded,
+  // Scroll-to-and-highlight a specific creator's row, arrived from Overview's
+  // "needs a decision" cards. Undefined on every other path into this panel.
+  focusKey,
   emptyTitle, emptyBody,
   // Present only on the Creators (casting) tab.
   stages, activeStage, onStageChange,
@@ -1572,6 +1929,8 @@ function CreatorsPanel({
       <div className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-full border border-accent/[0.06] bg-accent/[0.02] px-3 py-1.5">
         <span className="text-[10.5px] text-sub">Viewing as</span><span className="rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">{userRole === "management" ? "Mgmt" : "Exec"}</span>
         <div className="ml-auto flex items-center gap-2.5">
+          <ViewToggle table={tableView} onToggle={onToggleTableView}/>
+          <ExpandedViewToggle enabled={expandedOn} onToggle={onToggleExpanded}/>
           <AdvanceStatsToggle enabled={advanceOn} available={advanceAvailable} onToggle={onToggleAdvance}/>
           {stages
             ? <CastingStageFilter items={items} active={activeStage} onChange={onStageChange}/>
@@ -1601,13 +1960,19 @@ function CreatorsPanel({
           cap travels with the panel, not the page, so those stay in view
           while the roster itself scrolls underneath them. */}
       {filtered.length > 0 ? (
-        <div className="max-h-[600px] overflow-y-auto pr-1">
-          {filtered.map(({ cr, i }) => (
-            <CreatorRow key={i} cr={cr} idx={i} campaignId={campaignId}
-              onDecide={onDecide} onAssetComments={onAssetComments}
-              advanceOn={advanceOn && advanceAvailable}/>
-          ))}
-        </div>
+        tableView ? (
+          <CreatorTable items={filtered} campaignId={campaignId}
+            onDecide={onDecide} onAssetComments={onAssetComments}
+            advanceOn={advanceOn && advanceAvailable} focusKey={focusKey} expandedOn={expandedOn}/>
+        ) : (
+          <div className="max-h-[600px] overflow-y-auto pr-1">
+            {filtered.map(({ cr, i }) => (
+              <CreatorRow key={i} cr={cr} idx={i} campaignId={campaignId}
+                onDecide={onDecide} onAssetComments={onAssetComments}
+                advanceOn={advanceOn && advanceAvailable} focusKey={focusKey} expandedOn={expandedOn}/>
+            ))}
+          </div>
+        )
       ) : items.length > 0 ? (
         <div className="px-5 py-[34px] text-center">
           <Users size={24} strokeWidth={1.5} className="mx-auto mb-2 text-mute opacity-40" />
@@ -1626,15 +1991,47 @@ function CreatorsPanel({
 }
 
 /* ═══ CAMPAIGN DETAIL ═══ */
-export default function CampaignDetail({ campaign: c, onClose, userRole }) {
+export default function CampaignDetail({ campaign: c, onClose, userRole, initialTab, focusCreatorKey }) {
   const P = useP();
   const { user } = useAuth();
-  const [tab, setTab] = useState("overview");
+  // Execution first — but only if there's actually anyone there yet. A
+  // brand new campaign with nobody locked in has nothing to show on
+  // Execution, so that default would just be a detour through an empty
+  // screen on the way to the Creators tab they actually need. isAEO
+  // campaigns have neither tab, so they still land on Overview.
+  const [tab, setTab] = useState(() => {
+    if (initialTab) return initialTab;
+    if (c.service === "AEO") return "overview";
+    const inExec = (cr) => cr.locked || cr.rawStatus === "brand_dropped";
+    return (c.creators || []).some(inExec) ? "execution" : "creators";
+  });
+  // Arrived here off a "needs a decision" row on Overview — which creator,
+  // specifically. Scrolls their row into view and highlights it briefly, then
+  // clears itself so the highlight doesn't linger as a permanent fixture.
+  // Re-runs whenever a FRESH navigation hands in a tab/key (even to a campaign
+  // already open), rather than only on mount.
+  const [focusKey, setFocusKey] = useState(focusCreatorKey || null);
+  useEffect(() => {
+    if (!initialTab && !focusCreatorKey) return;
+    if (initialTab) setTab(initialTab);
+    if (!focusCreatorKey) return;
+    setFocusKey(focusCreatorKey);
+    const t = setTimeout(() => setFocusKey(null), 2600);
+    return () => clearTimeout(t);
+  }, [initialTab, focusCreatorKey]);
   const [creators, setCreators] = useState(c.creators || []);
   // The Creators-tab "Advance Stats" screen. Starts closed even when it's
   // available — the roster is still the thing most brands open this tab for,
   // and the toggle is right there at the top if they want the extra screen.
   const [advanceOn, setAdvanceOn] = useState(false);
+  // Cards vs Table, shared by the Creators and Execution tabs — one toggle
+  // flips both, because a brand who switched to Table on one doesn't expect
+  // to land back on Cards by clicking into the other.
+  const [tableView, setTableView] = useState(true);
+  // Expanded view — stands in for the old standalone "Concept & Demo" tab.
+  // Shared the same way: one switch, both tabs, so it doesn't reset itself
+  // walking from Creators to Execution.
+  const [expandedOn, setExpandedOn] = useState(false);
   // Which CASTING_STAGES bucket the Creators tab is filtered to, or null for
   // all of them. Lives here, not in CreatorsPanel, only because CreatorsPanel
   // is reused by Execution too, which doesn't have this filter at all.
@@ -1701,21 +2098,21 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
   const engBD = creators.length ? { creator: engByCreator, niche: engByNiche } : null;
 
   /* Growth needs at least two days of readings to be a line rather than a dot,
-     which growthSeries() enforces by returning [] below that — so the tab
-     appears only once there is something to plot. */
+     which growthSeries() enforces by returning [] below that — so its section
+     inside Overview (below) appears only once there is something to plot. */
   const growth = c.growth || [];
   const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "brief", label: "Brief" },
     ...(!isAEO ? [
-      { id: "creators", label: "Creators", count: castingCreators.length || null },
-      // Right after Creators: once a creator is locked, the roster question
-      // ("are they a yes?") is answered, and what's left to track is
-      // production — concept, demo, post. Its own tab keeps a 56-long
-      // Creators list from burying the handful actually mid-shoot.
+      // Execution first: once a creator's locked, production — concept,
+      // demo, post — is what's actually moving day to day, ahead of the
+      // slower-changing Creators shortlist.
       { id: "execution", label: "Execution", count: executingCreators.length || null },
+      { id: "creators", label: "Creators", count: castingCreators.length || null },
     ] : []),
-    ...(growth.length ? [{ id: "growth", label: "Growth" }] : []),
+    // Brief and Growth no longer get their own tabs — both are read-once
+    // reference material (what we agreed to do, how it's trended), so they're
+    // folded into Overview as sections instead of separate clicks.
+    { id: "overview", label: "Overview" },
     ...(c.queries ? [{ id: "queries", label: "Queries" }] : []),
   ];
 
@@ -1817,15 +2214,34 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                   )}
                   {!c.topAssets?.length && creators.length > 0 && <Observations creators={creators} topAssets={c.topAssets}/>}
                   <CampaignInsights insights={c.insights}/>
+
+                  {/* Brief and Growth used to be their own tabs; both are
+                      read-once reference material (what we agreed to do, how
+                      it's trended) rather than something checked daily like
+                      Execution or Creators, so they're sections here instead —
+                      one scroll, not three clicks. Growth still only shows up
+                      once there's enough data to plot (see `growth` above). */}
+                  <div className="mt-8 border-t border-line pt-6">
+                    <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Brief</div>
+                    <BriefPage lockedBrief={c.lockedBrief} pendingBrief={c.pendingBrief}/>
+                  </div>
+
+                  {growth.length > 0 && (
+                    <div className="mt-8 border-t border-line pt-6">
+                      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Growth</div>
+                      <GrowthChart growth={growth}
+                        perCreator={c.growthPerCreator || { rows: [], series: [] }}/>
+                    </div>
+                  )}
                 </div>
               )}
-
-              {tab === "brief" && <BriefPage lockedBrief={c.lockedBrief} pendingBrief={c.pendingBrief}/>}
 
               {tab === "creators" && (
                 <CreatorsPanel items={castingCreators} campaignId={c.id}
                   onDecide={decideCreator} onAssetComments={setAssetComments}
                   advanceOn={advanceOn} onToggleAdvance={() => setAdvanceOn((o) => !o)}
+                  tableView={tableView} onToggleTableView={() => setTableView((o) => !o)}
+                  expandedOn={expandedOn} onToggleExpanded={() => setExpandedOn((o) => !o)} focusKey={focusKey}
                   advanceAvailable={!!c.advanceStatsAvailable} userRole={userRole}
                   stages={CASTING_STAGES} activeStage={castingStage} onStageChange={setCastingStage}
                   emptyTitle={creators.length ? "Nobody left to decide on" : "No creators yet"}
@@ -1838,15 +2254,12 @@ export default function CampaignDetail({ campaign: c, onClose, userRole }) {
                 <CreatorsPanel items={executingCreators} campaignId={c.id}
                   onDecide={decideCreator} onAssetComments={setAssetComments}
                   advanceOn={advanceOn} onToggleAdvance={() => setAdvanceOn((o) => !o)}
+                  tableView={tableView} onToggleTableView={() => setTableView((o) => !o)}
+                  expandedOn={expandedOn} onToggleExpanded={() => setExpandedOn((o) => !o)} focusKey={focusKey}
                   advanceAvailable={!!c.advanceStatsAvailable} userRole={userRole}
                   legend={false}
                   emptyTitle="Nobody locked in yet"
                   emptyBody="Once a creator is locked, their concept, demo and live post tracking move here."/>
-              )}
-
-              {tab === "growth" && (
-                <GrowthChart growth={growth}
-                  perCreator={c.growthPerCreator || { rows: [], series: [] }}/>
               )}
 
               {tab === "queries" && c.queries?.map((q, i) => (

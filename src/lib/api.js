@@ -5,8 +5,8 @@
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
-async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
+async function request(path, options = {}, base = BASE) {
+  const res = await fetch(`${base}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
@@ -322,3 +322,31 @@ export const PitchDraftAPI = {
 // lib/phases.js, so pure modules can map a stage without pulling in this
 // fetch client. Re-exported for the callers that already import it here.
 export { STAGE_TO_PHASE, phaseOf } from "./phases";
+
+// AVA — the portal's built-in guide chatbot. Proxied through our own backend
+// (routes/ava.js in 5th-internal-back) so the Gemini key never reaches the
+// browser. Stateless on the server, so the widget carries the visible
+// history itself and resends it each turn.
+//
+// STILL IN DEVELOPMENT: the /api/ava/chat route isn't committed/pushed/
+// deployed yet (deliberately, per the plan to ship it later), so it does
+// not exist on the deployed Render backend that VITE_API_URL points at.
+// Rather than route every other API call through a local backend just to
+// test this one, AVA gets its OWN base — defaulting to localhost:4000,
+// where 5th-internal-back already runs in local dev with GEMINI_API_KEY
+// set (see its .env). Run `npm start` there while testing this widget.
+// VITE_AVA_API_URL can override it (e.g. once deployed, point it at the
+// same place as VITE_API_URL, or just delete this override and use BASE
+// directly).
+const AVA_BASE = import.meta.env.VITE_AVA_API_URL || "http://localhost:4000";
+
+export const AvaAPI = {
+  // history: [{ role: "user" | "model", text }], oldest first, NOT including
+  // `message`. Returns { reply, navigate?: { path, label } }.
+  chat: (message, history) =>
+    request(
+      `/api/ava/chat`,
+      { method: "POST", body: JSON.stringify({ message, history }) },
+      AVA_BASE,
+    ),
+};

@@ -168,7 +168,7 @@ export const hasAudienceData = (a) => !!a && (
  * `numDeliverables` override *or* the campaign's plan, so the creator can't be
  * mapped in isolation. See the DELIVERABLES block in lib/portalMetrics.js.
  */
-export function toViewCreator(cr, campaign) {
+export function toViewCreator(cr, campaign, i) {
   const followers = parseFollowers(cr.followers);
   const locked = isLocked(cr);
   const target = deliverableTarget(campaign, cr);
@@ -189,6 +189,11 @@ export function toViewCreator(cr, campaign) {
   } : null;
   const hasTracking = tracking && Object.values(tracking).some(v => v != null);
   return {
+    // Same formula flattenCreators() (portalMetrics.js) uses to key the
+    // Overview roster — so a "needs a decision" row there and this same
+    // creator's row here agree on identity without a second lookup, and
+    // Overview can hand CampaignDetail a key it can actually find.
+    key: `${campaign?.id}:${cr.handle || cr.name || i}`,
     name: cr.name || "—",
     handle: cr.handle ? (cr.handle.startsWith("@") ? cr.handle : `@${cr.handle}`) : "",
     url: profileUrl(cr),
@@ -313,7 +318,7 @@ export function campaignBriefView(c) {
 
 export function toViewCampaign(c) {
   const phase = campaignPhaseOf(c);
-  const creators = (c.creators || []).map(cr => toViewCreator(cr, c));
+  const creators = (c.creators || []).map((cr, i) => toViewCreator(cr, c, i));
   const { briefView, briefLocked } = campaignBriefView(c);
 
   /* Real aggregates over creators that actually have tracking data.
