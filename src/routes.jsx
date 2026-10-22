@@ -19,6 +19,8 @@ import { Navigate, Outlet, createBrowserRouter, useLocation } from "react-router
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { PageSkeleton } from "./components/PageStates";
 import NotFound from "./pages/NotFound";
+// import Ava from "./components/ava/Ava";
+import RouteSeo from "./seo/RouteSeo";
 
 /**
  * A data router does not reset scroll between routes, so navigating from
@@ -36,7 +38,18 @@ function RootLayout() {
     if (hash) return;
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [pathname, hash]);
-  return <Outlet />;
+  return (
+    <>
+      {/* Title, description, canonical and noindex per route — src/seo. */}
+      <RouteSeo />
+      <Outlet />
+      {/* AVA — the portal's guide chatbot. Lives here, above every route, so
+         it survives navigation instead of remounting per page rather than
+         resetting on every click; see components/ava/Ava.jsx. Not lazy —
+         it has to be ready to greet on the very first landing-page paint. */}
+      {/* <Ava /> */}
+    </>
+  );
 }
 
 /* ── Public marketing site ── */

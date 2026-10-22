@@ -1,0 +1,12 @@
+# Fifth Avenue — https://www.fifth-avenue.in
+User-agent: *
+Allow: /
+
+# Client portal, sign-in and private pitch links are not for search.
+Disallow: /portal
+Disallow: /login
+Disallow: /pitch/
+Disallow: /pitch-draft/
+Disallow: /api/
+
+Sitemap: https://www.fifth-avenue.in/sitemap.xml
