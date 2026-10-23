@@ -18,10 +18,12 @@
  * order — brief, then suggested content, then candidates — because a team
  * member fills the candidate list last, after the brief is settled.)
  *
- * Once the internal team promotes this prospect into a real brand and
- * campaign, `decidable` comes back false: the page still renders (an old
- * link shouldn't go dead), but Approve/Reject are replaced with a quiet
- * "Moved forward" note, since the decision has already been acted on.
+ * One link for the life of the pitch. Promoting the prospect into a real
+ * brand and campaign does NOT close it: every candidate carries over to the
+ * campaign, and decisions made here keep landing there. Each candidate locks
+ * individually (`locked`) only once the team ships it — the card then shows
+ * the final call ("Approved" / "Not selected") instead of the buttons.
+ * `decidable` is page-level: is anything still open to decide?
  *
  * Redesign note: this page opts into `data-marketing` — the same scoped
  * palette + Instrument Serif/Sans + Jost type Login.jsx and the public
@@ -52,6 +54,7 @@ export default function PitchDraftView() {
   const [brand, setBrand] = useState(null);
   const [campaignName, setCampaignName] = useState(null);
   const [brief, setBrief] = useState([]);
+  const [details, setDetails] = useState({});
   const [suggestedContent, setSuggestedContent] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [decidable, setDecidable] = useState(true);
@@ -67,10 +70,11 @@ export default function PitchDraftView() {
   const load = useCallback(() => {
     setState("loading");
     PitchDraftAPI.get(draftId, code)
-      .then(({ brand: b, campaignName: cn, brief: br, suggestedContent: sc, profiles: list, decidable: dec }) => {
+      .then(({ brand: b, campaignName: cn, brief: br, details: dt, suggestedContent: sc, profiles: list, decidable: dec }) => {
         setBrand(b);
         setCampaignName(cn);
         setBrief(br || []);
+        setDetails(dt || {});
         setSuggestedContent(sc || []);
         setProfiles(list || []);
         setDecidable(dec !== false);
@@ -179,25 +183,9 @@ export default function PitchDraftView() {
           )}
         </header>
 
-        {/* Brief — freeform heading/text sections, the context for everything below. */}
-        {brief.length > 0 && (
-          <section className="mx-auto mb-16 max-w-3xl sm:mb-24">
-            <SectionEyebrow>The brief</SectionEyebrow>
-            <div className="flex flex-col divide-y divide-line rounded-2xl border border-line bg-card px-6 shadow-card sm:px-10">
-              {brief.map((s, i) => (
-                <div key={s.id} className="flex gap-5 py-7 first:pt-8 last:pb-8 sm:gap-8 sm:py-9">
-                  <span aria-hidden className="mt-1.5 shrink-0 font-serif text-[13px] italic text-ink-3">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <div className="min-w-0">
-                    <h2 className="font-serif text-title-lg font-bold italic text-ink">{s.heading || "—"}</h2>
-                    <p className="mt-2.5 whitespace-pre-wrap text-body-lg leading-relaxed text-ink-2">{s.body}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* The brief — the campaign's objective, audience and key messages,
+            plus any freeform sections — the context for everything below. */}
+        <BriefShowcase details={details} sections={brief} />
 
         {/* Creators suggested — the main event. */}
         {profiles.length > 0 && (
@@ -236,7 +224,7 @@ export default function PitchDraftView() {
           </section>
         )}
 
-        {brief.length === 0 && profiles.length === 0 && suggestedContent.length === 0 && (
+        {!hasBrief(details, brief) && profiles.length === 0 && suggestedContent.length === 0 && (
           <p className="text-center text-body text-ink-2">There's nothing here yet — check back soon.</p>
         )}
       </div>
@@ -263,6 +251,112 @@ export default function PitchDraftView() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── The brief ────────────────────────────────────────────────────────────────
+const hasBrief = (d, sections) =>
+  !!(d?.objective || d?.audience || d?.messages || d?.service || d?.region || sections?.length);
+
+// Lines typed as "1. …", "2) …", "- …" or "• …" read as a list; anything else
+// as paragraphs. The team writes these in a plain textarea — this is what
+// turns that into something that reads like a designed brief.
+const LIST_MARK = /^(\d+[.)]|[-•*–])\s+/;
+function BriefText({ text, large = false }) {
+  const lines = String(text || "").split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return null;
+  const isList = lines.length > 1 && lines.filter((l) => LIST_MARK.test(l)).length >= Math.ceil(lines.length / 2);
+  const body = large
+    ? "font-serif text-[clamp(20px,2.3vw,27px)] leading-[1.32] text-ink"
+    : "text-body-lg leading-relaxed text-ink-2";
+  if (!isList) {
+    return <div className="flex flex-col gap-3">{lines.map((l, i) => <p key={i} className={body}>{l}</p>)}</div>;
+  }
+  return (
+    <ol className={`flex flex-col ${large ? "gap-5" : "gap-3.5"}`}>
+      {lines.map((l, i) => (
+        <li key={i} className="flex gap-4 sm:gap-5">
+          <span aria-hidden className={`shrink-0 font-serif italic tabular-nums text-ink-3 ${large ? "mt-1.5 w-6 text-[15px]" : "mt-1 w-5 text-[13px]"}`}>
+            {String(i + 1).padStart(2, "0")}
+          </span>
+          <span className={body}>{l.replace(LIST_MARK, "")}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function BriefLabel({ children }) {
+  return (
+    <p className="mb-5 flex items-center gap-3 font-mono text-eyebrow uppercase tracking-[0.2em] text-ink-3 sm:mb-6">
+      <span aria-hidden className="h-px w-6 bg-line-strong" />
+      {children}
+    </p>
+  );
+}
+
+function BriefShowcase({ details = {}, sections = [] }) {
+  if (!hasBrief(details, sections)) return null;
+  const { service, region, objective, audience, messages } = details;
+  const tags = [["Service", service], ["Region", region]].filter(([, v]) => v);
+  const both = audience && messages;
+  // Each block draws a top rule only when something sits above it, so the
+  // card never opens on a stray line whichever fields are filled in.
+  const ruleIf = (cond) => (cond ? "border-t border-line" : "");
+  const midRule = ruleIf(tags.length > 0 || objective);
+  const notesRule = ruleIf(tags.length > 0 || objective || audience || messages);
+
+  return (
+    <section className="mx-auto mb-16 max-w-4xl sm:mb-24">
+      <SectionEyebrow>The brief</SectionEyebrow>
+      <div className="overflow-hidden rounded-3xl border border-line bg-card shadow-card">
+        {tags.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-2 px-6 pb-1 pt-6 sm:pt-8">
+            {tags.map(([k, v]) => (
+              <span key={k} className="inline-flex items-center gap-2 rounded-full border border-line px-3.5 py-1.5">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-3">{k}</span>
+                <span className="text-[12.5px] font-medium text-ink">{v}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {objective && (
+          <div className={`px-6 py-10 sm:px-14 sm:py-14 ${tags.length ? "pt-8 sm:pt-10" : ""}`}>
+            <BriefLabel>Objective</BriefLabel>
+            <BriefText text={objective} large />
+          </div>
+        )}
+
+        {(audience || messages) && (
+          <div className={`grid ${both ? "sm:grid-cols-2" : ""} ${midRule}`}>
+            {audience && (
+              <div className={`px-6 py-9 sm:px-12 sm:py-11 ${both ? "sm:border-r sm:border-line" : ""}`}>
+                <BriefLabel>Audience</BriefLabel>
+                <BriefText text={audience} />
+              </div>
+            )}
+            {messages && (
+              <div className={`px-6 py-9 sm:px-12 sm:py-11 ${both ? "border-t border-line sm:border-t-0" : ""}`}>
+                <BriefLabel>Key messages</BriefLabel>
+                <BriefText text={messages} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {sections.length > 0 && (
+          <div className={`divide-y divide-line px-6 sm:px-14 ${notesRule}`}>
+            {sections.map((s) => (
+              <div key={s.id} className="py-9 sm:py-11">
+                <BriefLabel>{s.heading || "Notes"}</BriefLabel>
+                <BriefText text={s.body} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -308,13 +402,22 @@ function SectionEyebrow({ children }) {
 }
 
 function PitchCard({ p, status, dirty, decidable, onPick }) {
-  const locked = !decidable; // already promoted — the call here is final
+  // Per candidate: locked once the team has shipped it (or the pitch closed
+  // for it) — never a blanket lock just because the pitch was promoted.
+  const locked = !!p.locked || !decidable;
+  const finalLabel = status === "approved" ? "Approved" : status === "rejected" ? "Not selected" : "Closed";
   // A view-count of exactly 0 is the stale HikerAPI artefact from before the
   // media-type fix (photo/carousel posts reported play_count: 0 rather than
   // omitting the field) — treat it the same as "no data" rather than
   // printing a misleading zero. Same guard as PitchApprove's own card.
   const avgViews = p.avgViews > 0 ? p.avgViews : null;
-  const avatarSrc = p.avatar ? PitchDraftAPI.avatarUrl(p.avatar) : null;
+  const [avatarBroken, setAvatarBroken] = useState(false);
+  // A photo under 300px wide is Instagram's small thumbnail: stretched over
+  // the whole portrait it goes visibly soft. Shown instead as a crisp round
+  // portrait near its natural size, over a blurred wash of itself — so a
+  // low-resolution photo still reads as intentional, never as blurry.
+  const [lowRes, setLowRes] = useState(false);
+  const avatarSrc = p.avatar && !avatarBroken ? PitchDraftAPI.avatarUrl(p.avatar) : null;
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-card transition-shadow hover:shadow-float">
@@ -329,10 +432,23 @@ function PitchCard({ p, status, dirty, decidable, onPick }) {
           sits over SuggestedContentCard below, so the two card families on
           this page read as one visual system rather than two. */}
       <div className="relative aspect-[4/5] w-full shrink-0 overflow-hidden bg-well">
-        {avatarSrc ? (
+        {avatarSrc && lowRes ? (
+          <>
+            <img src={avatarSrc} alt="" aria-hidden className="absolute inset-0 size-full scale-125 object-cover blur-2xl brightness-75" />
+            <div className="absolute inset-x-0 top-[14%] flex justify-center">
+              <img
+                src={avatarSrc}
+                alt=""
+                className="size-36 rounded-full object-cover shadow-float ring-4 ring-white/85 transition-transform duration-500 ease-out group-hover:scale-105 sm:size-40"
+              />
+            </div>
+          </>
+        ) : avatarSrc ? (
           <img
             src={avatarSrc}
             alt=""
+            onLoad={(e) => { if (e.currentTarget.naturalWidth < 300) setLowRes(true); }}
+            onError={() => setAvatarBroken(true)}
             className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
           />
         ) : (
@@ -384,11 +500,13 @@ function PitchCard({ p, status, dirty, decidable, onPick }) {
 
         <div className="mt-auto flex w-full flex-col items-center pt-4">
           {locked ? (
-            <div className="flex items-center gap-1.5 py-2.5 text-caption font-medium text-ink-3">
-              <svg viewBox="0 0 24 24" className="size-3.5 fill-ink-3" aria-hidden>
-                <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
-              </svg>
-              Moved forward
+            <div className={`flex items-center gap-1.5 py-2.5 text-caption font-medium ${status === "approved" ? "text-success" : "text-ink-3"}`}>
+              {status === "approved" && (
+                <svg viewBox="0 0 24 24" className="size-3.5 fill-current" aria-hidden>
+                  <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
+                </svg>
+              )}
+              {finalLabel}
             </div>
           ) : (
             <div className="flex w-full overflow-hidden rounded-full border border-line">
@@ -491,6 +609,12 @@ function SuggestedContentTile({ c }) {
 function SuggestedContentCard({ c }) {
   const m = c.media;
   const [hovered, setHovered] = useState(false);
+  const [imgBroken, setImgBroken] = useState(false);
+  // Our stored copy of the frame first (served by the backend, never
+  // expires); the signed Instagram thumbnail only for links added before
+  // posters were stored — and if that has expired, fall back to the link.
+  const imageSrc = m?.poster ? PitchDraftAPI.avatarUrl(m.poster) : m?.thumbnail || null;
+  const showImage = !!imageSrc && !imgBroken;
   const [playing, setPlaying] = useState(false);
   const videoRef = useRef(null);
 
@@ -531,18 +655,19 @@ function SuggestedContentCard({ c }) {
       className="group relative block overflow-hidden rounded-xl bg-black shadow-card transition-shadow hover:shadow-float"
       style={{ aspectRatio: "9 / 16" }}
     >
-      {m?.thumbnail ? (
+      {showImage ? (
         <>
           <img
-            src={m.thumbnail}
+            src={imageSrc}
             alt=""
+            onError={() => setImgBroken(true)}
             className={`size-full object-cover transition-transform duration-500 ease-out ${hovered ? "scale-105" : "scale-100"}`}
           />
           {canPlay && hovered && (
             <video
               ref={videoRef}
               src={m.video}
-              poster={m.thumbnail}
+              poster={imageSrc}
               muted
               loop
               playsInline
