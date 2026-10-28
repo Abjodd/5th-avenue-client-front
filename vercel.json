@@ -1,7 +1,17 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/legal", "destination": "/legal/privacy", "permanent": true }
+  ],
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/app-shell" }
+    { "source": "/portal", "destination": "/app-shell" },
+    { "source": "/portal/:path*", "destination": "/app-shell" },
+    { "source": "/login", "destination": "/app-shell" },
+    { "source": "/pitch/:path*", "destination": "/app-shell" },
+    { "source": "/pitch-draft/:path*", "destination": "/app-shell" },
+    { "source": "/overview", "destination": "/app-shell" },
+    { "source": "/campaigns", "destination": "/app-shell" },
+    { "source": "/profile", "destination": "/app-shell" }
   ]
 }

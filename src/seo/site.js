@@ -31,13 +31,18 @@ export const SITE = {
   locale: "en_IN",
   ogImage: "/og-image.png",
   logo: "/logo-512.png",
+  // Google Search Console "HTML tag" verification token (the content="…"
+  // value only). Rendered on every page once set.
+  googleSiteVerification: "",
   defaultDescription:
     "Fifth Avenue is a full-service marketing agency in India — influencer and regional creator campaigns, AI search (AEO), SEO and performance marketing on one live dashboard.",
 };
 
 /**
- * Every public, indexable page. `sitemap: false` keeps a page crawlable but
- * out of sitemap.xml (the two "coming soon" pages — thin until they launch).
+ * Every public page. `sitemap: false` keeps a page out of sitemap.xml and
+ * `index: false` marks it noindex — used for the two "coming soon" pages,
+ * which are too thin to rank and would dilute the site until they launch.
+ * Flip both when the page has real content.
  */
 export const PAGES = {
   "/": {
@@ -119,6 +124,7 @@ export const PAGES = {
     h1: "International",
     intro: "Our global markets experience is on the way.",
     sitemap: false,
+    index: false,
   },
   "/creatives": {
     title: "Creative Studio | Fifth Avenue",
@@ -127,6 +133,7 @@ export const PAGES = {
     h1: "Creatives",
     intro: "Our creative studio is on the way.",
     sitemap: false,
+    index: false,
   },
   "/legal/privacy": { title: "Privacy Policy | Fifth Avenue", description: "How Fifth Avenue collects, uses and protects personal data.", h1: "Privacy Policy", priority: 0.2, changefreq: "yearly" },
   "/legal/terms": { title: "Terms of Service | Fifth Avenue", description: "The terms that govern Fifth Avenue's website, client dashboard and marketing services.", h1: "Terms of Service", priority: 0.2, changefreq: "yearly" },
@@ -141,7 +148,7 @@ export const absUrl = (path) => SITE.url + (path === "/" ? "/" : path);
 
 export function seoFor(pathname) {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  if (PAGES[path]) return { path, ...PAGES[path], index: true };
+  if (PAGES[path]) return { path, ...PAGES[path], index: PAGES[path].index !== false };
   if (path === "/legal") return { path, ...PAGES["/legal/privacy"], index: true, canonicalPath: "/legal/privacy" };
   const priv = NOINDEX_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   return { path, title: priv ? "Fifth Avenue" : "Page not found | Fifth Avenue", description: SITE.defaultDescription, index: false };
@@ -218,10 +225,34 @@ export function renderHead(path) {
     `<meta name="twitter:description" content="${esc(p.description)}" />`,
     `<meta name="twitter:image" content="${img}" />`,
   ];
+  if (SITE.googleSiteVerification) {
+    tags.push(`<meta name="google-site-verification" content="${esc(SITE.googleSiteVerification)}" />`);
+  }
   if (p.home) {
     for (const block of structuredData()) {
       tags.push(`<script type="application/ld+json">${JSON.stringify(block).replace(/</g, "\\u003c")}</script>`);
     }
+  }
+  return tags.join("\n    ");
+}
+
+/**
+ * Head for the two non-page HTML files the build writes:
+ *   app-shell.html — served (by vercel.json rewrites) for the portal, sign-in
+ *                    and pitch links: private, never indexed;
+ *   404.html       — served by Vercel with a 404 status for any URL that
+ *                    matches no page, so made-up URLs stop looking like
+ *                    duplicate homepages ("soft 404s") to Google.
+ * Both boot the same app; RouteSeo then sets the route's own tags.
+ */
+export function renderShellHead(notFound) {
+  const tags = [
+    `<title>${notFound ? "Page not found | Fifth Avenue" : "Fifth Avenue"}</title>`,
+    `<meta name="description" content="${esc(SITE.defaultDescription)}" />`,
+    `<meta name="robots" content="noindex, follow" />`,
+  ];
+  if (SITE.googleSiteVerification) {
+    tags.push(`<meta name="google-site-verification" content="${esc(SITE.googleSiteVerification)}" />`);
   }
   return tags.join("\n    ");
 }
