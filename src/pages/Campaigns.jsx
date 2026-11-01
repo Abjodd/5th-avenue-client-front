@@ -41,6 +41,7 @@ export default function CampaignsPage() {
   const [showNewReq, setShowNewReq] = useState(false);
   const [toast, setToast] = useState("");
   const [svcFilter, setSvcFilter] = usePersistentState("campaigns.service", "all");
+  const [completedExpanded, setCompletedExpanded] = useState(false);
   const userRole = "management"; // client-side approvals default to the management view
 
   // Auto-open campaign when navigated from another page
@@ -206,11 +207,103 @@ export default function CampaignsPage() {
         )}
 
         {campaigns.length > 0 && view === "grid" && (
-          <motion.div layout className="grid gap-3.5 pb-9" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))" }}>
-            <AnimatePresence mode="popLayout">
-              {filtered.map(c => <CampaignCard key={c.id} campaign={c} onClick={() => setSelected(c)}/>)}
-            </AnimatePresence>
-          </motion.div>
+          <div className="space-y-5 pb-9">
+            <section className="px-1">
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <h2 className="font-serif text-[25px] font-semibold tracking-[-0.025em] text-ink sm:text-[28px]">Active campaigns</h2>
+                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-4 py-1.5 text-[11px] font-semibold text-emerald-800 shadow-sm">
+                  {filtered.filter(c => c.status === "active").length} {filtered.filter(c => c.status === "active").length === 1 ? "campaign" : "campaigns"}
+                </span>
+              </div>
+              {filtered.some(c => c.status === "active") ? (
+                <motion.div layout className="grid grid-cols-1 items-stretch gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+                  <AnimatePresence mode="popLayout">
+                    {filtered.filter(c => c.status === "active").map(c => (
+                      <CampaignCard key={c.id} campaign={c} onClick={() => setSelected(c)} />
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-line bg-glass/50 px-4 py-7 text-center text-[12px] text-mute">No active campaigns found.</div>
+              )}
+            </section>
+
+            {filtered.some(c => c.status === "pending") && (
+              <section className="px-1">
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <h2 className="font-serif text-[22px] font-semibold text-ink">Pending campaigns</h2>
+                  <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800">{filtered.filter(c => c.status === "pending").length} campaigns</span>
+                </div>
+                <motion.div layout className="grid grid-cols-1 items-stretch gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+                  <AnimatePresence mode="popLayout">
+                    {filtered.filter(c => c.status === "pending").map(c => (
+                      <CampaignCard key={c.id} campaign={c} onClick={() => setSelected(c)} />
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              </section>
+            )}
+
+            <section className="overflow-hidden rounded-[20px] border border-[#e8e6df] bg-white/45 px-3.5 py-3.5 shadow-[0_2px_12px_rgba(30,28,20,0.025)] sm:px-4 sm:py-4">
+              <button
+                type="button"
+                onClick={() => setCompletedExpanded(value => !value)}
+                aria-expanded={completedExpanded}
+                aria-controls="completed-campaigns-panel"
+                className="group flex w-full flex-wrap items-center justify-between gap-3 rounded-xl px-1 py-1 text-left transition-colors hover:bg-black/[0.015]"
+              >
+                <span className="flex min-w-0 items-center gap-3 sm:gap-4">
+                  <motion.span animate={{ rotate: completedExpanded ? 180 : 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="flex h-7 w-7 shrink-0 items-center justify-center text-[#171713]" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                  </motion.span>
+                  <span className="font-serif text-[23px] font-semibold tracking-[-0.025em] text-ink sm:text-[27px]">Completed campaigns</span>
+                  <span className="rounded-full bg-[#eef0f4] px-4 py-1.5 text-[11px] font-semibold text-[#25324b]">{filtered.filter(c => c.status === "done").length} campaigns</span>
+                </span>
+                <span className="ml-auto flex shrink-0 items-center gap-3 pl-10 text-[11px] font-medium text-[#817d70] sm:pl-0 sm:text-[12px]">
+                  <span>{completedExpanded ? "Hide completed campaigns" : "Click to view completed campaigns"}</span>
+                  <motion.span animate={{ rotate: completedExpanded ? 180 : 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="text-[#37362f]" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                  </motion.span>
+                </span>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {completedExpanded && (
+                  <motion.div id="completed-campaigns-panel" key="completed-campaigns" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: "easeInOut" }} className="overflow-hidden">
+                    <div className="pt-4">
+                      {filtered.some(c => c.status === "done") ? (
+                        <motion.div layout className="grid grid-cols-1 items-stretch gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+                          <AnimatePresence mode="popLayout">
+                            {filtered.filter(c => c.status === "done").map(c => (
+                              <CampaignCard key={c.id} campaign={c} onClick={() => setSelected(c)} />
+                            ))}
+                          </AnimatePresence>
+                        </motion.div>
+                      ) : (
+                        <p className="rounded-xl bg-[#f5f4f1] px-4 py-7 text-center text-[12px] text-mute">No completed campaigns found.</p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </section>
+
+            {filtered.some(c => !["active", "pending", "done"].includes(c.status)) && (
+              <section className="px-1">
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <h2 className="font-serif text-[22px] font-semibold text-ink">Other campaigns</h2>
+                  <span className="rounded-full bg-accent/[0.07] px-3 py-1 text-[11px] font-semibold text-ink">{filtered.filter(c => !["active", "pending", "done"].includes(c.status)).length} campaigns</span>
+                </div>
+                <motion.div layout className="grid grid-cols-1 items-stretch gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+                  <AnimatePresence mode="popLayout">
+                    {filtered.filter(c => !["active", "pending", "done"].includes(c.status)).map(c => (
+                      <CampaignCard key={c.id} campaign={c} onClick={() => setSelected(c)} />
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              </section>
+            )}
+          </div>
         )}
         </>
         )}
