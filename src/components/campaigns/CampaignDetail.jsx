@@ -1675,9 +1675,9 @@ function CreatorTable({ items, campaignId, onDecide, onAssetComments, advanceOn,
   // in undifferentiated rows.
   const headCls = "whitespace-nowrap border-r border-line/70 px-4 py-2.5 text-center last:border-r-0";
   return (
-    <div className="max-h-[600px] overflow-auto rounded-[14px] border border-line">
-      <table className="w-full min-w-[1320px] border-collapse text-[11.5px]">
-        <thead className="sticky top-0 z-10 bg-well text-[10px] font-semibold uppercase tracking-[0.06em] text-mute shadow-sm">
+  <div className="relative isolate max-h-[600px] overflow-auto rounded-[14px] border border-line">
+    <table className="w-full min-w-[1320px] border-separate border-spacing-0 text-[11.5px]">
+      <thead className="sticky top-0 z-30 bg-well/85 text-[10px] font-semibold uppercase tracking-[0.06em] text-mute shadow-sm backdrop-blur-xl">
           <tr>
             <th className={headCls}>Creator</th>
             <th className={headCls}>Niche</th>
