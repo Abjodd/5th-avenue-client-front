@@ -21,7 +21,8 @@
  * "Fifth Avenue" — that name alone is owned in search by the New York street.
  */
 import { HERO, NETWORK, CTA_BAND } from "../lib/marketing/data/landing-copy.ts";
-import { SERVICE_GROUPS, ALL_SERVICES } from "../lib/marketing/data/services.ts";
+import { SERVICE_GROUPS, ALL_SERVICES, serviceBySlug } from "../lib/marketing/data/services.ts";
+import { SERVICE_PAGES, SERVICES_HUB } from "../lib/marketing/data/service-pages.ts";
 
 export const SITE = {
   url: "https://www.fifth-avenue.in",
@@ -141,6 +142,33 @@ export const PAGES = {
   "/legal/gst": { title: "GST & Billing | Fifth Avenue", description: "GST and billing information for Fifth Avenue clients.", h1: "GST & Billing", priority: 0.2, changefreq: "yearly" },
 };
 
+// The services hub and one page per service — generated from services.ts +
+// service-pages.ts so a new service only needs its copy added there.
+PAGES["/services"] = {
+  title: SERVICES_HUB.seoTitle,
+  description: SERVICES_HUB.description,
+  eyebrow: "Services",
+  h1: SERVICES_HUB.h1,
+  intro: SERVICES_HUB.lede,
+  hub: true,
+  priority: 0.9,
+  changefreq: "monthly",
+};
+for (const svc of ALL_SERVICES) {
+  const c = SERVICE_PAGES[svc.slug];
+  if (!c) continue;
+  PAGES[`/services/${svc.slug}`] = {
+    title: c.seoTitle,
+    description: c.description,
+    eyebrow: `${svc.index} — ${svc.group}`,
+    h1: c.h1.charAt(0).toUpperCase() + c.h1.slice(1),
+    intro: c.lede,
+    service: svc.slug,
+    priority: 0.8,
+    changefreq: "monthly",
+  };
+}
+
 // Private or one-off surfaces: never indexed (also Disallowed in robots.txt).
 export const NOINDEX_PREFIXES = ["/portal", "/login", "/pitch", "/pitch-draft", "/overview", "/campaigns", "/profile", "/styleguide"];
 
@@ -192,9 +220,60 @@ export function structuredData() {
       itemListElement: ALL_SERVICES.map((s, i) => ({
         "@type": "ListItem",
         position: i + 1,
-        item: { "@type": "Service", name: s.name, description: s.blurb, provider: { "@id": `${SITE.url}/#organization` }, areaServed: "IN" },
+        item: { "@type": "Service", name: s.name, description: s.blurb, url: absUrl(`/services/${s.slug}`), provider: { "@id": `${SITE.url}/#organization` }, areaServed: "IN" },
       })),
     },
+  ];
+}
+
+// Service page: Service + FAQPage + BreadcrumbList. Hub: ItemList + breadcrumbs.
+const crumbs = (items) => ({
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: items.map(([name, path], i) => ({ "@type": "ListItem", position: i + 1, name, item: absUrl(path) })),
+});
+
+export function serviceStructuredData(slug) {
+  const svc = serviceBySlug(slug);
+  const c = SERVICE_PAGES[slug];
+  const url = absUrl(`/services/${slug}`);
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "@id": `${url}#service`,
+      name: svc.name,
+      serviceType: svc.name,
+      description: c.description,
+      url,
+      provider: { "@type": "Organization", "@id": `${SITE.url}/#organization`, name: SITE.name, url: `${SITE.url}/` },
+      areaServed: { "@type": "Country", name: "India" },
+      hasOfferCatalog: {
+        "@type": "OfferCatalog",
+        name: `${svc.name} — what's included`,
+        itemListElement: c.included.map((x) => ({ "@type": "Offer", itemOffered: { "@type": "Service", name: x.title, description: x.body } })),
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: c.faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
+    crumbs([["Home", "/"], ["Services", "/services"], [svc.name, `/services/${slug}`]]),
+  ];
+}
+
+export function hubStructuredData() {
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: "Fifth Avenue services",
+      itemListElement: ALL_SERVICES.filter((s) => SERVICE_PAGES[s.slug]).map((s, i) => ({
+        "@type": "ListItem", position: i + 1, name: s.name, url: absUrl(`/services/${s.slug}`),
+      })),
+    },
+    crumbs([["Home", "/"], ["Services", "/services"]]),
   ];
 }
 
@@ -228,10 +307,9 @@ export function renderHead(path) {
   if (SITE.googleSiteVerification) {
     tags.push(`<meta name="google-site-verification" content="${esc(SITE.googleSiteVerification)}" />`);
   }
-  if (p.home) {
-    for (const block of structuredData()) {
-      tags.push(`<script type="application/ld+json">${JSON.stringify(block).replace(/</g, "\\u003c")}</script>`);
-    }
+  const ld = p.home ? structuredData() : p.service ? serviceStructuredData(p.service) : p.hub ? hubStructuredData() : [];
+  for (const block of ld) {
+    tags.push(`<script type="application/ld+json">${JSON.stringify(block).replace(/</g, "\\u003c")}</script>`);
   }
   return tags.join("\n    ");
 }
@@ -258,7 +336,7 @@ export function renderShellHead(notFound) {
 }
 
 const NAV = [
-  ["/", "Home"], ["/regional", "Regional creator network"], ["/tech", "Tech & data"], ["/portfolio", "Portfolio"],
+  ["/", "Home"], ["/services", "Services"], ["/regional", "Regional creator network"], ["/tech", "Tech & data"], ["/portfolio", "Portfolio"],
   ["/careers", "Careers"], ["/apply", "Apply as a creator"], ["/start", "Start a project"],
 ];
 
@@ -276,6 +354,23 @@ export function renderBody(path) {
       parts.push(`<h2>${esc(g.label)}</h2><ul>${g.services.map((s) => `<li><strong>${esc(s.name)}</strong> — ${esc(s.blurb)}</li>`).join("")}</ul>`);
     }
     parts.push(`<h2>${esc(NETWORK.title)}</h2><p>${esc(NETWORK.body)}</p>`);
+  }
+  if (p.hub) {
+    for (const g of SERVICE_GROUPS) {
+      parts.push(`<h2>${esc(g.label)}</h2><ul>${g.services.map((s) => `<li><a href="/services/${s.slug}"><strong>${esc(s.name)}</strong></a> — ${esc(s.blurb)}</li>`).join("")}</ul>`);
+    }
+  }
+  if (p.service) {
+    const c = SERVICE_PAGES[p.service];
+    const svc = serviceBySlug(p.service);
+    parts.unshift(`<nav aria-label="Breadcrumb"><a href="/">Home</a> / <a href="/services">Services</a> / ${esc(svc.name)}</nav>`);
+    parts.push(...c.overview.map((t) => `<p>${esc(t)}</p>`));
+    parts.push(`<h2>What's included</h2><ul>${c.included.map((x) => `<li><strong>${esc(x.title)}</strong> — ${esc(x.body)}</li>`).join("")}</ul>`);
+    parts.push(`<h2>How it works</h2><ol>${c.process.map((x) => `<li><strong>${esc(x.title)}</strong> — ${esc(x.body)}</li>`).join("")}</ol>`);
+    parts.push(`<h2>Why Fifth Avenue</h2><ul>${c.why.map((x) => `<li><strong>${esc(x.title)}</strong> — ${esc(x.body)}</li>`).join("")}</ul>`);
+    parts.push(`<h2>Frequently asked questions</h2>${c.faqs.map((f) => `<h3>${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join("")}`);
+    const rel = c.related.map((r) => serviceBySlug(r)).filter(Boolean);
+    parts.push(`<h2>Related services</h2><ul>${rel.map((r) => `<li><a href="/services/${r.slug}">${esc(r.name)}</a></li>`).join("")}</ul>`);
   }
   parts.push(`<nav aria-label="Site"><ul>${NAV.map(([href, label]) => `<li><a href="${href}">${esc(label)}</a></li>`).join("")}</ul></nav>`);
   parts.push(`<p>Contact: <a href="mailto:${SITE.email}">${SITE.email}</a></p>`);

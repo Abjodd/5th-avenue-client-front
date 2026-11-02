@@ -2,6 +2,8 @@
 
 export interface Service {
   index: string;
+  /** URL segment of the service's own page: /services/<slug> */
+  slug: string;
   group: string;
   name: string;
   blurb: string;
@@ -14,6 +16,9 @@ export interface ServiceGroup {
   services: Service[];
 }
 
+export const slugify = (name: string) =>
+  name.toLowerCase().replace(/&/g, " ").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
 const g = (
   group: string,
   items: Array<[string, string, string[]]>,
@@ -21,6 +26,7 @@ const g = (
 ): Service[] =>
   items.map(([name, blurb, tags], i) => ({
     index: String(startAt + i).padStart(2, "0"),
+    slug: slugify(name),
     group,
     name,
     blurb,
@@ -87,3 +93,4 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
 ];
 
 export const ALL_SERVICES = SERVICE_GROUPS.flatMap((grp) => grp.services);
+export const serviceBySlug = (slug: string) => ALL_SERVICES.find((s) => s.slug === slug);

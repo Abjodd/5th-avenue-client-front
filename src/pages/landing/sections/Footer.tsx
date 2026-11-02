@@ -13,6 +13,9 @@ const COLS = [
   {
     title: "Services",
     links: [
+      { label: "All services", to: "/services" },
+      { label: "Influencer marketing", to: "/services/influencer-marketing" },
+      { label: "AI search (AEO)", to: "/services/ai-search-optimization" },
       { label: "Tech & Data", to: "/tech" },
       { label: "Creatives", to: "/creatives" },
       { label: "Regional network", to: "/regional" },
