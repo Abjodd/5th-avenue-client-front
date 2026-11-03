@@ -50,6 +50,8 @@ export const usePortalCampaigns = (map) => usePortalResource(PortalAPI.campaigns
  * rule: pass a module-level function, never an inline arrow, or the fetch
  * re-runs on every render. See mapReels in pages/assets.jsx. */
 export const usePortalReels = (map) => usePortalResource(PortalAPI.reels, map);
+/** Insights → Audience Voice: the stored comment analysis for this brand. */
+export const usePortalCommentInsights = () => usePortalResource(PortalAPI.commentInsights);
 
 /** This client's own company record (Settings → Company). */
 export const usePortalClient = () => usePortalResource(PortalAPI.client);

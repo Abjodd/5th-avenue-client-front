@@ -19,7 +19,7 @@ import { Navigate, Outlet, createBrowserRouter, useLocation } from "react-router
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { PageSkeleton } from "./components/PageStates";
 import NotFound from "./pages/NotFound";
-// import Ava from "./components/ava/Ava";
+
 import RouteSeo from "./seo/RouteSeo";
 
 /**
@@ -43,11 +43,7 @@ function RootLayout() {
       {/* Title, description, canonical and noindex per route — src/seo. */}
       <RouteSeo />
       <Outlet />
-      {/* AVA — the portal's guide chatbot. Lives here, above every route, so
-         it survives navigation instead of remounting per page rather than
-         resetting on every click; see components/ava/Ava.jsx. Not lazy —
-         it has to be ready to greet on the very first landing-page paint. */}
-      {/* <Ava /> */}
+     
     </>
   );
 }
@@ -60,6 +56,8 @@ const InternationalPage = lazy(() => import("./pages/marketing/InternationalPage
 const TechPage = lazy(() => import("./pages/marketing/TechPage"));
 const CreativesPage = lazy(() => import("./pages/marketing/CreativesPage"));
 const PortfolioPage = lazy(() => import("./pages/marketing/PortfolioPage"));
+const ServicesHub = lazy(() => import("./pages/marketing/services/ServicesHub"));
+const ServicePage = lazy(() => import("./pages/marketing/services/ServicePage"));
 const LegalPage = lazy(() => import("./pages/legal/LegalPage"));
 const CareersPage = lazy(() => import("./pages/careers/CareersPage"));
 const ApplyPage = lazy(() => import("./pages/apply/ApplyPage"));
@@ -106,6 +104,8 @@ export const router = createBrowserRouter([
       { path: "tech", element: <TechPage /> },
       { path: "creatives", element: <CreativesPage /> },
       { path: "portfolio", element: <PortfolioPage /> },
+      { path: "services", element: <ServicesHub /> },
+      { path: "services/:slug", element: <ServicePage /> },
       { path: "legal", element: <LegalPage /> },
       { path: "legal/:doc", element: <LegalPage /> },
       { path: "careers", element: <CareersPage /> },

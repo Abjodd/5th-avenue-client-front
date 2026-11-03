@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { useReveal } from "../../../motion/useReveal";
 import { SERVICE_GROUPS, type Service } from "../../../lib/marketing/data/services";
@@ -8,11 +9,13 @@ import { cx } from "../../../lib/cx";
 function Row({ service }: { service: Service }) {
   const [open, setOpen] = useState(false);
   return (
-    <button
+    <Link
       data-reveal
+      to={`/services/${service.slug}`}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
-      onClick={() => setOpen((o) => !o)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
       className="group flex w-full items-start gap-4 border-t border-line py-5 text-left transition-colors hover:bg-hover/40 md:gap-6 md:px-2"
     >
       <span className="tnum w-8 pt-1 font-mono text-caption text-ink-3">{service.index}</span>
@@ -48,7 +51,7 @@ function Row({ service }: { service: Service }) {
           </div>
         </div>
       </div>
-    </button>
+    </Link>
   );
 }
 
@@ -64,6 +67,14 @@ export function ServicesIndex() {
           <h2 data-reveal className="mt-4 font-serif text-display-lg text-ink">
             Sixteen capabilities. One accountable team.
           </h2>
+          <Link
+            data-reveal
+            to="/services"
+            className="mt-5 inline-flex items-center gap-1.5 text-body text-ink-2 transition-colors hover:text-ink"
+          >
+            Explore every service
+            <Icon icon={ArrowUpRight} size={16} />
+          </Link>
         </div>
 
         <div className="grid gap-x-16 gap-y-10 md:grid-cols-2">

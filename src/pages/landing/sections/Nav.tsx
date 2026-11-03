@@ -8,6 +8,7 @@ import { cx } from "../../../lib/cx";
 
 const LINKS = [
   { label: "Home", to: "/" },
+  { label: "Services", to: "/services" },
   { label: "Regional", to: "/regional" },
   { label: "Tech", to: "/tech" },
 ];

@@ -109,6 +109,15 @@ export const PortalAPI = {
   reels: (scope) =>
     request(`/api/portal/reels?${scopeParams(scope)}`),
 
+  // Insights → Audience Voice: what people said in the comments on the
+  // brand's campaign posts — sentiment, themes, praise, concerns, questions,
+  // buying intent, per post. A read of the stored analysis only: comments are
+  // fetched and analysed weekly (and on the team's Refresh) by the backend's
+  // commentInsights.js, never because this page was opened.
+  // → { status: "ready"|"running"|"error"|"none", generatedAt, insight }
+  commentInsights: (scope) =>
+    request(`/api/portal/comment-insights?${scopeParams(scope)}`),
+
   /* The brand's note on a creator's concept or demo cut — the portal's one
      write against campaign data. `ref` is the roster row's opaque key (see
      mapping.js); `asset` is "concept" or "demo". Returns the whole thread,

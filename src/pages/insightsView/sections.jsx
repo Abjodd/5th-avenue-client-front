@@ -18,7 +18,7 @@ import {
   CheckCircle2, XCircle, Target, Wrench, Newspaper, FileText,
   Volume2, VolumeX,
 } from "lucide-react";
-import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } from "motion/react";
+import { motion, useInView, useMotionValue, useSpring, useTransform, useReducedMotion } from "motion/react";
 import { HoverLift } from "../../components/motion/Motion";
 import {
   usePortalTrending, usePortalQuestions, usePortalMarketWatch, usePortalNews, usePortalNewsletter,
@@ -354,6 +354,10 @@ function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite, m
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const count = reels.length;
+  // Autoplay only while the carousel is on screen — off screen it was still
+  // springing seven cards around every 3 seconds.
+  const stageRef = useRef(null);
+  const onScreen = useInView(stageRef, { amount: 0.25 });
   // Bigger, edge-to-edge geometry once Our Insights is collapsed out of the
   // way — otherwise the same size this always used.
   const CARD_W = big ? 340 : 224;
@@ -365,14 +369,15 @@ function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite, m
   }, [count, active]);
 
   useEffect(() => {
-    if (reduced || paused || count <= 1) return;
+    if (reduced || paused || !onScreen || count <= 1) return;
     const id = setInterval(() => setActive((a) => (a + 1) % count), AUTOPLAY_MS);
     return () => clearInterval(id);
-  }, [reduced, paused, count]);
+  }, [reduced, paused, onScreen, count]);
 
   return (
     <div className="relative">
       <div
+        ref={stageRef}
         className={big ? "relative w-full" : "relative mx-auto"}
         style={{ height: CARD_H + 32, ...(big ? {} : { maxWidth: CARD_W + MAX_VISIBLE_OFFSET * STEP_X * 2 + 60 }) }}
         onMouseEnter={() => setPaused(true)}
@@ -391,7 +396,7 @@ function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite, m
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ width: 560, height: 340, background: `radial-gradient(closest-side, ${glow}, transparent 72%)`, opacity: 0.7, filter: "blur(36px)" }}
+        style={{ width: 640, height: 400, background: `radial-gradient(closest-side, ${glow}, transparent 80%)`, opacity: 0.6 }}
       />
       {reels.map((reel, i) => {
         const offset = shortestOffset(i, active, count);
@@ -408,8 +413,8 @@ function TrendingCarousel({ reels, glow, big, isFavourited, onToggleFavourite, m
               y: reduced ? 0 : abs * 12,
               rotate: reduced ? 0 : offset * 5,
               scale: 1 - abs * 0.13,
-              opacity: beyondView ? 0 : 1 - abs * 0.24,
-              filter: `blur(${abs * 1.4}px)`,
+              // no blur on the side cards: animating filter repainted every card each frame
+              opacity: beyondView ? 0 : 1 - abs * 0.26,
             }}
             transition={{ type: "spring", stiffness: 260, damping: 28 }}
           >
