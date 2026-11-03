@@ -73,6 +73,7 @@ const PortalLayout = lazy(() => import("./layout/PortalLayout"));
 const Login = lazy(() => import("./pages/Login"));
 const Overview = lazy(() => import("./pages/Overview"));
 const Campaigns = lazy(() => import("./pages/Campaigns"));
+const LiveCampaignOverview = lazy(() => import("./pages/LiveCampaignOverview"));
 const RegionalMap = lazy(() => import("./pages/RegionalMap"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Assets = lazy(() => import("./pages/assets"));
@@ -138,6 +139,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="overview" replace /> },
       { path: "overview", element: <Overview /> },
       { path: "campaigns", element: <Campaigns /> },
+      { path: "live-campaigns", element: <LiveCampaignOverview /> },
       { path: "regional", element: <RegionalMap /> },
       { path: "profile", element: <Profile /> },
       { path: "assets", element: <Assets /> },

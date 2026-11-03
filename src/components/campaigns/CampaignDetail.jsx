@@ -701,8 +701,8 @@ function AdvanceStatsToggle({ enabled, available, onToggle }) {
           !available
             ? "cursor-not-allowed border-line bg-well/60 text-mute"
             : enabled
-              ? "border-accent/30 bg-accent/[0.1] text-accent shadow-sm"
-              : "border-line bg-glass text-sub hover:border-accent/30 hover:text-accent"
+              ? "border-[#bdbdbd] bg-[#eeeeee] text-accent shadow-sm"
+              : "border-[#c8c8c8] bg-[#e5e5e5] text-sub hover:border-[#a8a8a8] hover:text-accent"
         }`}>
         {available ? <Sparkles size={12} strokeWidth={2.2}/> : <Lock size={11} strokeWidth={2.2}/>}
         Advance Stats
@@ -1122,7 +1122,7 @@ function AudienceInsights({ creators }) {
               <div className="ml-auto flex flex-wrap gap-x-4 gap-y-1 text-[11.5px]">
                 <span><span className="text-mute">ER </span><b className="text-accent">{selectedCreators[0].engRate}</b></span>
                 {selectedCreators[0].avgLikes != null && <span><span className="text-mute">Avg likes </span><b className="text-ink">{fmtNum(selectedCreators[0].avgLikes)}</b></span>}
-                {selectedCreators[0].collab && <span className="rounded-full border border-line bg-well/70 px-2 py-px text-[10.5px] font-medium text-sub">{selectedCreators[0].collab}</span>}
+                {selectedCreators[0].collab && <span className="rounded-full border border-[#c8c8c8] bg-[#e1e1e1] px-2 py-px text-[10.5px] font-medium text-sub">{selectedCreators[0].collab}</span>}
               </div>
             </div>
           ) : (
@@ -1309,7 +1309,7 @@ function CreatorRow({ cr, idx, campaignId, onDecide, onAssetComments, advanceOn,
                 creator shows nothing rather than a dash. */}
             {cr.collab && (
               <span title="How this post goes up — a paid collaboration carries the brand's handle"
-                className="rounded-full border border-line bg-well/70 px-2 py-px text-[10.5px] font-medium text-sub">
+                className="rounded-full border border-[#c8c8c8] bg-[#e1e1e1] px-2 py-px text-[10.5px] font-medium text-sub">
                 {cr.collab}
               </span>
             )}
@@ -1455,13 +1455,13 @@ function Metric({ Icon, value, label }) {
    feature switch like Advance Stats below it. */
 function ViewToggle({ table, onToggle }) {
   return (
-    <div className="inline-flex items-center rounded-full border border-line bg-glass p-0.5">
+    <div className="inline-flex items-center rounded-full border border-[#c8c8c8] bg-[#d8d8d8] p-0.5">
       <button type="button" onClick={() => table && onToggle()}
-        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${!table ? "bg-accent/[0.1] text-accent shadow-sm" : "text-sub hover:text-ink"}`}>
+        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${!table ? "bg-[#f2f2f2] text-accent shadow-sm" : "text-sub hover:text-ink"}`}>
         <LayoutGrid size={12} strokeWidth={2.2}/> Cards
       </button>
       <button type="button" onClick={() => table || onToggle()}
-        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${table ? "bg-accent/[0.1] text-accent shadow-sm" : "text-sub hover:text-ink"}`}>
+        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${table ? "bg-[#f2f2f2] text-accent shadow-sm" : "text-sub hover:text-ink"}`}>
         <Table2 size={12} strokeWidth={2.2}/> Table
       </button>
     </div>
@@ -1478,8 +1478,8 @@ function ExpandedViewToggle({ enabled, onToggle }) {
     <button type="button" onClick={onToggle} title="Show each creator's concept and demo under their own row"
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-all duration-200 ${
         enabled
-          ? "border-accent/30 bg-accent/[0.1] text-accent shadow-sm"
-          : "border-line bg-glass text-sub hover:border-accent/30 hover:text-accent"
+          ? "border-[#bdbdbd] bg-[#eeeeee] text-accent shadow-sm"
+          : "border-[#c8c8c8] bg-[#e5e5e5] text-sub hover:border-[#a8a8a8] hover:text-accent"
       }`}>
       <Rows3 size={12} strokeWidth={2.2}/> Expanded view
     </button>
@@ -1569,7 +1569,7 @@ function CreatorTableRow({ cr, idx, campaignId, onDecide, onAssetComments, advan
 
   return (
     <>
-      <tr ref={rowRef} className={`border-t border-line transition-colors even:bg-well/30 hover:bg-accent/[0.04] ${isFocused ? "bg-accent/[0.08] ring-1 ring-inset ring-accent/40" : ""}`}>
+      <tr ref={rowRef} className={`border-t border-[#c8c8c8] bg-[#eeeeee] transition-colors even:bg-[#e5e5e5] hover:bg-[#dcdcdc] ${isFocused ? "bg-[#d7d7d7] ring-1 ring-inset ring-[#a8a8a8]" : ""}`}>
         <td className={`${cellCls} !text-left`}>
           <div className="flex items-center gap-2">
             <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/[0.12] to-accent/[0.04] text-[10px] font-semibold text-accent">{cr.avatar || cr.name[0]}</div>
@@ -1584,7 +1584,7 @@ function CreatorTableRow({ cr, idx, campaignId, onDecide, onAssetComments, advan
         <td className={`${cellCls} whitespace-nowrap text-sub`}>{cr.niche || "—"}</td>
         <td className={`${cellCls} whitespace-nowrap`}>
           {cr.collab
-            ? <span className="rounded-full border border-line bg-well/70 px-2 py-px text-[10.5px] font-medium text-sub">{cr.collab}</span>
+            ? <span className="rounded-full border border-[#c8c8c8] bg-[#e1e1e1] px-2 py-px text-[10.5px] font-medium text-sub">{cr.collab}</span>
             : <span className="text-mute">—</span>}
         </td>
         <td className={`${cellCls} whitespace-nowrap`}>
@@ -1636,7 +1636,7 @@ function CreatorTableRow({ cr, idx, campaignId, onDecide, onAssetComments, advan
         </td>
       </tr>
       {expanded && canExpand && (
-        <tr className="border-t border-line bg-accent/[0.02]">
+        <tr className="border-t border-[#c8c8c8] bg-[#e2e2e2]">
           <td colSpan={TABLE_COLS} className="px-5 py-3">
             <div className="mb-1.5 flex items-center justify-center gap-1.5">
               <Sparkles size={11} strokeWidth={2.2} className="text-accent"/>
@@ -1651,7 +1651,7 @@ function CreatorTableRow({ cr, idx, campaignId, onDecide, onAssetComments, advan
           every row that has something to review rather than needing a click
           each. */}
       {expandedOn && showAssets && (
-        <tr className="border-t border-line bg-accent/[0.015]">
+        <tr className="border-t border-[#c8c8c8] bg-[#e2e2e2]">
           <td colSpan={TABLE_COLS} className="px-4 py-3">
             <CreatorAssetsExpanded cr={cr} idx={idx} campaignId={campaignId} onAssetComments={onAssetComments}/>
           </td>
@@ -1675,9 +1675,9 @@ function CreatorTable({ items, campaignId, onDecide, onAssetComments, advanceOn,
   // in undifferentiated rows.
   const headCls = "whitespace-nowrap border-r border-line/70 px-4 py-2.5 text-center last:border-r-0";
   return (
-  <div className="relative isolate max-h-[600px] overflow-auto rounded-[14px] border border-line">
+  <div className="relative isolate max-h-[85vh] overflow-auto rounded-[14px] border border-[#c5c5c5] bg-[#e8e8e8]">
     <table className="w-full min-w-[1320px] border-separate border-spacing-0 text-[11.5px]">
-      <thead className="sticky top-0 z-30 bg-well/85 text-[10px] font-semibold uppercase tracking-[0.06em] text-mute shadow-sm backdrop-blur-xl">
+      <thead className="sticky top-0 z-30 bg-[#d0d0d0] text-[10px] font-semibold uppercase tracking-[0.06em] text-[#555555] shadow-sm">
           <tr>
             <th className={headCls}>Creator</th>
             <th className={headCls}>Niche</th>
@@ -1727,40 +1727,40 @@ function CreatorAssetsExpanded({ cr, idx, campaignId, onAssetComments }) {
   const isLive = !!cr.live;
 
   return (
-    <div className="rounded-[14px] border border-line/70 bg-well/20 p-2.5">
+    <div className="w-full min-w-0 rounded-[14px] border border-line/70 bg-well/20 p-2.5">
       {isLive ? (
-        <div className="overflow-hidden rounded-[12px] border border-line shadow-sm">
-          <div className="flex items-center justify-between border-b border-line bg-glass px-3.5 py-2">
+        <div className="w-full min-w-0 overflow-hidden rounded-[12px] border border-line shadow-sm">
+          <div className="flex min-w-0 items-center justify-between gap-2 border-b border-line bg-glass px-3.5 py-2">
             <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
               <Clapperboard size={13} strokeWidth={1.9} className="text-accent"/> Live reel
             </span>
             <button onClick={() => setReviewing("demo")} className="text-[10.5px] font-medium text-accent hover:underline">Open review</button>
           </div>
-          <AssetPreviewPane url={cr.demoAsset?.url} label={`Live reel — ${cr.name}`} noun="cut" Icon={Clapperboard} size="h-[420px]" fallbackSize="h-[260px]"/>
+          <AssetPreviewPane url={cr.demoAsset?.url} label={`Live reel — ${cr.name}`} noun="cut" Icon={Clapperboard} size="h-[700px]" fallbackSize="h-[520px]"/>
           <div className="border-t border-line px-3.5 py-2">
             <LivePost cr={cr}/>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-          <div className="overflow-hidden rounded-[12px] border border-line shadow-sm">
-            <div className="flex items-center justify-between border-b border-line bg-glass px-3.5 py-2">
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-2.5 md:grid-cols-2">
+          <div className="w-full min-w-0 overflow-hidden rounded-[12px] border border-line shadow-sm">
+            <div className="flex min-w-0 items-center justify-between gap-2 border-b border-line bg-glass px-3.5 py-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-ink">
                 <FileSignature size={13} strokeWidth={1.9} className="text-accent"/> Concept
               </span>
               <span className={`text-[10.5px] font-medium ${ASSET_TIER_CLS[cr.conceptAsset?.t] || "text-mute"}`}>{cr.conceptAsset?.label}</span>
             </div>
-            <AssetPreviewPane url={cr.conceptAsset?.url} label={`Concept — ${cr.name}`} noun="concept" Icon={FileSignature} size="h-[380px]" fallbackSize="h-[240px]"/>
+            <div className="w-full min-w-0 overflow-hidden"><AssetPreviewPane url={cr.conceptAsset?.url} label={`Concept — ${cr.name}`} noun="concept" Icon={FileSignature} size="h-[600px]" fallbackSize="h-[420px]"/></div>
             <button onClick={() => setReviewing("concept")} className="block w-full border-t border-line px-3.5 py-1.5 text-center text-[10.5px] font-medium text-accent hover:underline">Open review</button>
           </div>
-          <div className="overflow-hidden rounded-[12px] border border-line shadow-sm">
-            <div className="flex items-center justify-between border-b border-line bg-glass px-3.5 py-2">
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+          <div className="w-full min-w-0 overflow-hidden rounded-[12px] border border-line shadow-sm">
+            <div className="flex min-w-0 items-center justify-between gap-2 border-b border-line bg-glass px-3.5 py-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-ink">
                 <Clapperboard size={13} strokeWidth={1.9} className="text-accent"/> Demo video
               </span>
               <span className={`text-[10.5px] font-medium ${ASSET_TIER_CLS[cr.demoAsset?.t] || "text-mute"}`}>{cr.demoAsset?.label}</span>
             </div>
-            <AssetPreviewPane url={cr.demoAsset?.url} label={`Demo video — ${cr.name}`} noun="cut" Icon={Clapperboard} size="h-[380px]" fallbackSize="h-[240px]"/>
+            <div className="w-full min-w-0 overflow-hidden"><AssetPreviewPane url={cr.demoAsset?.url} label={`Demo video — ${cr.name}`} noun="cut" Icon={Clapperboard} size="h-[600px]" fallbackSize="h-[420px]"/></div>
             <button onClick={() => setReviewing("demo")} className="block w-full border-t border-line px-3.5 py-1.5 text-center text-[10.5px] font-medium text-accent hover:underline">Open review</button>
           </div>
         </div>
@@ -1927,7 +1927,7 @@ function CreatorsPanel({
   return (
     <div>
       <div className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-full border border-accent/[0.06] bg-accent/[0.02] px-3 py-1.5">
-        <span className="text-[10.5px] text-sub">Viewing as</span><span className="rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">{userRole === "management" ? "Mgmt" : "Exec"}</span>
+        <span className="text-[10.5px] text-sub">Viewing as</span><span className="rounded-full bg-[#f1f1f1] px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">{userRole === "management" ? "Mgmt" : "Exec"}</span>
         <div className="ml-auto flex items-center gap-2.5">
           <ViewToggle table={tableView} onToggle={onToggleTableView}/>
           <ExpandedViewToggle enabled={expandedOn} onToggle={onToggleExpanded}/>

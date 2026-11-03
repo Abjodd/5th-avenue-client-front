@@ -22,6 +22,7 @@
  * alone, since those distinguish groups rather than report a value.
  */
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
   UserCheck, Clapperboard, Rocket, MapPin, Sparkles, ArrowRight,
@@ -955,7 +956,7 @@ function MobileTopCreators({ creators, setPage }) {
 function OverviewMobile({
   firstName, clientName, kpis, health, cpv, savedVsIndustry,
   signalHint, actionSignals, noteSignals, totalActionable, queues, go,
-  activity, growth, allCreators, setPage, P,
+  activity, growth, allCreators, setPage, onLiveCampaigns, P,
 }) {
   return (
     <div className="relative min-h-screen px-4 pb-12 pt-5">
@@ -1032,8 +1033,14 @@ function OverviewMobile({
       {/* Pipeline, goals-by-service, Performance and Content aren't in this
           pilot pass yet — the full breakdown stays one tap away. */}
       <button
+        onClick={onLiveCampaigns}
+        className="mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-accent px-4 py-3 text-[13px] font-semibold text-white shadow-sm transition hover:opacity-90"
+      >
+        <Radio size={15} /> View live campaigns <ArrowRight size={14} />
+      </button>
+      <button
         onClick={() => setPage("campaigns")}
-        className="mt-8 flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-3 text-[13px] font-semibold text-accent"
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-3 text-[13px] font-semibold text-accent"
       >
         View all campaigns <ArrowRight size={14} />
       </button>
@@ -1043,6 +1050,8 @@ function OverviewMobile({
 
 export default function OverviewDashboard() {
   const { P, setPage } = useApp();
+  const navigate = useNavigate();
+  const openLiveCampaigns = useCallback(() => navigate("/portal/live-campaigns"), [navigate]);
   const { user } = useAuth();
   const reducedMotion = useReducedMotion();
   const clientName = user?.clientName ?? "Your Brand";
@@ -1231,6 +1240,7 @@ export default function OverviewDashboard() {
         growth={growth}
         allCreators={allCreators}
         setPage={setPage}
+        onLiveCampaigns={openLiveCampaigns}
         P={P}
       />
     );
@@ -1289,6 +1299,16 @@ export default function OverviewDashboard() {
               {/* Masthead rule — closes the greeting off from the panels below it,
                   the way a brief's header is ruled off from its body. */}
               <div className="rule mt-8" />
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={openLiveCampaigns}
+                  className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(44,62,126,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_9px_24px_rgba(44,62,126,0.28)]"
+                >
+                  <Radio size={14} /> View live campaigns <ArrowRight size={14} />
+                </button>
+                <span className="text-[11px] text-mute">See campaigns with posts currently live</span>
+              </div>
 
               {/* Three metrics, one graphic: the Apple Activity-rings pattern —
                   outer to inner, Campaign progress / Active campaigns / Creators

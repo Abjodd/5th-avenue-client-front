@@ -160,7 +160,7 @@ export default function CampaignCard({ campaign: c, onClick }) {
       }}
       whileHover={{ y: -2 }}
       onClick={onClick}
-      className="group flex h-full min-h-[190px] cursor-pointer flex-col rounded-[16px] border border-[#e7e5df] bg-white/90 px-4 py-3.5 shadow-[0_2px_10px_rgba(30,28,20,0.045)] backdrop-blur-sm transition-all duration-200 hover:border-[#d9d5ca] hover:shadow-[0_8px_22px_rgba(30,28,20,0.075)]"
+      className="group flex h-full min-h-[190px] cursor-pointer flex-col rounded-[16px] border border-[#d4d4d4] bg-[#eeeeee] px-4 py-3.5 shadow-[0_2px_10px_rgba(30,28,20,0.045)] transition-all duration-200 hover:border-[#d9d5ca] hover:shadow-[0_8px_22px_rgba(30,28,20,0.075)]"
     >
       {/* Campaign title and progress */}
       <div className="flex items-start justify-between gap-3">
@@ -200,7 +200,7 @@ export default function CampaignCard({ campaign: c, onClick }) {
       )}
 
       {/* Campaign metrics */}
-      <div className="mt-3 flex items-center gap-2 rounded-[12px] bg-[#f5f4f1] px-2 py-2.5">
+      <div className="mt-3 flex items-center gap-2 rounded-[12px] bg-[#dedede] px-2 py-2.5">
         <StatChip
           icon={Users}
           label="Creators"
