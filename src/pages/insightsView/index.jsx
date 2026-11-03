@@ -19,6 +19,7 @@
  * as-is. This file only owns the shell: hero, rail, section scaffolding.
  */
 import { useRef, useState } from "react";
+import { useInView } from "motion/react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import {
@@ -26,9 +27,11 @@ import {
 } from "./primitives";
 import { SECTIONS } from "./theme";
 import { QuestionsSection, TrendingSection, MarketWatchSection, NewsletterSection } from "./sections";
+import { AudienceVoiceSection } from "./audienceVoice";
 
 const SECTION_CONTENT = {
   questions: QuestionsSection,
+  "audience-voice": AudienceVoiceSection,
   trending: TrendingSection,
   "market-watch": MarketWatchSection,
   newsletter: NewsletterSection,
@@ -37,6 +40,9 @@ const SECTION_CONTENT = {
 function Hero() {
   const wrapRef = useRef(null);
   const flashRef = useRef(null);
+  // Pause the hero's looping bits (live dot, spinning scroll cue) once it's
+  // scrolled away — no point animating what nobody can see.
+  const heroInView = useInView(wrapRef);
 
   useGSAP(
     () => {
@@ -108,7 +114,7 @@ function Hero() {
       <div aria-hidden className="absolute inset-x-0 bottom-0 z-0 overflow-hidden" style={{ top: -84 }}>
         <HeroPhotoLayer />
       </div>
-      <div ref={wrapRef} className="relative z-10 mx-auto flex min-h-screen max-w-[1600px] flex-col justify-start px-5 pb-10 pt-28 sm:px-9 sm:pt-32">
+      <div ref={wrapRef} className={`relative z-10 mx-auto flex min-h-screen${heroInView ? "" : " iw-paused"} max-w-[1600px] flex-col justify-start px-5 pb-10 pt-28 sm:px-9 sm:pt-32`}>
         <div
           ref={flashRef}
           aria-hidden
@@ -137,8 +143,8 @@ function Hero() {
         </h1>
 
         <p data-hero-fade className="mt-8 max-w-3xl text-[18px] leading-relaxed text-black/60 dark:text-white/55 sm:text-[20px]">
-          Questions worth asking, what's trending, what the wider market is doing, and Fifth Avenue's own dispatch —
-          one continuous read, four signals deep.
+          Questions worth asking, what your audience is saying, what's trending, what the wider market is doing, and
+          Fifth Avenue's own dispatch — one continuous read, five signals deep.
         </p>
 
         <div data-hero-fade className="mt-12 flex flex-wrap items-center gap-x-7 gap-y-4">

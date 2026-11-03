@@ -13,7 +13,7 @@
 // reduced-motion viewer gets the finished, fully-visible layout with no
 // motion at all, never a half-played animation.
 import { useEffect, useRef, useState } from "react";
-import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
+import { motion, useInView, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -38,6 +38,7 @@ export function InsightsKeyframes() {
       @keyframes iw-hero-kenburns { from { transform: scale(1); } to { transform: scale(1.08); } }
       @keyframes iw-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       @keyframes iw-bounce-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+      .iw-paused, .iw-paused * { animation-play-state: paused !important; }
     `}</style>
   );
 }
@@ -49,7 +50,9 @@ export function InsightsKeyframes() {
    that only exist once async data lands (every section here) still get
    wired up once they actually mount. ── */
 export function useScrollBatch(containerRef, selector, opts = {}, deps = []) {
-  const { y = 40, scale = 0.96, stagger = 0.08, blur = 8 } = opts;
+  // No blur on reveal any more — animating `filter` repaints every card on
+  // every frame; opacity + transform run on the compositor.
+  const { y = 40, scale = 0.96, stagger = 0.08 } = opts;
   useGSAP(
     () => {
       const root = containerRef.current;
@@ -59,7 +62,7 @@ export function useScrollBatch(containerRef, selector, opts = {}, deps = []) {
 
       const mm = gsap.matchMedia();
       mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.set(targets, { opacity: 0, y, scale, filter: `blur(${blur}px)` });
+        gsap.set(targets, { opacity: 0, y, scale });
         ScrollTrigger.batch(targets, {
           start: "top 90%",
           once: true,
@@ -68,7 +71,6 @@ export function useScrollBatch(containerRef, selector, opts = {}, deps = []) {
               opacity: 1,
               y: 0,
               scale: 1,
-              filter: "blur(0px)",
               duration: 0.8,
               ease: "power3.out",
               stagger,
@@ -102,7 +104,10 @@ export function AmbientField({ activeId }) {
       <svg
         aria-hidden
         className={`absolute inset-0 h-full w-full transition-[color] duration-[1600ms] ease-out ${dark ? "opacity-[0.16]" : "opacity-[0.11]"}`}
-        style={{ color: active.accent, animation: "iw-motif-drift 46s ease-in-out infinite alternate" }}
+        // Static on purpose: the old 46s drift (a couple of pixels a second —
+        // barely visible) forced the whole screen to be recomposited on every
+        // frame, forever, which is a lot of the page's lag on laptops.
+        style={{ color: active.accent }}
       >
         <InfluencerMotifPattern patternId="iw-motifs" />
         <rect width="100%" height="100%" fill="url(#iw-motifs)" />
@@ -146,17 +151,22 @@ export function HeroPhotoLayer() {
   const dark = resolved === "dark";
   const reduced = useReducedMotion();
   const [index, setIndex] = useState(0);
+  // Once the hero has scrolled away, stop the crossfade and the zoom — they
+  // were still repainting full-width photos behind the rest of the page.
+  const ref = useRef(null);
+  const visible = useInView(ref);
+  const moving = !reduced && visible;
 
   useEffect(() => {
-    if (reduced || HERO_PHOTOS.length < 2) return;
+    if (!moving || HERO_PHOTOS.length < 2) return;
     const id = setInterval(() => {
       setIndex((i) => (i + 1) % HERO_PHOTOS.length);
     }, 5000);
     return () => clearInterval(id);
-  }, [reduced]);
+  }, [moving]);
 
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+    <div ref={ref} aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       {HERO_PHOTOS.map((url, i) => (
         <div
           key={url}
@@ -170,6 +180,7 @@ export function HeroPhotoLayer() {
               ? "brightness(0.55) saturate(1.1) contrast(1.05)"
               : "brightness(0.92) saturate(1.05)",
             animation: !reduced && i === index ? "iw-hero-kenburns 12s ease-out infinite alternate" : "none",
+            animationPlayState: moving ? "running" : "paused",
           }}
         />
       ))}
@@ -303,11 +314,10 @@ export function SectionBand({ section, onActivate }) {
       mm.add("(prefers-reduced-motion: no-preference)", () => {
         gsap.fromTo(
           numeralRef.current,
-          { scale: 0.72, opacity: 0.12, filter: "blur(14px)" },
+          { scale: 0.72, opacity: 0.12 },
           {
             scale: 1,
             opacity: 1,
-            filter: "blur(0px)",
             ease: "none",
             scrollTrigger: { trigger: el, start: "top 92%", end: "top 38%", scrub: 0.6 },
           },
@@ -385,8 +395,8 @@ export function CursorGlow() {
   return (
     <motion.div
       aria-hidden
-      className={`pointer-events-none fixed left-0 top-0 hidden size-[560px] rounded-full blur-[100px] lg:block ${resolved === "dark" ? "opacity-[0.05]" : "opacity-[0.06]"}`}
-      style={{ x: tx, y: ty, background: `radial-gradient(circle, ${resolved === "dark" ? "#ffffff" : "#171410"}, transparent 70%)` }}
+      className={`pointer-events-none fixed left-0 top-0 hidden size-[560px] rounded-full lg:block ${resolved === "dark" ? "opacity-[0.045]" : "opacity-[0.05]"}`}
+      style={{ x: tx, y: ty, willChange: "transform", background: `radial-gradient(circle, ${resolved === "dark" ? "#ffffff" : "#171410"} 0%, transparent 62%)` }}
     />
   );
 }

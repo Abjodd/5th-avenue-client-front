@@ -68,9 +68,20 @@ export const SECTIONS = [
    
   },
   {
-    id: "trending",
+    // The brand's own audience, read from the comments on its campaign posts
+    // — second, right after the Quadrant, because it is about THEIR campaigns
+    // where the sections after it look outward. See audienceVoice.jsx.
+    id: "audience-voice",
     roman: "II",
     n: "02",
+    label: "Audience Voice",
+    hint: "What people said in the comments on your campaign posts.",
+    accent: FORMAL_ACCENT,
+  },
+  {
+    id: "trending",
+    roman: "III",
+    n: "03",
     label: "Trending",
     hint: "What's moving across the roster and the wider platforms.",
     accent: FORMAL_ACCENT,
@@ -78,8 +89,8 @@ export const SECTIONS = [
   },
   {
     id: "market-watch",
-    roman: "III",
-    n: "03",
+    roman: "IV",
+    n: "04",
     label: "Market Watch",
     hint: "Signals from outside the account — category and competitor moves.",
     accent: FORMAL_ACCENT,
@@ -87,8 +98,8 @@ export const SECTIONS = [
   },
   {
     id: "newsletter",
-    roman: "IV",
-    n: "04",
+    roman: "V",
+    n: "05",
     label: "Newsletter",
     hint: "The latest dispatch from Fifth Avenue.",
     accent: FORMAL_ACCENT,
@@ -111,9 +122,11 @@ export const RIMS = [
 // through inline `style`, never through a computed class name. Each carries
 // its own `dark:` twin so every card built from these picks up the correct
 // look for whichever theme is active with no per-component branching.
+// No backdrop-blur: the cards are ~solid anyway, and a blur behind every card
+// (over the animated page background) was the main cause of scroll lag.
 export const GLASS_CARD =
-  "rounded-[20px] border border-black/[0.08] bg-[#fffdf8]/92 backdrop-blur-xl shadow-[0_16px_44px_-22px_rgba(30,24,12,0.22),inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-white/[0.09] dark:bg-[#111118]/92 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.06)]";
+  "rounded-[20px] border border-black/[0.08] bg-[#fffdf8]/[0.97] shadow-[0_12px_30px_-20px_rgba(30,24,12,0.24),inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-white/[0.09] dark:bg-[#111118]/[0.97] dark:shadow-[0_14px_36px_-22px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)]";
 export const GLASS_CARD_SOFT =
-  "rounded-[16px] border border-black/[0.08] bg-[#fffdf8]/92 backdrop-blur-lg dark:border-white/[0.08] dark:bg-[#111118]/90";
+  "rounded-[16px] border border-black/[0.08] bg-[#fffdf8]/[0.97] dark:border-white/[0.08] dark:bg-[#111118]/[0.96]";
 export const MONO_LABEL =
   "font-mono text-[10.5px] font-semibold uppercase tracking-[0.22em]";
