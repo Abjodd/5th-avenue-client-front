@@ -22,7 +22,6 @@
  * alone, since those distinguish groups rather than report a value.
  */
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
   UserCheck, Clapperboard, Rocket, MapPin, Sparkles, ArrowRight,
@@ -32,6 +31,7 @@ import {
 import { useApp } from "../context";
 import { useAuth } from "../context/AuthContext";
 import { usePortalCampaigns } from "../lib/usePortalData";
+import { campaignPhaseOf } from "../lib/phases";
 import { usePersistentState } from "../lib/usePersistentState";
 import { useIsMobile } from "../lib/useIsMobile";
 import { fmtNum, fmtINR, fmtINRExact, fmtCPV, fmtShare, prettyDate, initials, dayLabel } from "../lib/format";
@@ -953,10 +953,65 @@ function MobileTopCreators({ creators, setPage }) {
   );
 }
 
+function LiveCampaignsList({ campaigns, setPage }) {
+  if (!campaigns.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-line px-4 py-5 text-center">
+        <p className="text-[13px] font-semibold text-ink">No live campaigns right now</p>
+        <p className="mt-1 text-[11px] text-mute">
+          Campaigns will appear here when they move into the Live stage.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full min-w-0 overflow-x-auto px-1 py-2 [scrollbar-width:thin]">
+      {/* The scroll viewport stays full width; the inner row floats around its
+          content so its rounded hover background never stretches across the page. */}
+      <div className="flex w-max min-w-0 gap-3 px-2 py-2">
+        {campaigns.map((campaign) => {
+          const campaignId = campaign.id ?? campaign._id;
+          const campaignCategory =
+            campaign.service || campaign.category || campaign.type || "Campaign";
+
+          return (
+            <button
+              key={campaignId ?? campaign.name}
+              type="button"
+              onClick={() => setPage("campaigns", { campaignId })}
+              aria-label={`Open ${campaign.name || "campaign"} details`}
+              className="group flex h-[68px] w-[280px] max-w-[85vw] shrink-0 items-center gap-3 rounded-[20px] border border-line/80 bg-panel px-3.5 text-left shadow-none transition-colors duration-200 hover:bg-well hover:border-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green/[0.08] text-green">
+                <Radio size={18} strokeWidth={2.4} />
+              </span>
+
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[14px] font-bold leading-snug text-ink">
+                  {campaign.name || "Untitled campaign"}
+                </span>
+                <span className="mt-1 block truncate text-[12px] leading-snug text-sub">
+                  {campaignCategory}
+                </span>
+              </span>
+
+              <ArrowRight
+                size={18}
+                strokeWidth={2}
+                className="shrink-0 text-accent transition-transform duration-200 group-hover:translate-x-1"
+              />
+            </button>
+          );
+        })}
+        </div>
+    </div>
+  );
+}
 function OverviewMobile({
   firstName, clientName, kpis, health, cpv, savedVsIndustry,
   signalHint, actionSignals, noteSignals, totalActionable, queues, go,
-  activity, growth, allCreators, setPage, onLiveCampaigns, P,
+  activity, growth, allCreators, setPage, liveCampaigns, P,
 }) {
   return (
     <div className="relative min-h-screen px-4 pb-12 pt-5">
@@ -1000,7 +1055,7 @@ function OverviewMobile({
           </Panel>
         )}
         {totalActionable === 0 && (
-          <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+          <p className="flex items-center gap-2 rounded-xl px-1 py-2 text-[13px] font-semibold text-ink">
             <Radio size={15} className="text-green" />
             You&rsquo;re all caught up — nothing is waiting on your call.
           </p>
@@ -1013,6 +1068,10 @@ function OverviewMobile({
             ))}
           </div>
         )}
+        <div className="mt-5">
+          <div className="microlabel mb-2.5">Live campaigns</div>
+          <LiveCampaignsList campaigns={liveCampaigns} setPage={setPage} />
+        </div>
       </div>
 
       {/* Growth — AccountGrowth already reflows to one column below `lg`,
@@ -1033,12 +1092,6 @@ function OverviewMobile({
       {/* Pipeline, goals-by-service, Performance and Content aren't in this
           pilot pass yet — the full breakdown stays one tap away. */}
       <button
-        onClick={onLiveCampaigns}
-        className="mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-accent px-4 py-3 text-[13px] font-semibold text-white shadow-sm transition hover:opacity-90"
-      >
-        <Radio size={15} /> View live campaigns <ArrowRight size={14} />
-      </button>
-      <button
         onClick={() => setPage("campaigns")}
         className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-3 text-[13px] font-semibold text-accent"
       >
@@ -1050,8 +1103,6 @@ function OverviewMobile({
 
 export default function OverviewDashboard() {
   const { P, setPage } = useApp();
-  const navigate = useNavigate();
-  const openLiveCampaigns = useCallback(() => navigate("/portal/live-campaigns"), [navigate]);
   const { user } = useAuth();
   const reducedMotion = useReducedMotion();
   const clientName = user?.clientName ?? "Your Brand";
@@ -1101,6 +1152,13 @@ export default function OverviewDashboard() {
      but an unagreed budget and a shortlist nobody has been shown should not
      move a number the brand is asked to trust (portalMetrics countsInMetrics). */
   const list = useMemo(() => (campaigns ?? []).filter(countsInMetrics), [campaigns]);
+  // Overview receives the raw API campaign shape. Resolve its stage through
+  // the shared phase registry instead of reading `campaign.phase` (a field
+  // added only by toViewCampaign on the Campaigns page).
+  const liveCampaigns = useMemo(
+    () => (campaigns ?? []).filter((campaign) => campaignPhaseOf(campaign) === "live"),
+    [campaigns],
+  );
   const allCreators = useMemo(() => flattenCreators(list), [list]);
   // Real per-state activity for the hero globe — reuses the exact call
   // RegionalMap already makes off the same two values, so this is free: no
@@ -1240,7 +1298,7 @@ export default function OverviewDashboard() {
         growth={growth}
         allCreators={allCreators}
         setPage={setPage}
-        onLiveCampaigns={openLiveCampaigns}
+        liveCampaigns={liveCampaigns}
         P={P}
       />
     );
@@ -1299,17 +1357,6 @@ export default function OverviewDashboard() {
               {/* Masthead rule — closes the greeting off from the panels below it,
                   the way a brief's header is ruled off from its body. */}
               <div className="rule mt-8" />
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={openLiveCampaigns}
-                  className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(44,62,126,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_9px_24px_rgba(44,62,126,0.28)]"
-                >
-                  <Radio size={14} /> View live campaigns <ArrowRight size={14} />
-                </button>
-                <span className="text-[11px] text-mute">See campaigns with posts currently live</span>
-              </div>
-
               {/* Three metrics, one graphic: the Apple Activity-rings pattern —
                   outer to inner, Campaign progress / Active campaigns / Creators
                   live — instead of a lonely boxed ring or a row of flat stats.
@@ -1373,12 +1420,14 @@ export default function OverviewDashboard() {
             reaches here they've seen the account's whole shape, so "what
             needs a decision today" lands as a to-do list off the back of
             that context instead of the very first thing before any of it. */}
-        <Section
-          id="signals"
-          eyebrow="Over to you"
-          title="Your call"
-          hint={signalHint}
-        >
+        <section id="signals" className="scroll-mt-24 py-2">
+          <div className="space-y-4 px-0 sm:px-1">
+          {/* Live campaign cards directly below the Your call description. */}
+          <div className="mb-2">
+            <div className="microlabel mb-3">Live campaigns</div>
+            <LiveCampaignsList campaigns={liveCampaigns} setPage={setPage} />
+          </div>
+
           {/* Decisions first, ranked, in one panel. */}
           {actionSignals.length > 0 && (
             <Panel reveal className="divide-y divide-line overflow-hidden">
@@ -1400,8 +1449,8 @@ export default function OverviewDashboard() {
               announcing an absence directly above real content, so it
               shrinks to one line whenever there are notes to follow it. */}
           {totalActionable === 0 && (noteSignals.length > 0 ? (
-            <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-              <Radio size={15} className="text-green" />
+            <p className="flex items-center gap-2 px-1 py-1 text-[13px] font-semibold text-ink">
+              <Radio size={15} className="shrink-0 text-green" />
               You&rsquo;re all caught up — nothing is waiting on your call.
             </p>
           ) : (
@@ -1419,17 +1468,23 @@ export default function OverviewDashboard() {
           <NeedsYouExtra queues={queues} setPage={setPage} P={P} />
 
           {noteSignals.length > 0 && (
-            <div className={totalActionable > 0 ? "mt-6" : "mt-4"}>
-              <div className="microlabel mb-3">Also worth knowing</div>
-              <div className="grid gap-3.5 sm:grid-cols-2">
+            <div className={totalActionable > 0 ? "mt-4" : "mt-3"}>
+              <div className="microlabel mb-2">Also worth knowing</div>
+              <div className="flex flex-col gap-2">
                 {noteSignals.map((s) => (
-                  <SignalNote key={s.id} signal={s} onGo={() => go(s)} />
+                  <div
+                    key={s.id}
+                    className="rounded-lg border-0 bg-transparent px-2 py-1.5 sm:px-3"
+                  >
+                    <SignalNote signal={s} onGo={() => go(s)} />
+                  </div>
                 ))}
               </div>
             </div>
           )}
 
-        </Section>
+          </div>
+        </section>
 
         {/* ── ACCOUNT ──────────────────────────────────────────────────────
             Every other section here is titled as a sentence about what the

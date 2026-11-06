@@ -4,9 +4,7 @@
 // data; missing values render "—" rather than being invented.
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowRight } from "lucide-react";
 import { cx } from "../lib/cx";
 import { useApp } from "../context";
 import { usePortalCampaigns } from "../lib/usePortalData";
@@ -34,7 +32,6 @@ const PhaseIcon = ({ phase }) => {
 
 export default function CampaignsPage() {
   const { P, navParams } = useApp();
-  const navigate = useNavigate();
   const { data: campaigns, setData: setCampaigns, error, retry } = usePortalCampaigns(mapCampaigns);
   const [selected, setSelected] = useState(null);
   // Board/grid, search and the service filter are held for the session — the
@@ -87,7 +84,6 @@ export default function CampaignsPage() {
   const nPending = campaigns.filter(c => c.status === "pending").length;
   const nActive = campaigns.filter(c => c.status === "active").length;
   const nDone = campaigns.filter(c => c.status === "done").length;
-  const nLiveCampaigns = campaigns.filter(c => c.phase === "live").length;
 
   /* Segmented-control button with a sliding active pill */
   const seg = (on, onClick, label, layoutId) => (
@@ -120,17 +116,6 @@ export default function CampaignsPage() {
               <h1 className="font-serif text-[42px] font-bold italic leading-[1.05] tracking-[-0.02em] text-ink">Campaigns</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => navigate("/portal/live-campaigns")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/[0.07] px-3.5 py-2 text-[11.5px] font-semibold text-accent transition-colors hover:bg-accent/[0.12]"
-              >
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-green opacity-40" />
-                  <span className="relative inline-flex size-2 rounded-full bg-green" />
-                </span>
-                Live campaigns <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-green/10 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-green">{nLiveCampaigns}</span> <ArrowRight size={13} />
-              </button>
               <div className="flex items-baseline gap-4 rounded-full border border-line bg-glass px-4 py-2 shadow-sm backdrop-blur-md">
                 {nPending > 0 && <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-amber"><AnimatedNumber value={nPending}/></span><span className="text-[10.5px] text-mute">Pending</span></div>}
                 <div className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-ink"><AnimatedNumber value={nActive}/></span><span className="text-[10.5px] text-mute">Active</span></div>

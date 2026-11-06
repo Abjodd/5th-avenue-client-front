@@ -7,7 +7,14 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Radio, ArrowLeft, ArrowRight, ExternalLink, Users, Eye } from "lucide-react";
+import {
+  Radio,
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  Users,
+  Eye,
+} from "lucide-react";
 import { useApp } from "../context";
 import { usePortalCampaigns } from "../lib/usePortalData";
 import { toViewCampaign } from "../components/campaigns/mapping";
@@ -24,9 +31,12 @@ function LiveCreatorRow({ creator }) {
         {creator.avatar || (creator.name || "C").slice(0, 1).toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[12.5px] font-semibold text-ink">{creator.name || "Creator"}</div>
+        <div className="truncate text-[12.5px] font-semibold text-ink">
+          {creator.name || "Creator"}
+        </div>
         <div className="truncate text-[10.5px] text-mute">
-          {[creator.handle, creator.platform].filter(Boolean).join(" · ") || "Live creator"}
+          {[creator.handle, creator.platform].filter(Boolean).join(" · ") ||
+            "Live creator"}
         </div>
       </div>
       {liveUrl ? (
@@ -49,8 +59,13 @@ function LiveCreatorRow({ creator }) {
 }
 
 function LiveCampaignCard({ campaign, onOpen }) {
-  const liveCreators = (campaign.creators || []).filter((creator) => creator.live);
-  const meta = [campaign.service, campaign.region !== "—" ? campaign.region : null]
+  const liveCreators = (campaign.creators || []).filter(
+    (creator) => creator.live,
+  );
+  const meta = [
+    campaign.service,
+    campaign.region !== "—" ? campaign.region : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -66,23 +81,39 @@ function LiveCampaignCard({ campaign, onOpen }) {
               </span>
               LIVE NOW
             </div>
-            <h2 className="truncate font-serif text-[21px] font-semibold leading-tight text-ink">{campaign.name}</h2>
-            {meta && <p className="mt-1 truncate text-[11.5px] text-mute">{meta}</p>}
+            <h2 className="truncate font-serif text-[21px] font-semibold leading-tight text-ink">
+              {campaign.name}
+            </h2>
+            {meta && (
+              <p className="mt-1 truncate text-[11.5px] text-mute">{meta}</p>
+            )}
           </div>
           <div className="shrink-0 rounded-[13px] bg-well px-3 py-2 text-center">
-            <div className="tnum text-[22px] font-bold leading-none text-ink">{campaign.liveCount ?? liveCreators.length}</div>
-            <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-mute">Live</div>
+            <div className="tnum text-[22px] font-bold leading-none text-ink">
+              {campaign.liveCount ?? liveCreators.length}
+            </div>
+            <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-mute">
+              Live
+            </div>
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <div className="rounded-[12px] bg-well/70 px-3 py-2.5">
-            <div className="flex items-center gap-1.5 text-[10px] text-mute"><Users size={11} /> Creators live</div>
-            <div className="tnum mt-1 text-[15px] font-semibold text-ink">{campaign.liveCount ?? liveCreators.length}</div>
+            <div className="flex items-center gap-1.5 text-[10px] text-mute">
+              <Users size={11} /> Creators live
+            </div>
+            <div className="tnum mt-1 text-[15px] font-semibold text-ink">
+              {campaign.liveCount ?? liveCreators.length}
+            </div>
           </div>
           <div className="rounded-[12px] bg-well/70 px-3 py-2.5">
-            <div className="flex items-center gap-1.5 text-[10px] text-mute"><Eye size={11} /> Tracked views</div>
-            <div className="tnum mt-1 text-[15px] font-semibold text-ink">{campaign.views || "—"}</div>
+            <div className="flex items-center gap-1.5 text-[10px] text-mute">
+              <Eye size={11} /> Tracked views
+            </div>
+            <div className="tnum mt-1 text-[15px] font-semibold text-ink">
+              {campaign.views || "—"}
+            </div>
           </div>
         </div>
 
@@ -145,13 +176,13 @@ export default function LiveCampaignOverview() {
     <div className="relative min-h-screen bg-page font-sans text-ink">
       <AmbientBackground variant="b" />
       <main className="relative z-10 mx-auto max-w-[1500px] px-4 pb-14 pt-8 sm:px-7 lg:px-9">
-       <button
-  type="button"
-  onClick={() => navigate("/portal/campaigns")}
-  className="mb-6 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-mute transition-colors hover:text-accent"
->
-  <ArrowLeft size={14} /> Back to all campaigns
-</button>
+        <button
+          type="button"
+          onClick={() => navigate("/portal/campaigns")}
+          className="mb-6 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-mute transition-colors hover:text-accent"
+        >
+          <ArrowLeft size={14} /> Back to all campaigns
+        </button>
 
         <header className="mb-7 flex flex-col justify-between gap-5 border-b border-line pb-6 sm:flex-row sm:items-end">
           <div>
@@ -167,11 +198,15 @@ export default function LiveCampaignOverview() {
           </div>
           <div className="flex flex-wrap gap-3">
             <div className="min-w-[118px] rounded-[14px] border border-line bg-glass px-4 py-3">
-              <div className="tnum text-[25px] font-bold leading-none text-ink">{liveCampaigns.length}</div>
+              <div className="tnum text-[25px] font-bold leading-none text-ink">
+                {liveCampaigns.length}
+              </div>
               <div className="mt-1 text-[10px] text-mute">Live campaigns</div>
             </div>
             <div className="min-w-[118px] rounded-[14px] border border-line bg-glass px-4 py-3">
-              <div className="tnum text-[25px] font-bold leading-none text-ink">{liveCreatorTotal}</div>
+              <div className="tnum text-[25px] font-bold leading-none text-ink">
+                {liveCreatorTotal}
+              </div>
               <div className="mt-1 text-[10px] text-mute">Live creators</div>
             </div>
           </div>
@@ -179,8 +214,12 @@ export default function LiveCampaignOverview() {
 
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-serif text-[24px] font-semibold text-ink">Currently live</h2>
-            <p className="mt-1 text-[11.5px] text-mute">{filtered.length} of {liveCampaigns.length} live campaigns</p>
+            <h2 className="font-serif text-[24px] font-semibold text-ink">
+              Currently live
+            </h2>
+            <p className="mt-1 text-[11.5px] text-mute">
+              {filtered.length} of {liveCampaigns.length} live campaigns
+            </p>
           </div>
           <input
             type="search"
@@ -201,8 +240,12 @@ export default function LiveCampaignOverview() {
           />
         ) : filtered.length === 0 ? (
           <div className="rounded-[16px] border border-dashed border-line bg-glass/50 px-5 py-12 text-center">
-            <p className="text-[13px] font-semibold text-ink">No matching campaigns</p>
-            <p className="mt-1 text-[11.5px] text-mute">Try another campaign name, service or region.</p>
+            <p className="text-[13px] font-semibold text-ink">
+              No matching campaigns
+            </p>
+            <p className="mt-1 text-[11.5px] text-mute">
+              Try another campaign name, service or region.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
