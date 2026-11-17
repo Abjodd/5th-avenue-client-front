@@ -170,7 +170,7 @@ for (const svc of ALL_SERVICES) {
 }
 
 // Private or one-off surfaces: never indexed (also Disallowed in robots.txt).
-export const NOINDEX_PREFIXES = ["/portal", "/login", "/pitch", "/pitch-draft", "/overview", "/campaigns", "/profile", "/styleguide"];
+export const NOINDEX_PREFIXES = ["/portal", "/login", "/consultant", "/pitch", "/pitch-draft", "/overview", "/campaigns", "/profile", "/styleguide"];
 
 export const absUrl = (path) => SITE.url + (path === "/" ? "/" : path);
 

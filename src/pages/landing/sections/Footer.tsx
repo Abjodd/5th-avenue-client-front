@@ -94,6 +94,12 @@ export function Footer() {
             >
               Admin login
             </a>
+            <Link
+              to="/consultant/login"
+              className="inline-flex h-8 items-center rounded-md border border-line px-3 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+            >
+              Consultant login
+            </Link>
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
               © 2026 Fifth Avenue Marketing
             </p>

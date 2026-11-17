@@ -76,6 +76,9 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Assets = lazy(() => import("./pages/assets"));
 const Billing = lazy(() => import("./pages/billing"));
 const Insights = lazy(() => import("./pages/Insights"));
+/* Consultant portal — its own sign-in, session and look (src/consultant). */
+const ConsultantLogin = lazy(() => import("./consultant/ConsultantLogin"));
+const ConsultantDashboard = lazy(() => import("./consultant/ConsultantDashboard"));
 
 /** Suspense boundary for a lazily-loaded route element. The marketing site
     fades in from a bare tinted panel; the portal shows its own skeleton. */
@@ -116,6 +119,9 @@ export const router = createBrowserRouter([
   { path: "/apply", element: <S><ApplyPage /></S> },
   { path: "/start", element: <S><StartProjectPage /></S> },
   { path: "/login", element: <S><Login /></S> },
+  { path: "/consultant/login", element: <S><ConsultantLogin /></S> },
+  { path: "/consultant", element: <S><ConsultantDashboard /></S> },
+  { path: "/consultant/*", element: <Navigate to="/consultant" replace /> },
   // Public, code-gated — not the brand login. See src/pages/PitchApprove
   // and 5th-internal-back/routes/pitch.js.
   { path: "/pitch/:brandId", element: <S><PitchApprove /></S> },

@@ -8,6 +8,8 @@
     { "source": "/portal", "destination": "/app-shell" },
     { "source": "/portal/:path*", "destination": "/app-shell" },
     { "source": "/login", "destination": "/app-shell" },
+    { "source": "/consultant", "destination": "/app-shell" },
+    { "source": "/consultant/:path*", "destination": "/app-shell" },
     { "source": "/pitch/:path*", "destination": "/app-shell" },
     { "source": "/pitch-draft/:path*", "destination": "/app-shell" },
     { "source": "/overview", "destination": "/app-shell" },
